@@ -19,6 +19,7 @@ public class ClaudeCompanionWindow : EditorWindow
     private static readonly Color DividerColor = new Color(1f, 1f, 1f, 0.08f);
     private static readonly Color UserBubbleColor = new Color(0.20f, 0.36f, 0.58f);
     private static readonly Color ClaudeBubbleColor = new Color(0.24f, 0.24f, 0.28f);
+    private static readonly Color InputFieldColor = new Color(0.24f, 0.24f, 0.28f);
     private static readonly Color RunningColor = new Color(0.85f, 0.35f, 0.35f);
     private static readonly Color StoppedColor = new Color(0.35f, 0.75f, 0.45f);
     private static readonly Color IdleBodyColor = new Color(0.55f, 0.62f, 0.72f);
@@ -37,26 +38,12 @@ public class ClaudeCompanionWindow : EditorWindow
     private Vector2 logScroll;
     private int lastChatMessageCount = -1;
 
-    // Serialized so the user's resize/collapse choice survives a domain reload,
-    // same rationale as restoredSessionId above.
-    [SerializeField] private bool activityLogCollapsed;
-    [SerializeField] private float activityLogHeight = 100f;
-    private bool resizingActivityLog;
-
-    private const float MinActivityLogHeight = 60f;
-    private const float MaxActivityLogHeightRatio = 0.6f;
-    private const float ActivityLogHandleHeight = 6f;
-    private const float DividerTotalHeight = 13f; // matches Divider(): Space(6) + 1px line + Space(6)
-    private const float MinChatScrollHeight = 180f;
-
-    // GUILayoutUtility.GetLastRect() returns a dummy near-zero rect during the Layout
-    // event (Unity only assigns real positions once the Layout pass finishes building the
-    // tree). Trusting that dummy value made CalculateChatScrollHeight() think almost nothing
-    // was drawn above the chat, so it reserved a hugely oversized scroll view - pushing the
-    // input row, divider, and activity log (collapse/expand button included) off the bottom
-    // of the window. Caching the value from any non-Layout event and reusing it during
-    // Layout keeps the measurement stable across both passes.
-    private float cachedConsumedAboveChat = 200f;
+    // Hidden by default - the activity log went through several rounds of resize/measurement
+    // logic that kept fighting with the chat area's layout (see git history). Instead of
+    // continuing to patch that coupling, the log now only keeps a minimal collapsed trace by
+    // default; expanding it uses a fixed height so it can never feed back into chat sizing.
+    [SerializeField] private bool activityLogCollapsed = true;
+    private const float ActivityLogHeight = 120f;
 
     private readonly List<ChatMessage> chatMessages = new List<ChatMessage>();
     private readonly List<string> activityLog = new List<string>();
@@ -78,6 +65,7 @@ public class ClaudeCompanionWindow : EditorWindow
     private GUIStyle bubbleTextStyle;
     private GUIStyle characterStateLabelStyle;
     private GUIStyle logPathStyle;
+    private GUIStyle inputFieldStyle;
     private readonly Dictionary<Color, GUIStyle> logEntryStyleCache = new Dictionary<Color, GUIStyle>();
 
     private void OnEnable()
@@ -196,7 +184,7 @@ public class ClaudeCompanionWindow : EditorWindow
             GUILayout.Space(6);
             DrawControls();
             Divider();
-            DrawChat(CalculateChatScrollHeight());
+            DrawChat();
             Divider();
             DrawActivityLog();
         }
@@ -246,6 +234,21 @@ public class ClaudeCompanionWindow : EditorWindow
         logPathStyle = new GUIStyle(EditorStyles.miniLabel)
         {
             normal = { textColor = new Color(0.55f, 0.55f, 0.6f) }
+        };
+
+        // The default EditorStyles.textField skin barely contrasts against this window's
+        // custom dark BackgroundColor when the field is empty - see DrawChat(). Nulling out
+        // normal/focused.background here to force our own EditorGUI.DrawRect underneath was
+        // tried first, but it made Unity's internal TextEditor throw a NullReferenceException
+        // (in TextEditor.UpdateTextHandle/MoveCursorToPosition) as soon as the field was
+        // clicked into - which, caught by OnGUI's outer try/catch, silently killed that
+        // frame's rendering and looked exactly like the field "disappearing". Leaving the
+        // native background alone and only tinting text color is the safe way to adjust this.
+        inputFieldStyle = new GUIStyle(EditorStyles.textField)
+        {
+            normal = { textColor = Color.white },
+            focused = { textColor = Color.white },
+            padding = new RectOffset(6, 6, 2, 2)
         };
     }
 
@@ -360,6 +363,14 @@ public class ClaudeCompanionWindow : EditorWindow
 
         GUILayout.FlexibleSpace();
 
+        // Fallback path for the chat input row's recurring visibility bugs: an independent
+        // popup window that shares none of this window's layout/height calculations, so it
+        // keeps working even if the inline field ever breaks again.
+        if (GUILayout.Button("대체 입력창", EditorStyles.miniButton, GUILayout.Width(80)))
+        {
+            ClaudeCompanionSendDialog.Open(this);
+        }
+
         EditorGUILayout.EndHorizontal();
     }
 
@@ -399,35 +410,7 @@ public class ClaudeCompanionWindow : EditorWindow
         Repaint();
     }
 
-    // Chat used to size itself with GUILayout.ExpandHeight(true), on the assumption that
-    // shrinking/collapsing the activity log below it would automatically hand the freed
-    // space to the chat scroll view. In practice that didn't happen reliably: both areas
-    // contain word-wrapped, dynamically sized content, and IMGUI's expand resolution gets
-    // unreliable when a scrollbar's presence (which depends on the expand result) can
-    // change the wrap width feeding back into that same result. Computing the chat height
-    // explicitly - remaining space minus the log's own footprint, which we fully control -
-    // avoids that feedback loop and makes "shrink the log -> chat visibly grows" guaranteed.
-    private float CalculateChatScrollHeight()
-    {
-        if (Event.current.type != EventType.Layout)
-        {
-            cachedConsumedAboveChat = GUILayoutUtility.GetLastRect().yMax;
-        }
-        float remaining = position.height - cachedConsumedAboveChat;
-
-        float logHeaderHeight = EditorGUIUtility.singleLineHeight + 6f;
-        float logFootprint = activityLogCollapsed
-            ? logHeaderHeight
-            : logHeaderHeight + ActivityLogHandleHeight + activityLogHeight + EditorGUIUtility.singleLineHeight;
-
-        float chatChromeHeight = (EditorGUIUtility.singleLineHeight + 4f) // "채팅" header label
-            + (EditorGUIUtility.singleLineHeight + 6f); // input textfield + send button row
-
-        float chatScrollHeight = remaining - DividerTotalHeight - logFootprint - chatChromeHeight;
-        return Mathf.Max(MinChatScrollHeight, chatScrollHeight);
-    }
-
-    private void DrawChat(float scrollHeight)
+    private void DrawChat()
     {
         EditorGUILayout.LabelField("채팅", sectionHeaderStyle);
 
@@ -439,7 +422,10 @@ public class ClaudeCompanionWindow : EditorWindow
             chatScroll.y = float.MaxValue;
         }
 
-        chatScroll = EditorGUILayout.BeginScrollView(chatScroll, GUILayout.Height(scrollHeight));
+        // Fixed-height regions below (input row, divider, activity log) are laid out normally;
+        // this scroll view is the only expanding element in the window's vertical layout, so it
+        // simply claims whatever space is left - no manual height math or cross-frame caching.
+        chatScroll = EditorGUILayout.BeginScrollView(chatScroll, GUILayout.ExpandHeight(true));
 
         foreach (ChatMessage message in chatMessages)
         {
@@ -449,8 +435,16 @@ public class ClaudeCompanionWindow : EditorWindow
         EditorGUILayout.EndScrollView();
 
         EditorGUILayout.BeginHorizontal();
+
+        // A bare EditorGUILayout.TextField's default skin barely contrasts against this
+        // window's custom dark BackgroundColor - when empty (no text/selection highlight
+        // to draw the eye), the field reads as "missing" even though it's rendering fine.
+        // Painting an explicit background rect first (same approach as the chat bubbles)
+        // guarantees it stays visible regardless of content.
+        Rect inputRect = GUILayoutUtility.GetRect(GUIContent.none, EditorStyles.textField, GUILayout.ExpandWidth(true));
+        EditorGUI.DrawRect(inputRect, InputFieldColor);
         GUI.SetNextControlName("ChatInput");
-        inputText = EditorGUILayout.TextField(inputText);
+        inputText = EditorGUI.TextField(inputRect, inputText, inputFieldStyle);
 
         bool enterPressed = false;
         Event current = Event.current;
@@ -462,7 +456,7 @@ public class ClaudeCompanionWindow : EditorWindow
             current.Use();
         }
 
-        bool canSend = bridgeRunning && runner != null && !runner.IsBusy && !string.IsNullOrWhiteSpace(inputText);
+        bool canSend = CanSendMessage(inputText);
         EditorGUI.BeginDisabledGroup(!canSend);
         bool sendPressed = GUILayout.Button("Send", GUILayout.Width(60));
         EditorGUI.EndDisabledGroup();
@@ -471,7 +465,9 @@ public class ClaudeCompanionWindow : EditorWindow
 
         if ((sendPressed || enterPressed) && canSend)
         {
-            SendCurrentMessage();
+            SubmitMessage(inputText);
+            inputText = "";
+            GUI.FocusControl(null);
         }
     }
 
@@ -505,13 +501,23 @@ public class ClaudeCompanionWindow : EditorWindow
         GUILayout.Space(4);
     }
 
-    private void SendCurrentMessage()
+    // Shared by both the inline chat row and ClaudeCompanionSendDialog (the fallback input
+    // window) so a message can be sent identically regardless of which UI triggered it.
+    private bool CanSendMessage(string text)
     {
-        chatMessages.Add(new ChatMessage("You", inputText));
-        CompanionLog.AppendChat("You", inputText);
-        runner.Send(inputText);
-        inputText = "";
-        GUI.FocusControl(null);
+        return bridgeRunning && runner != null && !runner.IsBusy && !string.IsNullOrWhiteSpace(text);
+    }
+
+    public void SubmitMessage(string text)
+    {
+        if (!CanSendMessage(text))
+        {
+            return;
+        }
+        chatMessages.Add(new ChatMessage("You", text));
+        CompanionLog.AppendChat("You", text);
+        runner.Send(text);
+        Repaint();
     }
 
     private void DrawActivityLog()
@@ -530,9 +536,7 @@ public class ClaudeCompanionWindow : EditorWindow
             return;
         }
 
-        DrawActivityLogResizeHandle();
-
-        logScroll = EditorGUILayout.BeginScrollView(logScroll, GUILayout.Height(activityLogHeight));
+        logScroll = EditorGUILayout.BeginScrollView(logScroll, GUILayout.Height(ActivityLogHeight));
         foreach (string entry in activityLog)
         {
             EditorGUILayout.LabelField(entry, GetLogEntryStyle(LogColor(entry)));
@@ -540,37 +544,6 @@ public class ClaudeCompanionWindow : EditorWindow
         EditorGUILayout.EndScrollView();
 
         EditorGUILayout.LabelField($"로그 파일: {CompanionLog.FilePath}", logPathStyle);
-    }
-
-    // Drag handle between the chat and activity-log sections. CalculateChatScrollHeight()
-    // reads activityLogHeight/activityLogCollapsed each frame, so shrinking or collapsing
-    // the log here directly grows the chat area above it on the very next repaint.
-    private void DrawActivityLogResizeHandle()
-    {
-        Rect handleRect = GUILayoutUtility.GetRect(position.width, ActivityLogHandleHeight, GUILayout.ExpandWidth(true));
-        EditorGUI.DrawRect(handleRect, new Color(1f, 1f, 1f, resizingActivityLog ? 0.18f : 0.08f));
-        EditorGUIUtility.AddCursorRect(handleRect, MouseCursor.ResizeVertical);
-
-        Event e = Event.current;
-        if (e.type == EventType.MouseDown && handleRect.Contains(e.mousePosition))
-        {
-            resizingActivityLog = true;
-            e.Use();
-        }
-        else if (e.type == EventType.MouseUp && resizingActivityLog)
-        {
-            resizingActivityLog = false;
-            e.Use();
-        }
-        else if (e.type == EventType.MouseDrag && resizingActivityLog)
-        {
-            // The handle sits above the log, so dragging it up (negative delta.y)
-            // should grow the log below it.
-            float maxHeight = position.height * MaxActivityLogHeightRatio;
-            activityLogHeight = Mathf.Clamp(activityLogHeight - e.delta.y, MinActivityLogHeight, maxHeight);
-            e.Use();
-            Repaint();
-        }
     }
 
     private static Color LogColor(string entry)
