@@ -49,6 +49,15 @@ public class ClaudeCompanionWindow : EditorWindow
     private const float DividerTotalHeight = 13f; // matches Divider(): Space(6) + 1px line + Space(6)
     private const float MinChatScrollHeight = 180f;
 
+    // GUILayoutUtility.GetLastRect() returns a dummy near-zero rect during the Layout
+    // event (Unity only assigns real positions once the Layout pass finishes building the
+    // tree). Trusting that dummy value made CalculateChatScrollHeight() think almost nothing
+    // was drawn above the chat, so it reserved a hugely oversized scroll view - pushing the
+    // input row, divider, and activity log (collapse/expand button included) off the bottom
+    // of the window. Caching the value from any non-Layout event and reusing it during
+    // Layout keeps the measurement stable across both passes.
+    private float cachedConsumedAboveChat = 200f;
+
     private readonly List<ChatMessage> chatMessages = new List<ChatMessage>();
     private readonly List<string> activityLog = new List<string>();
 
@@ -58,6 +67,24 @@ public class ClaudeCompanionWindow : EditorWindow
     private bool isBlinking;
     private double nextBlinkTime;
     private double blinkEndTime;
+
+    // GUIStyle allocates on every construction, and OnGUI runs many times a second while
+    // this window is open (see RepaintInterval below). Building these fresh per call/per
+    // label was the single biggest per-frame allocation source, especially the activity
+    // log style which used to be re-created for every entry, every frame. Built once,
+    // lazily, on first use.
+    private GUIStyle sectionHeaderStyle;
+    private GUIStyle bubbleRoleStyle;
+    private GUIStyle bubbleTextStyle;
+    private GUIStyle characterStateLabelStyle;
+    private GUIStyle logPathStyle;
+    private readonly Dictionary<Color, GUIStyle> logEntryStyleCache = new Dictionary<Color, GUIStyle>();
+
+    // Blinking/bobbing only needs to look smooth, not run at the editor's uncapped
+    // repaint rate. Throttling to ~30fps cuts idle CPU usage while this window is open
+    // without any visible change to the animation.
+    private const double RepaintInterval = 1.0 / 30.0;
+    private double lastRepaintTime;
 
     private void OnEnable()
     {
@@ -166,6 +193,8 @@ public class ClaudeCompanionWindow : EditorWindow
 
         try
         {
+            EnsureStylesInitialized();
+
             EditorGUI.DrawRect(new Rect(0, 0, position.width, position.height), BackgroundColor);
 
             GUILayout.Space(4);
@@ -184,8 +213,58 @@ public class ClaudeCompanionWindow : EditorWindow
             Debug.LogException(ex);
         }
 
-        // Keep the character breathing/blinking even when idle.
-        Repaint();
+        // Keep the character breathing/blinking even when idle, but capped (see
+        // RepaintInterval) instead of forcing the editor to redraw every single frame.
+        double now = EditorApplication.timeSinceStartup;
+        if (now - lastRepaintTime >= RepaintInterval)
+        {
+            lastRepaintTime = now;
+            Repaint();
+        }
+    }
+
+    private void EnsureStylesInitialized()
+    {
+        if (sectionHeaderStyle != null)
+        {
+            return;
+        }
+
+        sectionHeaderStyle = new GUIStyle(EditorStyles.boldLabel)
+        {
+            fontSize = 12,
+            normal = { textColor = new Color(0.9f, 0.9f, 0.95f) },
+            margin = new RectOffset(2, 0, 0, 4)
+        };
+        bubbleRoleStyle = new GUIStyle(EditorStyles.miniBoldLabel)
+        {
+            normal = { textColor = new Color(0.8f, 0.85f, 0.95f) },
+            padding = new RectOffset(6, 6, 0, 0)
+        };
+        bubbleTextStyle = new GUIStyle(EditorStyles.wordWrappedLabel)
+        {
+            normal = { textColor = Color.white },
+            padding = new RectOffset(6, 6, 0, 0)
+        };
+        characterStateLabelStyle = new GUIStyle(EditorStyles.miniLabel)
+        {
+            alignment = TextAnchor.MiddleCenter,
+            normal = { textColor = new Color(0.85f, 0.85f, 0.9f) }
+        };
+        logPathStyle = new GUIStyle(EditorStyles.miniLabel)
+        {
+            normal = { textColor = new Color(0.55f, 0.55f, 0.6f) }
+        };
+    }
+
+    private GUIStyle GetLogEntryStyle(Color color)
+    {
+        if (!logEntryStyleCache.TryGetValue(color, out GUIStyle style))
+        {
+            style = new GUIStyle(EditorStyles.wordWrappedMiniLabel) { normal = { textColor = color } };
+            logEntryStyleCache[color] = style;
+        }
+        return style;
     }
 
     private void DrawCharacterStage()
@@ -238,12 +317,7 @@ public class ClaudeCompanionWindow : EditorWindow
         GUI.DrawTexture(new Rect(center.x + eyeSpacing - eyeSize / 2f, eyeY, eyeSize, eyeHeight), circleTexture);
         GUI.color = Color.white;
 
-        GUIStyle stateLabel = new GUIStyle(EditorStyles.miniLabel)
-        {
-            alignment = TextAnchor.MiddleCenter,
-            normal = { textColor = new Color(0.85f, 0.85f, 0.9f) }
-        };
-        GUI.Label(new Rect(stage.x, stage.yMax - 16, stage.width, 16), busy ? "열심히 작업 중..." : "대기 중", stateLabel);
+        GUI.Label(new Rect(stage.x, stage.yMax - 16, stage.width, 16), busy ? "열심히 작업 중..." : "대기 중", characterStateLabelStyle);
     }
 
     private void UpdateBlink(double t)
@@ -343,8 +417,11 @@ public class ClaudeCompanionWindow : EditorWindow
     // avoids that feedback loop and makes "shrink the log -> chat visibly grows" guaranteed.
     private float CalculateChatScrollHeight()
     {
-        float consumedAbove = GUILayoutUtility.GetLastRect().yMax;
-        float remaining = position.height - consumedAbove;
+        if (Event.current.type != EventType.Layout)
+        {
+            cachedConsumedAboveChat = GUILayoutUtility.GetLastRect().yMax;
+        }
+        float remaining = position.height - cachedConsumedAboveChat;
 
         float logHeaderHeight = EditorGUIUtility.singleLineHeight + 6f;
         float logFootprint = activityLogCollapsed
@@ -360,7 +437,7 @@ public class ClaudeCompanionWindow : EditorWindow
 
     private void DrawChat(float scrollHeight)
     {
-        EditorGUILayout.LabelField("채팅", SectionHeaderStyle());
+        EditorGUILayout.LabelField("채팅", sectionHeaderStyle);
 
         // Whenever a message is added, jump the scroll view to the bottom so the latest
         // reply is visible without the user having to drag the scrollbar down every turn.
@@ -421,8 +498,8 @@ public class ClaudeCompanionWindow : EditorWindow
         EditorGUI.DrawRect(bubbleRect, isUser ? UserBubbleColor : ClaudeBubbleColor);
 
         GUILayout.Space(3);
-        EditorGUILayout.LabelField(message.Role, BubbleRoleStyle());
-        EditorGUILayout.LabelField(message.Text, BubbleTextStyle());
+        EditorGUILayout.LabelField(message.Role, bubbleRoleStyle);
+        EditorGUILayout.LabelField(message.Text, bubbleTextStyle);
         GUILayout.Space(3);
 
         EditorGUILayout.EndVertical();
@@ -448,7 +525,7 @@ public class ClaudeCompanionWindow : EditorWindow
     private void DrawActivityLog()
     {
         EditorGUILayout.BeginHorizontal();
-        EditorGUILayout.LabelField("도구 활동 로그", SectionHeaderStyle());
+        EditorGUILayout.LabelField("도구 활동 로그", sectionHeaderStyle);
         GUILayout.FlexibleSpace();
         if (GUILayout.Button(activityLogCollapsed ? "펼치기 ▲" : "접기 ▼", EditorStyles.miniButton, GUILayout.Width(70)))
         {
@@ -466,13 +543,11 @@ public class ClaudeCompanionWindow : EditorWindow
         logScroll = EditorGUILayout.BeginScrollView(logScroll, GUILayout.Height(activityLogHeight));
         foreach (string entry in activityLog)
         {
-            GUIStyle style = new GUIStyle(EditorStyles.wordWrappedMiniLabel) { normal = { textColor = LogColor(entry) } };
-            EditorGUILayout.LabelField(entry, style);
+            EditorGUILayout.LabelField(entry, GetLogEntryStyle(LogColor(entry)));
         }
         EditorGUILayout.EndScrollView();
 
-        GUIStyle pathStyle = new GUIStyle(EditorStyles.miniLabel) { normal = { textColor = new Color(0.55f, 0.55f, 0.6f) } };
-        EditorGUILayout.LabelField($"로그 파일: {CompanionLog.FilePath}", pathStyle);
+        EditorGUILayout.LabelField($"로그 파일: {CompanionLog.FilePath}", logPathStyle);
     }
 
     // Drag handle between the chat and activity-log sections. CalculateChatScrollHeight()
@@ -533,34 +608,6 @@ public class ClaudeCompanionWindow : EditorWindow
         Rect rect = GUILayoutUtility.GetRect(1, 1, GUILayout.ExpandWidth(true));
         EditorGUI.DrawRect(rect, DividerColor);
         GUILayout.Space(6);
-    }
-
-    private static GUIStyle SectionHeaderStyle()
-    {
-        return new GUIStyle(EditorStyles.boldLabel)
-        {
-            fontSize = 12,
-            normal = { textColor = new Color(0.9f, 0.9f, 0.95f) },
-            margin = new RectOffset(2, 0, 0, 4)
-        };
-    }
-
-    private static GUIStyle BubbleRoleStyle()
-    {
-        return new GUIStyle(EditorStyles.miniBoldLabel)
-        {
-            normal = { textColor = new Color(0.8f, 0.85f, 0.95f) },
-            padding = new RectOffset(6, 6, 0, 0)
-        };
-    }
-
-    private static GUIStyle BubbleTextStyle()
-    {
-        return new GUIStyle(EditorStyles.wordWrappedLabel)
-        {
-            normal = { textColor = Color.white },
-            padding = new RectOffset(6, 6, 0, 0)
-        };
     }
 
     private static Texture2D CreateCircleTexture(int size)
