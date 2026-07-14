@@ -68,8 +68,20 @@ public class ClaudeCompanionWindow : EditorWindow
     private GUIStyle inputFieldStyle;
     private readonly Dictionary<Color, GUIStyle> logEntryStyleCache = new Dictionary<Color, GUIStyle>();
 
+    // A previous attempt throttled Repaint() by self-gating inside OnGUI (only calling
+    // Repaint() again if enough time had passed). That broke the animation because OnGUI
+    // only reruns when Repaint() fires - gating from inside that same loop makes the
+    // effective frame timing depend on the editor's own unrelated scheduling, producing
+    // visible jitter (see git history). Driving the gate from EditorApplication.update
+    // instead - a callback that ticks on its own regardless of whether we just repainted -
+    // keeps the interval regular while still capping how often the (potentially expensive,
+    // unbounded chat history) OnGUI layout actually runs.
+    private const double RepaintInterval = 1.0 / 30.0;
+    private double lastRepaintTime;
+
     private void OnEnable()
     {
+        EditorApplication.update += OnEditorUpdate;
         try
         {
             string projectRoot = Directory.GetParent(Application.dataPath).FullName;
@@ -145,6 +157,7 @@ public class ClaudeCompanionWindow : EditorWindow
 
     private void OnDisable()
     {
+        EditorApplication.update -= OnEditorUpdate;
         try
         {
             runner?.Dispose();
@@ -152,6 +165,16 @@ public class ClaudeCompanionWindow : EditorWindow
         catch (Exception ex)
         {
             Debug.LogException(ex);
+        }
+    }
+
+    private void OnEditorUpdate()
+    {
+        double now = EditorApplication.timeSinceStartup;
+        if (now - lastRepaintTime >= RepaintInterval)
+        {
+            lastRepaintTime = now;
+            Repaint();
         }
     }
 
@@ -194,13 +217,6 @@ public class ClaudeCompanionWindow : EditorWindow
             // shouldn't take the whole window down - log it and keep repainting.
             Debug.LogException(ex);
         }
-
-        // Keep the character breathing/blinking even when idle. A throttled version of
-        // this (only calling Repaint() every ~33ms) was tried, but it broke the tight
-        // repaint-triggers-next-repaint loop Unity relies on for smooth pacing: actual
-        // redraw timing is at the mercy of the editor's own scheduling, so gating it on
-        // our own clock produced visibly uneven frame spacing instead of saving much.
-        Repaint();
     }
 
     private void EnsureStylesInitialized()
