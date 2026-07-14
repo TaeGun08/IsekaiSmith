@@ -80,12 +80,6 @@ public class ClaudeCompanionWindow : EditorWindow
     private GUIStyle logPathStyle;
     private readonly Dictionary<Color, GUIStyle> logEntryStyleCache = new Dictionary<Color, GUIStyle>();
 
-    // Blinking/bobbing only needs to look smooth, not run at the editor's uncapped
-    // repaint rate. Throttling to ~30fps cuts idle CPU usage while this window is open
-    // without any visible change to the animation.
-    private const double RepaintInterval = 1.0 / 30.0;
-    private double lastRepaintTime;
-
     private void OnEnable()
     {
         try
@@ -213,14 +207,12 @@ public class ClaudeCompanionWindow : EditorWindow
             Debug.LogException(ex);
         }
 
-        // Keep the character breathing/blinking even when idle, but capped (see
-        // RepaintInterval) instead of forcing the editor to redraw every single frame.
-        double now = EditorApplication.timeSinceStartup;
-        if (now - lastRepaintTime >= RepaintInterval)
-        {
-            lastRepaintTime = now;
-            Repaint();
-        }
+        // Keep the character breathing/blinking even when idle. A throttled version of
+        // this (only calling Repaint() every ~33ms) was tried, but it broke the tight
+        // repaint-triggers-next-repaint loop Unity relies on for smooth pacing: actual
+        // redraw timing is at the mercy of the editor's own scheduling, so gating it on
+        // our own clock produced visibly uneven frame spacing instead of saving much.
+        Repaint();
     }
 
     private void EnsureStylesInitialized()
