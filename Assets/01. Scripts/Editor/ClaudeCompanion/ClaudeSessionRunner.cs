@@ -7,6 +7,17 @@ using System.Text;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 
+public struct TokenUsage
+{
+    public long InputTokens;
+    public long OutputTokens;
+    public long CacheCreationTokens;
+    public long CacheReadTokens;
+    public double TotalCostUsd;
+
+    public long TotalTokens => InputTokens + OutputTokens + CacheCreationTokens + CacheReadTokens;
+}
+
 public class ClaudeSessionRunner
 {
     public event Action<string> OnSessionStarted;
@@ -14,13 +25,16 @@ public class ClaudeSessionRunner
     public event Action<string> OnToolActivity;
     public event Action OnTurnComplete;
     public event Action<string> OnError;
+    public event Action<TokenUsage> OnUsageUpdated;
 
     public bool IsBusy { get; private set; }
+    public TokenUsage CumulativeUsage { get; private set; }
 
     private readonly string workingDirectory;
     private readonly ConcurrentQueue<string> outputQueue = new ConcurrentQueue<string>();
     private Process process;
     private string sessionId;
+    private bool reloadLocked;
 
     public ClaudeSessionRunner(string workingDirectory)
     {
@@ -31,6 +45,7 @@ public class ClaudeSessionRunner
     public void ResetSession()
     {
         sessionId = null;
+        CumulativeUsage = default;
     }
 
     public void Send(string message, bool autoProceed)
@@ -81,8 +96,12 @@ public class ClaudeSessionRunner
         };
         process.Exited += (sender, e) =>
         {
-            IsBusy = false;
+            outputQueue.Enqueue("__exited__");
         };
+
+        // Defer any pending domain reload (script recompile) until this turn finishes,
+        // so a compile elsewhere in the project doesn't kill an in-flight response.
+        LockReload();
 
         IsBusy = true;
         process.Start();
@@ -92,11 +111,38 @@ public class ClaudeSessionRunner
 
     public void Kill()
     {
-        if (process != null && !process.HasExited)
+        try
         {
-            process.Kill();
+            if (process != null && !process.HasExited)
+            {
+                process.Kill();
+            }
         }
+        catch (Exception)
+        {
+            // Process may have exited between the check and the kill; safe to ignore.
+        }
+
         IsBusy = false;
+        UnlockReload();
+    }
+
+    private void LockReload()
+    {
+        if (!reloadLocked)
+        {
+            EditorApplication.LockReloadAssemblies();
+            reloadLocked = true;
+        }
+    }
+
+    private void UnlockReload()
+    {
+        if (reloadLocked)
+        {
+            EditorApplication.UnlockReloadAssemblies();
+            reloadLocked = false;
+        }
     }
 
     public void Dispose()
@@ -164,6 +210,13 @@ private static string cachedClaudePath;
 
     private void HandleLine(string line)
     {
+        if (line == "__exited__")
+        {
+            IsBusy = false;
+            UnlockReload();
+            return;
+        }
+
         if (line.StartsWith("__stderr__:"))
         {
             OnError?.Invoke(line.Substring("__stderr__:".Length));
@@ -218,6 +271,19 @@ private static string cachedClaudePath;
         }
         else if (type == "result")
         {
+            JToken usage = json["usage"];
+            if (usage != null)
+            {
+                TokenUsage totals = CumulativeUsage;
+                totals.InputTokens += usage.Value<long?>("input_tokens") ?? 0;
+                totals.OutputTokens += usage.Value<long?>("output_tokens") ?? 0;
+                totals.CacheCreationTokens += usage.Value<long?>("cache_creation_input_tokens") ?? 0;
+                totals.CacheReadTokens += usage.Value<long?>("cache_read_input_tokens") ?? 0;
+                totals.TotalCostUsd += json.Value<double?>("total_cost_usd") ?? 0;
+                CumulativeUsage = totals;
+                OnUsageUpdated?.Invoke(CumulativeUsage);
+            }
+
             OnTurnComplete?.Invoke();
         }
         else if (type == "system")
