@@ -37,6 +37,15 @@ public class ClaudeCompanionWindow : EditorWindow
     private Vector2 logScroll;
     private int lastChatMessageCount = -1;
 
+    // Serialized so the user's resize/collapse choice survives a domain reload,
+    // same rationale as restoredSessionId above.
+    [SerializeField] private bool activityLogCollapsed;
+    [SerializeField] private float activityLogHeight = 100f;
+    private bool resizingActivityLog;
+
+    private const float MinActivityLogHeight = 60f;
+    private const float MaxActivityLogHeightRatio = 0.6f;
+
     private readonly List<ChatMessage> chatMessages = new List<ChatMessage>();
     private readonly List<string> activityLog = new List<string>();
 
@@ -136,6 +145,22 @@ public class ClaudeCompanionWindow : EditorWindow
 
     private void OnGUI()
     {
+        // The MCP bridge package can silently reconnect on its own after a domain reload
+        // (HttpBridgeReloadHandler), but bridgeRunning was previously only refreshed in
+        // OnEnable/StartSession/StopSession. That left the button stuck on "중지됨" long
+        // after the real connection came back, forcing the user to click Start again -
+        // which used to wipe the ongoing chat/session for no reason. Polling here keeps
+        // the UI truthful without needing a dedicated event hook.
+        try
+        {
+            bridgeRunning = MCPServiceLocator.Bridge.IsRunning;
+        }
+        catch (Exception)
+        {
+            // Services may be mid-teardown/setup right around a reload; keep the last
+            // known value rather than logging every frame.
+        }
+
         try
         {
             EditorGUI.DrawRect(new Rect(0, 0, position.width, position.height), BackgroundColor);
@@ -283,11 +308,16 @@ public class ClaudeCompanionWindow : EditorWindow
 
         bridgeRunning = MCPServiceLocator.Bridge.IsRunning;
 
-        runner.ResetSession();
-        restoredSessionId = null;
-        chatMessages.Clear();
-        activityLog.Clear();
-        CompanionLog.RotateForNewSession();
+        // Only wipe the conversation for a genuinely fresh start. If a session id is
+        // already known (e.g. the user is just reconnecting a bridge that dropped and
+        // auto-resumed), clicking Start should not throw away the ongoing chat.
+        if (string.IsNullOrEmpty(restoredSessionId))
+        {
+            runner.ResetSession();
+            chatMessages.Clear();
+            activityLog.Clear();
+            CompanionLog.RotateForNewSession();
+        }
         Repaint();
     }
 
@@ -389,8 +419,23 @@ public class ClaudeCompanionWindow : EditorWindow
 
     private void DrawActivityLog()
     {
+        EditorGUILayout.BeginHorizontal();
         EditorGUILayout.LabelField("도구 활동 로그", SectionHeaderStyle());
-        logScroll = EditorGUILayout.BeginScrollView(logScroll, GUILayout.Height(100));
+        GUILayout.FlexibleSpace();
+        if (GUILayout.Button(activityLogCollapsed ? "펼치기 ▲" : "접기 ▼", EditorStyles.miniButton, GUILayout.Width(70)))
+        {
+            activityLogCollapsed = !activityLogCollapsed;
+        }
+        EditorGUILayout.EndHorizontal();
+
+        if (activityLogCollapsed)
+        {
+            return;
+        }
+
+        DrawActivityLogResizeHandle();
+
+        logScroll = EditorGUILayout.BeginScrollView(logScroll, GUILayout.Height(activityLogHeight));
         foreach (string entry in activityLog)
         {
             GUIStyle style = new GUIStyle(EditorStyles.wordWrappedMiniLabel) { normal = { textColor = LogColor(entry) } };
@@ -400,6 +445,37 @@ public class ClaudeCompanionWindow : EditorWindow
 
         GUIStyle pathStyle = new GUIStyle(EditorStyles.miniLabel) { normal = { textColor = new Color(0.55f, 0.55f, 0.6f) } };
         EditorGUILayout.LabelField($"로그 파일: {CompanionLog.FilePath}", pathStyle);
+    }
+
+    // Drag handle between the chat and activity-log sections. Chat uses
+    // GUILayout.ExpandHeight(true), so shrinking/growing the log height here
+    // directly grows/shrinks the chat area without any extra bookkeeping.
+    private void DrawActivityLogResizeHandle()
+    {
+        Rect handleRect = GUILayoutUtility.GetRect(position.width, 6f, GUILayout.ExpandWidth(true));
+        EditorGUI.DrawRect(handleRect, new Color(1f, 1f, 1f, resizingActivityLog ? 0.18f : 0.08f));
+        EditorGUIUtility.AddCursorRect(handleRect, MouseCursor.ResizeVertical);
+
+        Event e = Event.current;
+        if (e.type == EventType.MouseDown && handleRect.Contains(e.mousePosition))
+        {
+            resizingActivityLog = true;
+            e.Use();
+        }
+        else if (e.type == EventType.MouseUp && resizingActivityLog)
+        {
+            resizingActivityLog = false;
+            e.Use();
+        }
+        else if (e.type == EventType.MouseDrag && resizingActivityLog)
+        {
+            // The handle sits above the log, so dragging it up (negative delta.y)
+            // should grow the log below it.
+            float maxHeight = position.height * MaxActivityLogHeightRatio;
+            activityLogHeight = Mathf.Clamp(activityLogHeight - e.delta.y, MinActivityLogHeight, maxHeight);
+            e.Use();
+            Repaint();
+        }
     }
 
     private static Color LogColor(string entry)

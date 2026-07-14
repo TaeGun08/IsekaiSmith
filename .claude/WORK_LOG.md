@@ -6,6 +6,49 @@
 
 ---
 
+## 2026-07-14 (3) 도메인 리로드 후 브릿지 UI가 계속 "중지됨"으로 멈추는 문제 수정
+
+사용자 보고: "UI작업이 끝나고 나서, 너의 활동이 정지가 되는 상태를 없애줬으면 해. 계속 꺼지면 켜줘야 하잖아."
+Claude가 스크립트를 수정할 때마다 Unity가 재컴파일(도메인 리로드)되는데, MCP 브릿지 패키지 자체는
+`HttpBridgeReloadHandler`로 백그라운드에서 자동 재연결하지만, `ClaudeCompanionWindow`의
+`bridgeRunning` 필드는 `OnEnable`/Start·Stop 버튼 클릭 시에만 갱신되어 실제로는 재연결이 끝났는데도
+UI가 "브릿지 중지됨"으로 계속 멈춰 있었음. 그 결과 사용자가 매번 Start를 다시 눌러야 했고, 그 버튼은
+무조건 `runner.ResetSession()` + 채팅/로그 초기화를 실행해 대화 맥락까지 날려버리는 부작용이 있었음.
+
+`ClaudeCompanionWindow.cs` 수정:
+- `OnGUI()` 매 프레임 `bridgeRunning = MCPServiceLocator.Bridge.IsRunning`으로 실제 상태와 동기화
+  (예외는 조용히 무시 — 리로드 직후 서비스가 아직 준비 안 됐을 수 있어 매 프레임 로그 스팸 방지).
+- `StartSession()`은 `restoredSessionId`가 이미 있을 때(=재연결 상황)는 세션/채팅을 초기화하지 않도록 변경.
+  진짜 새 세션을 시작할 때만 리셋.
+
+검증: `mcp__UnityMCP__refresh_unity` 컴파일 요청 후 `read_console` 에러/경고 0건.
+
+---
+
+## 2026-07-14 (2) 채팅/로그 영역 리사이즈 + 로그 접기 기능 추가
+
+사용자 요청: "채팅 창을 넓힐 수 있는 기능"과 "도구 활동 로그 창을 열고 닫을 수 있는 기능".
+`ClaudeCompanionWindow.cs`에 다음 추가 (아직 커밋 안 됨, 위 항목의 미커밋 변경 위에 얹은 것):
+
+- `activityLogCollapsed` (bool), `activityLogHeight` (float, 기본 100) 필드를 `[SerializeField]`로 추가
+  — 도메인 리로드 후에도 사용자가 조절한 상태 유지 (restoredSessionId와 같은 패턴).
+- `DrawActivityLog()` 헤더에 "접기 ▼ / 펼치기 ▲" 버튼 추가. 접으면 스크롤뷰·리사이즈 핸들·로그 경로
+  라벨을 그리지 않고 헤더 줄만 남김.
+- `DrawActivityLogResizeHandle()` 추가: 채팅과 로그 사이에 6px 드래그 핸들(스플리터).
+  `MouseCursor.ResizeVertical` 커서, 드래그 시 `activityLogHeight`를 `MinActivityLogHeight`(60)~
+  `position.height * MaxActivityLogHeightRatio`(0.6) 범위로 clamp.
+  로그 영역이 줄어들면(또는 접히면) 채팅 영역은 `GUILayout.ExpandHeight(true)` 덕분에 자동으로
+  넓어짐 — 별도의 채팅 높이 계산 로직 불필요.
+
+검증: `mcp__UnityMCP__refresh_unity` 후 `read_console` 에러/경고 0건.
+
+### 다음에 할 일 (TODO)
+- [ ] Unity 에디터에서 실제로 드래그/접기 동작 육안 확인 (MCP로는 컴파일만 확인, 실제 클릭/드래그 상호작용은 미검증)
+- [ ] 위 변경사항 전부(세션 영속화 + 리사이즈/접기) 커밋 — 사용자 확인 후 진행
+- [ ] 추가 기능 방향은 사용자 지시 대기
+
+---
+
 ## 2026-07-14
 
 ### 현재 상태 파악 (커밋 안 된 변경사항 분석)
