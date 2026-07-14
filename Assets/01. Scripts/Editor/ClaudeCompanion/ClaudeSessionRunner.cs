@@ -7,17 +7,6 @@ using System.Text;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 
-public struct TokenUsage
-{
-    public long InputTokens;
-    public long OutputTokens;
-    public long CacheCreationTokens;
-    public long CacheReadTokens;
-    public double TotalCostUsd;
-
-    public long TotalTokens => InputTokens + OutputTokens + CacheCreationTokens + CacheReadTokens;
-}
-
 public class ClaudeSessionRunner
 {
     public event Action<string> OnSessionStarted;
@@ -25,16 +14,21 @@ public class ClaudeSessionRunner
     public event Action<string> OnToolActivity;
     public event Action OnTurnComplete;
     public event Action<string> OnError;
-    public event Action<TokenUsage> OnUsageUpdated;
+
+    // If a turn produces no output at all for this long, the claude process is assumed
+    // stuck. Without this, a hung process keeps LockReloadAssemblies held forever, which
+    // freezes script compilation for the whole editor, not just this window.
+    private static readonly TimeSpan IdleTimeout = TimeSpan.FromMinutes(10);
 
     public bool IsBusy { get; private set; }
-    public TokenUsage CumulativeUsage { get; private set; }
+    public string SessionId => sessionId;
 
     private readonly string workingDirectory;
     private readonly ConcurrentQueue<string> outputQueue = new ConcurrentQueue<string>();
     private Process process;
     private string sessionId;
     private bool reloadLocked;
+    private DateTime lastActivityUtc;
 
     public ClaudeSessionRunner(string workingDirectory)
     {
@@ -45,18 +39,31 @@ public class ClaudeSessionRunner
     public void ResetSession()
     {
         sessionId = null;
-        CumulativeUsage = default;
     }
 
-    public void Send(string message, bool autoProceed)
+    /// <summary>
+    /// Reattaches a previously known session id (e.g. after a domain reload recreated
+    /// this runner) so the next Send() resumes the real Claude conversation instead of
+    /// silently starting a new one while the on-screen chat history looks unchanged.
+    /// </summary>
+    public void RestoreSession(string knownSessionId)
+    {
+        sessionId = knownSessionId;
+    }
+
+    public void Send(string message)
     {
         if (IsBusy)
         {
             return;
         }
 
-        string permissionMode = autoProceed ? "bypassPermissions" : "acceptEdits";
-
+        // This process runs headless (-p, no stdin wired up), so there is no way to
+        // answer an interactive permission prompt. "acceptEdits" only auto-approves
+        // file edits and leaves every other tool call (Bash, UnityMCP tools like
+        // manage_ui/manage_gameobject) waiting on a prompt nothing can ever answer,
+        // which silently stalls mid-task. bypassPermissions is the only mode that
+        // actually works in this architecture.
         StringBuilder args = new StringBuilder();
         args.Append("-p ").Append(Quote(message));
         args.Append(" --output-format stream-json --verbose");
@@ -64,7 +71,7 @@ public class ClaudeSessionRunner
         {
             args.Append(" --resume ").Append(Quote(sessionId));
         }
-        args.Append(" --permission-mode ").Append(permissionMode);
+        args.Append(" --permission-mode bypassPermissions");
 
         ProcessStartInfo startInfo = new ProcessStartInfo
         {
@@ -104,6 +111,7 @@ public class ClaudeSessionRunner
         LockReload();
 
         IsBusy = true;
+        lastActivityUtc = DateTime.UtcNow;
         process.Start();
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
@@ -202,9 +210,21 @@ private static string cachedClaudePath;
 
     private void Pump()
     {
+        bool sawOutput = false;
         while (outputQueue.TryDequeue(out string line))
         {
+            sawOutput = true;
             HandleLine(line);
+        }
+
+        if (sawOutput)
+        {
+            lastActivityUtc = DateTime.UtcNow;
+        }
+        else if (IsBusy && DateTime.UtcNow - lastActivityUtc > IdleTimeout)
+        {
+            OnError?.Invoke($"claude 프로세스가 {IdleTimeout.TotalMinutes}분 동안 응답이 없어 강제 종료합니다.");
+            Kill();
         }
     }
 
@@ -271,19 +291,6 @@ private static string cachedClaudePath;
         }
         else if (type == "result")
         {
-            JToken usage = json["usage"];
-            if (usage != null)
-            {
-                TokenUsage totals = CumulativeUsage;
-                totals.InputTokens += usage.Value<long?>("input_tokens") ?? 0;
-                totals.OutputTokens += usage.Value<long?>("output_tokens") ?? 0;
-                totals.CacheCreationTokens += usage.Value<long?>("cache_creation_input_tokens") ?? 0;
-                totals.CacheReadTokens += usage.Value<long?>("cache_read_input_tokens") ?? 0;
-                totals.TotalCostUsd += json.Value<double?>("total_cost_usd") ?? 0;
-                CumulativeUsage = totals;
-                OnUsageUpdated?.Invoke(CumulativeUsage);
-            }
-
             OnTurnComplete?.Invoke();
         }
         else if (type == "system")

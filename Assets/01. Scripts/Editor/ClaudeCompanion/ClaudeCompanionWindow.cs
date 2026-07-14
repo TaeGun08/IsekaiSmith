@@ -11,7 +11,7 @@ public class ClaudeCompanionWindow : EditorWindow
     public static void ShowWindow()
     {
         ClaudeCompanionWindow window = GetWindow<ClaudeCompanionWindow>("Claude Companion");
-        window.minSize = new Vector2(420, 680);
+        window.minSize = new Vector2(480, 760);
     }
 
     private static readonly Color BackgroundColor = new Color(0.13f, 0.13f, 0.15f);
@@ -25,15 +25,17 @@ public class ClaudeCompanionWindow : EditorWindow
     private static readonly Color BusyBodyColorA = new Color(1f, 0.62f, 0.25f);
     private static readonly Color BusyBodyColorB = new Color(1f, 0.85f, 0.4f);
 
-    private const string TokenBudgetPrefKey = "ClaudeCompanion.TokenBudget";
-
     private bool bridgeRunning;
-    private bool autoProceed;
+
+    // Serialized so a domain reload (e.g. triggered by recompiling this very script)
+    // doesn't silently reset it - without this, the on-screen chat looked continuous
+    // (thanks to CompanionLog) while the actual Claude session quietly restarted underneath it.
+    [SerializeField] private string restoredSessionId;
+
     private string inputText = "";
     private Vector2 chatScroll;
     private Vector2 logScroll;
-    private TokenUsage tokenUsage;
-    private int tokenBudget = 100000;
+    private int lastChatMessageCount = -1;
 
     private readonly List<ChatMessage> chatMessages = new List<ChatMessage>();
     private readonly List<string> activityLog = new List<string>();
@@ -51,7 +53,15 @@ public class ClaudeCompanionWindow : EditorWindow
         {
             string projectRoot = Directory.GetParent(Application.dataPath).FullName;
             runner = new ClaudeSessionRunner(projectRoot);
-            runner.OnSessionStarted += _ => Repaint();
+            if (!string.IsNullOrEmpty(restoredSessionId))
+            {
+                runner.RestoreSession(restoredSessionId);
+            }
+            runner.OnSessionStarted += id =>
+            {
+                restoredSessionId = id;
+                Repaint();
+            };
             runner.OnAssistantText += text =>
             {
                 chatMessages.Add(new ChatMessage("Claude", text));
@@ -70,11 +80,6 @@ public class ClaudeCompanionWindow : EditorWindow
                 string entry = "ERROR: " + error;
                 activityLog.Add(entry);
                 CompanionLog.AppendActivity(entry);
-                Repaint();
-            };
-            runner.OnUsageUpdated += usage =>
-            {
-                tokenUsage = usage;
                 Repaint();
             };
         }
@@ -100,8 +105,6 @@ public class ClaudeCompanionWindow : EditorWindow
         {
             circleTexture = CreateCircleTexture(64);
         }
-
-        tokenBudget = EditorPrefs.GetInt(TokenBudgetPrefKey, 100000);
 
         // Restore whatever was logged before the window last closed (crash, domain
         // reload, or a plain close) so history isn't silently lost.
@@ -133,69 +136,28 @@ public class ClaudeCompanionWindow : EditorWindow
 
     private void OnGUI()
     {
-        EditorGUI.DrawRect(new Rect(0, 0, position.width, position.height), BackgroundColor);
+        try
+        {
+            EditorGUI.DrawRect(new Rect(0, 0, position.width, position.height), BackgroundColor);
 
-        GUILayout.Space(4);
-        DrawCharacterStage();
-        GUILayout.Space(6);
-        DrawControls();
-        Divider();
-        DrawChat();
-        Divider();
-        DrawActivityLog();
-
-        DrawTokenUsageBadge();
+            GUILayout.Space(4);
+            DrawCharacterStage();
+            GUILayout.Space(6);
+            DrawControls();
+            Divider();
+            DrawChat();
+            Divider();
+            DrawActivityLog();
+        }
+        catch (Exception ex)
+        {
+            // A single bad frame (e.g. a null runner right after a failed OnEnable)
+            // shouldn't take the whole window down - log it and keep repainting.
+            Debug.LogException(ex);
+        }
 
         // Keep the character breathing/blinking even when idle.
         Repaint();
-    }
-
-    private void DrawTokenUsageBadge()
-    {
-        long consumed = tokenUsage.TotalTokens;
-        long remaining = Math.Max(0L, (long)tokenBudget - consumed);
-        float ratio = tokenBudget > 0 ? Mathf.Clamp01((float)consumed / tokenBudget) : 0f;
-
-        const float width = 160f;
-        Rect area = new Rect(position.width - width - 8, 6, width, 40);
-
-        GUIStyle usageStyle = new GUIStyle(EditorStyles.miniLabel)
-        {
-            alignment = TextAnchor.MiddleRight,
-            normal = { textColor = new Color(0.82f, 0.86f, 0.94f) }
-        };
-        GUI.Label(new Rect(area.x, area.y, area.width, 14), $"토큰 {FormatTokenCount(consumed)} / {FormatTokenCount(tokenBudget)}", usageStyle);
-
-        Rect barBackground = new Rect(area.x, area.y + 16, area.width, 6);
-        EditorGUI.DrawRect(barBackground, new Color(1f, 1f, 1f, 0.12f));
-
-        Rect barFill = new Rect(area.x, area.y + 16, area.width * ratio, 6);
-        Color barColor = ratio < 0.7f
-            ? new Color(0.4f, 0.85f, 0.5f)
-            : ratio < 0.95f
-                ? new Color(0.95f, 0.8f, 0.3f)
-                : new Color(0.9f, 0.35f, 0.35f);
-        EditorGUI.DrawRect(barFill, barColor);
-
-        GUIStyle remainingStyle = new GUIStyle(EditorStyles.miniLabel)
-        {
-            alignment = TextAnchor.MiddleRight,
-            normal = { textColor = new Color(0.65f, 0.68f, 0.76f) }
-        };
-        GUI.Label(new Rect(area.x, area.y + 24, area.width, 14), $"남은 토큰(목표 대비) {FormatTokenCount(remaining)}", remainingStyle);
-    }
-
-    private static string FormatTokenCount(long count)
-    {
-        if (count >= 1_000_000)
-        {
-            return (count / 1_000_000f).ToString("0.#") + "M";
-        }
-        if (count >= 1_000)
-        {
-            return (count / 1_000f).ToString("0.#") + "K";
-        }
-        return count.ToString();
     }
 
     private void DrawCharacterStage()
@@ -304,24 +266,6 @@ public class ClaudeCompanionWindow : EditorWindow
 
         GUILayout.FlexibleSpace();
 
-        GUILayout.Label(
-            new GUIContent("목표", "채팅창 상단의 '남은 토큰' 표시 기준이 되는 목표 토큰 수입니다. 실제로 요청을 제한하지는 않고 표시용입니다."),
-            EditorStyles.miniLabel, GUILayout.Width(26));
-        int newBudget = EditorGUILayout.IntField(tokenBudget, GUILayout.Width(64));
-        if (newBudget != tokenBudget && newBudget > 0)
-        {
-            tokenBudget = newBudget;
-            EditorPrefs.SetInt(TokenBudgetPrefKey, tokenBudget);
-        }
-
-        GUILayout.Space(8);
-
-        autoProceed = EditorGUILayout.ToggleLeft(
-            new GUIContent(
-                "자동진행",
-                "켜면 --permission-mode bypassPermissions로 실행됩니다: 모든 도구 호출(Bash 포함)이 확인 없이 즉시 실행됩니다. 이 로컬 프로젝트 안에서만 사용하세요."),
-            autoProceed, GUILayout.Width(70));
-
         EditorGUILayout.EndHorizontal();
     }
 
@@ -340,9 +284,9 @@ public class ClaudeCompanionWindow : EditorWindow
         bridgeRunning = MCPServiceLocator.Bridge.IsRunning;
 
         runner.ResetSession();
+        restoredSessionId = null;
         chatMessages.Clear();
         activityLog.Clear();
-        tokenUsage = default;
         CompanionLog.RotateForNewSession();
         Repaint();
     }
@@ -359,7 +303,16 @@ public class ClaudeCompanionWindow : EditorWindow
     private void DrawChat()
     {
         EditorGUILayout.LabelField("채팅", SectionHeaderStyle());
-        chatScroll = EditorGUILayout.BeginScrollView(chatScroll, GUILayout.Height(220));
+
+        // Whenever a message is added, jump the scroll view to the bottom so the latest
+        // reply is visible without the user having to drag the scrollbar down every turn.
+        if (chatMessages.Count != lastChatMessageCount)
+        {
+            lastChatMessageCount = chatMessages.Count;
+            chatScroll.y = float.MaxValue;
+        }
+
+        chatScroll = EditorGUILayout.BeginScrollView(chatScroll, GUILayout.ExpandHeight(true), GUILayout.MinHeight(220));
 
         foreach (ChatMessage message in chatMessages)
         {
@@ -429,7 +382,7 @@ public class ClaudeCompanionWindow : EditorWindow
     {
         chatMessages.Add(new ChatMessage("You", inputText));
         CompanionLog.AppendChat("You", inputText);
-        runner.Send(inputText, autoProceed);
+        runner.Send(inputText);
         inputText = "";
         GUI.FocusControl(null);
     }
@@ -437,7 +390,7 @@ public class ClaudeCompanionWindow : EditorWindow
     private void DrawActivityLog()
     {
         EditorGUILayout.LabelField("도구 활동 로그", SectionHeaderStyle());
-        logScroll = EditorGUILayout.BeginScrollView(logScroll, GUILayout.Height(140));
+        logScroll = EditorGUILayout.BeginScrollView(logScroll, GUILayout.Height(100));
         foreach (string entry in activityLog)
         {
             GUIStyle style = new GUIStyle(EditorStyles.wordWrappedMiniLabel) { normal = { textColor = LogColor(entry) } };
