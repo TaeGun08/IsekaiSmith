@@ -45,6 +45,9 @@ public class ClaudeCompanionWindow : EditorWindow
 
     private const float MinActivityLogHeight = 60f;
     private const float MaxActivityLogHeightRatio = 0.6f;
+    private const float ActivityLogHandleHeight = 6f;
+    private const float DividerTotalHeight = 13f; // matches Divider(): Space(6) + 1px line + Space(6)
+    private const float MinChatScrollHeight = 180f;
 
     private readonly List<ChatMessage> chatMessages = new List<ChatMessage>();
     private readonly List<string> activityLog = new List<string>();
@@ -170,7 +173,7 @@ public class ClaudeCompanionWindow : EditorWindow
             GUILayout.Space(6);
             DrawControls();
             Divider();
-            DrawChat();
+            DrawChat(CalculateChatScrollHeight());
             Divider();
             DrawActivityLog();
         }
@@ -330,7 +333,32 @@ public class ClaudeCompanionWindow : EditorWindow
         Repaint();
     }
 
-    private void DrawChat()
+    // Chat used to size itself with GUILayout.ExpandHeight(true), on the assumption that
+    // shrinking/collapsing the activity log below it would automatically hand the freed
+    // space to the chat scroll view. In practice that didn't happen reliably: both areas
+    // contain word-wrapped, dynamically sized content, and IMGUI's expand resolution gets
+    // unreliable when a scrollbar's presence (which depends on the expand result) can
+    // change the wrap width feeding back into that same result. Computing the chat height
+    // explicitly - remaining space minus the log's own footprint, which we fully control -
+    // avoids that feedback loop and makes "shrink the log -> chat visibly grows" guaranteed.
+    private float CalculateChatScrollHeight()
+    {
+        float consumedAbove = GUILayoutUtility.GetLastRect().yMax;
+        float remaining = position.height - consumedAbove;
+
+        float logHeaderHeight = EditorGUIUtility.singleLineHeight + 6f;
+        float logFootprint = activityLogCollapsed
+            ? logHeaderHeight
+            : logHeaderHeight + ActivityLogHandleHeight + activityLogHeight + EditorGUIUtility.singleLineHeight;
+
+        float chatChromeHeight = (EditorGUIUtility.singleLineHeight + 4f) // "채팅" header label
+            + (EditorGUIUtility.singleLineHeight + 6f); // input textfield + send button row
+
+        float chatScrollHeight = remaining - DividerTotalHeight - logFootprint - chatChromeHeight;
+        return Mathf.Max(MinChatScrollHeight, chatScrollHeight);
+    }
+
+    private void DrawChat(float scrollHeight)
     {
         EditorGUILayout.LabelField("채팅", SectionHeaderStyle());
 
@@ -342,7 +370,7 @@ public class ClaudeCompanionWindow : EditorWindow
             chatScroll.y = float.MaxValue;
         }
 
-        chatScroll = EditorGUILayout.BeginScrollView(chatScroll, GUILayout.ExpandHeight(true), GUILayout.MinHeight(220));
+        chatScroll = EditorGUILayout.BeginScrollView(chatScroll, GUILayout.Height(scrollHeight));
 
         foreach (ChatMessage message in chatMessages)
         {
@@ -447,12 +475,12 @@ public class ClaudeCompanionWindow : EditorWindow
         EditorGUILayout.LabelField($"로그 파일: {CompanionLog.FilePath}", pathStyle);
     }
 
-    // Drag handle between the chat and activity-log sections. Chat uses
-    // GUILayout.ExpandHeight(true), so shrinking/growing the log height here
-    // directly grows/shrinks the chat area without any extra bookkeeping.
+    // Drag handle between the chat and activity-log sections. CalculateChatScrollHeight()
+    // reads activityLogHeight/activityLogCollapsed each frame, so shrinking or collapsing
+    // the log here directly grows the chat area above it on the very next repaint.
     private void DrawActivityLogResizeHandle()
     {
-        Rect handleRect = GUILayoutUtility.GetRect(position.width, 6f, GUILayout.ExpandWidth(true));
+        Rect handleRect = GUILayoutUtility.GetRect(position.width, ActivityLogHandleHeight, GUILayout.ExpandWidth(true));
         EditorGUI.DrawRect(handleRect, new Color(1f, 1f, 1f, resizingActivityLog ? 0.18f : 0.08f));
         EditorGUIUtility.AddCursorRect(handleRect, MouseCursor.ResizeVertical);
 

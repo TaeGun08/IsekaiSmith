@@ -6,6 +6,30 @@
 
 ---
 
+## 2026-07-14 (4) 로그 접기/리사이즈 시 채팅 영역이 실제로 넓어지지 않던 문제 수정
+
+사용자 보고: "현재 로그 창만 넓어지고 접히고 하는데 내가 원하는건, 그 작용을 통해서 채팅창이
+넓어지는 효과를 기대한 거야." 기존 구현은 채팅 스크롤뷰를 `GUILayout.ExpandHeight(true)`로
+"남는 공간 자동 차지" 방식으로 만들면 로그를 줄이거나 접었을 때 자동으로 채팅이 커질 거라
+가정했으나, 채팅 버블과 로그 항목 둘 다 줄바꿈되는 가변 높이 콘텐츠라 IMGUI의 expand 계산이
+안정적으로 반응하지 않음 (스크롤바 유무 → 줄바꿈 폭 → expand 결과가 서로 영향을 주는 순환).
+
+`ClaudeCompanionWindow.cs` 수정:
+- `CalculateChatScrollHeight()` 추가: 매 프레임 "창 높이 − 위쪽 고정 UI(GetLastRect로 실측) −
+  로그 영역이 실제로 차지하는 높이(activityLogCollapsed/activityLogHeight로 직접 계산, 우리가
+  전부 통제하는 값이라 정확함) − 구분선"을 계산해 채팅 스크롤뷰에 고정 높이로 전달.
+- `DrawChat()`이 `GUILayout.ExpandHeight(true)+MinHeight(220)` 대신 이 계산된 높이를
+  `GUILayout.Height(...)`로 받도록 변경.
+- 로그 핸들 높이(6f)를 `ActivityLogHandleHeight` 상수로, 구분선 높이(13f)를
+  `DividerTotalHeight` 상수로 추출해 계산식과 실제 그리기 코드가 어긋나지 않도록 함.
+
+검증: `mcp__UnityMCP__refresh_unity` 컴파일 요청 후 `read_console` 에러/경고 0건.
+
+### 다음에 할 일 (TODO)
+- [ ] Unity 에디터에서 실제로 로그 접기/드래그 시 채팅 영역이 육안으로 커지는지 확인 (아직 미검증)
+
+---
+
 ## 2026-07-14 (3) 도메인 리로드 후 브릿지 UI가 계속 "중지됨"으로 멈추는 문제 수정
 
 사용자 보고: "UI작업이 끝나고 나서, 너의 활동이 정지가 되는 상태를 없애줬으면 해. 계속 꺼지면 켜줘야 하잖아."
