@@ -11,7 +11,7 @@ public class ClaudeCompanionWindow : EditorWindow
     public static void ShowWindow()
     {
         ClaudeCompanionWindow window = GetWindow<ClaudeCompanionWindow>("Claude Companion");
-        window.minSize = new Vector2(480, 760);
+        window.minSize = new Vector2(640, 760);
     }
 
     private static readonly Color BackgroundColor = new Color(0.13f, 0.13f, 0.15f);
@@ -25,13 +25,30 @@ public class ClaudeCompanionWindow : EditorWindow
     private static readonly Color IdleBodyColor = new Color(0.55f, 0.62f, 0.72f);
     private static readonly Color BusyBodyColorA = new Color(1f, 0.62f, 0.25f);
     private static readonly Color BusyBodyColorB = new Color(1f, 0.85f, 0.4f);
+    private static readonly Color ActiveSessionRowColor = new Color(1f, 1f, 1f, 0.07f);
 
     private bool bridgeRunning;
 
-    // Serialized so a domain reload (e.g. triggered by recompiling this very script)
-    // doesn't silently reset it - without this, the on-screen chat looked continuous
-    // (thanks to CompanionLog) while the actual Claude session quietly restarted underneath it.
+    // Small persisted record per session/tab - only the pieces that need to survive a domain
+    // reload via Unity's own serializer. Everything else (chat history, running process, log
+    // handle) lives in the runtime-only CompanionSession and is rebuilt from disk in OnEnable.
+    [Serializable]
+    private class SessionRecord
+    {
+        public string SessionKey;
+        public string RestoredSessionId;
+        public string DisplayName;
+    }
+
+    [SerializeField] private List<SessionRecord> sessionRecords = new List<SessionRecord>();
+    [SerializeField] private int activeSessionIndex;
+
+    // Pre-multi-session fields. Unity's serializer matches by field name, so renaming/removing
+    // these would silently orphan whatever session was live when this refactor landed (wrong
+    // log file, and the next Send() would start a brand new Claude conversation instead of
+    // resuming). Kept only so OnEnable can fold them into sessionRecords once; unused after.
     [SerializeField] private string restoredSessionId;
+    [SerializeField] private string companionSessionKey;
 
     private string inputText = "";
     private Vector2 chatScroll;
@@ -44,11 +61,12 @@ public class ClaudeCompanionWindow : EditorWindow
     // default; expanding it uses a fixed height so it can never feed back into chat sizing.
     [SerializeField] private bool activityLogCollapsed = true;
     private const float ActivityLogHeight = 120f;
+    private const float SidebarWidth = 150f;
 
-    private readonly List<ChatMessage> chatMessages = new List<ChatMessage>();
-    private readonly List<string> activityLog = new List<string>();
+    private readonly List<CompanionSession> sessions = new List<CompanionSession>();
+    private CompanionSession ActiveSession =>
+        (activeSessionIndex >= 0 && activeSessionIndex < sessions.Count) ? sessions[activeSessionIndex] : null;
 
-    private ClaudeSessionRunner runner;
     private Texture2D circleTexture;
 
     private bool isBlinking;
@@ -66,6 +84,8 @@ public class ClaudeCompanionWindow : EditorWindow
     private GUIStyle characterStateLabelStyle;
     private GUIStyle logPathStyle;
     private GUIStyle inputFieldStyle;
+    private GUIStyle sessionItemStyle;
+    private GUIStyle activeSessionItemStyle;
     private readonly Dictionary<Color, GUIStyle> logEntryStyleCache = new Dictionary<Color, GUIStyle>();
 
     // A previous attempt throttled Repaint() by self-gating inside OnGUI (only calling
@@ -82,47 +102,43 @@ public class ClaudeCompanionWindow : EditorWindow
     private void OnEnable()
     {
         EditorApplication.update += OnEditorUpdate;
-        try
+
+        if (sessionRecords.Count == 0)
         {
-            string projectRoot = Directory.GetParent(Application.dataPath).FullName;
-            runner = new ClaudeSessionRunner(projectRoot);
-            if (!string.IsNullOrEmpty(restoredSessionId))
+            // Fold the pre-multi-session identity in, if any, so the conversation that was
+            // live before this refactor keeps resuming instead of silently starting fresh.
+            string seedKey = !string.IsNullOrEmpty(companionSessionKey) ? companionSessionKey : Guid.NewGuid().ToString("N");
+            sessionRecords.Add(new SessionRecord
             {
-                runner.RestoreSession(restoredSessionId);
+                SessionKey = seedKey,
+                RestoredSessionId = restoredSessionId,
+                DisplayName = "세션 1"
+            });
+        }
+
+        string projectRoot = Directory.GetParent(Application.dataPath).FullName;
+        sessions.Clear();
+        foreach (SessionRecord record in sessionRecords)
+        {
+            try
+            {
+                CompanionSession newSession = new CompanionSession(record.SessionKey, record.RestoredSessionId, projectRoot);
+                newSession.Changed += () =>
+                {
+                    record.RestoredSessionId = newSession.RestoredSessionId;
+                    Repaint();
+                };
+                sessions.Add(newSession);
             }
-            runner.OnSessionStarted += id =>
+            catch (Exception ex)
             {
-                restoredSessionId = id;
-                Repaint();
-            };
-            runner.OnAssistantText += text =>
-            {
-                chatMessages.Add(new ChatMessage("Claude", text));
-                CompanionLog.AppendChat("Claude", text);
-                Repaint();
-            };
-            runner.OnToolActivity += entry =>
-            {
-                activityLog.Add(entry);
-                CompanionLog.AppendActivity(entry);
-                Repaint();
-            };
-            runner.OnTurnComplete += Repaint;
-            runner.OnError += error =>
-            {
-                string entry = "ERROR: " + error;
-                activityLog.Add(entry);
-                CompanionLog.AppendActivity(entry);
-                Repaint();
-            };
+                // Never let OnEnable throw: right after a domain reload, other packages'
+                // static services may not be ready yet, and a throwing OnEnable can cause
+                // Unity to drop this window instead of gracefully re-showing it.
+                Debug.LogException(ex);
+            }
         }
-        catch (Exception ex)
-        {
-            // Never let OnEnable throw: right after a domain reload, other packages'
-            // static services may not be ready yet, and a throwing OnEnable can cause
-            // Unity to drop this window instead of gracefully re-showing it.
-            Debug.LogException(ex);
-        }
+        activeSessionIndex = Mathf.Clamp(activeSessionIndex, 0, Mathf.Max(0, sessions.Count - 1));
 
         try
         {
@@ -139,14 +155,11 @@ public class ClaudeCompanionWindow : EditorWindow
             circleTexture = CreateCircleTexture(64);
         }
 
-        // Restore whatever was logged before the window last closed (crash, domain
-        // reload, or a plain close) so history isn't silently lost.
-        if (chatMessages.Count == 0 && activityLog.Count == 0)
+        foreach (CompanionSession s in sessions)
         {
             try
             {
-                chatMessages.AddRange(CompanionLog.LoadChatHistory());
-                activityLog.AddRange(CompanionLog.LoadActivityHistory());
+                s.LoadHistoryIfEmpty();
             }
             catch (Exception ex)
             {
@@ -158,13 +171,16 @@ public class ClaudeCompanionWindow : EditorWindow
     private void OnDisable()
     {
         EditorApplication.update -= OnEditorUpdate;
-        try
+        foreach (CompanionSession s in sessions)
         {
-            runner?.Dispose();
-        }
-        catch (Exception ex)
-        {
-            Debug.LogException(ex);
+            try
+            {
+                s.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogException(ex);
+            }
         }
     }
 
@@ -202,18 +218,36 @@ public class ClaudeCompanionWindow : EditorWindow
 
             EditorGUI.DrawRect(new Rect(0, 0, position.width, position.height), BackgroundColor);
 
-            GUILayout.Space(4);
-            DrawCharacterStage();
-            GUILayout.Space(6);
-            DrawControls();
-            Divider();
-            DrawChat();
-            Divider();
-            DrawActivityLog();
+            EditorGUILayout.BeginHorizontal();
+
+            DrawSessionSidebar();
+            VerticalDivider();
+
+            EditorGUILayout.BeginVertical();
+            if (ActiveSession == null)
+            {
+                GUILayout.FlexibleSpace();
+                EditorGUILayout.LabelField("활성 세션이 없습니다. '+ 새 세션'을 눌러주세요.", sectionHeaderStyle);
+                GUILayout.FlexibleSpace();
+            }
+            else
+            {
+                GUILayout.Space(4);
+                DrawCharacterStage();
+                GUILayout.Space(6);
+                DrawControls();
+                Divider();
+                DrawChat();
+                Divider();
+                DrawActivityLog();
+            }
+            EditorGUILayout.EndVertical();
+
+            EditorGUILayout.EndHorizontal();
         }
         catch (Exception ex)
         {
-            // A single bad frame (e.g. a null runner right after a failed OnEnable)
+            // A single bad frame (e.g. a null session right after a failed OnEnable)
             // shouldn't take the whole window down - log it and keep repainting.
             Debug.LogException(ex);
         }
@@ -251,6 +285,16 @@ public class ClaudeCompanionWindow : EditorWindow
         {
             normal = { textColor = new Color(0.55f, 0.55f, 0.6f) }
         };
+        sessionItemStyle = new GUIStyle(EditorStyles.label)
+        {
+            padding = new RectOffset(4, 4, 4, 4),
+            normal = { textColor = new Color(0.75f, 0.75f, 0.8f) }
+        };
+        activeSessionItemStyle = new GUIStyle(sessionItemStyle)
+        {
+            fontStyle = FontStyle.Bold,
+            normal = { textColor = Color.white }
+        };
 
         // The default EditorStyles.textField skin barely contrasts against this window's
         // custom dark BackgroundColor when the field is empty - see DrawChat(). Nulling out
@@ -278,12 +322,87 @@ public class ClaudeCompanionWindow : EditorWindow
         return style;
     }
 
+    private void DrawSessionSidebar()
+    {
+        EditorGUILayout.BeginVertical(GUILayout.Width(SidebarWidth), GUILayout.ExpandHeight(true));
+        EditorGUILayout.LabelField("세션", sectionHeaderStyle);
+
+        for (int i = 0; i < sessions.Count; i++)
+        {
+            DrawSessionListItem(i);
+        }
+
+        GUILayout.FlexibleSpace();
+        if (GUILayout.Button("+ 새 세션", GUILayout.Height(22)))
+        {
+            AddNewSession();
+        }
+        GUILayout.Space(4);
+        EditorGUILayout.EndVertical();
+    }
+
+    private void DrawSessionListItem(int index)
+    {
+        CompanionSession s = sessions[index];
+        bool isActive = index == activeSessionIndex;
+
+        Rect rowRect = EditorGUILayout.BeginHorizontal(GUILayout.Height(24));
+        if (isActive)
+        {
+            EditorGUI.DrawRect(rowRect, ActiveSessionRowColor);
+        }
+
+        Rect dotRect = GUILayoutUtility.GetRect(10, 24, GUILayout.Width(10));
+        GUI.color = s.IsBusy ? BusyBodyColorA : IdleBodyColor;
+        GUI.DrawTexture(new Rect(dotRect.x, dotRect.y + 8, 8, 8), circleTexture);
+        GUI.color = Color.white;
+
+        string label = index < sessionRecords.Count ? sessionRecords[index].DisplayName : $"세션 {index + 1}";
+        GUIStyle style = isActive ? activeSessionItemStyle : sessionItemStyle;
+        if (GUILayout.Button(label, style))
+        {
+            activeSessionIndex = index;
+            GUI.FocusControl(null);
+            Repaint();
+        }
+
+        EditorGUILayout.EndHorizontal();
+    }
+
+    private void AddNewSession()
+    {
+        string projectRoot = Directory.GetParent(Application.dataPath).FullName;
+        SessionRecord record = new SessionRecord
+        {
+            SessionKey = Guid.NewGuid().ToString("N"),
+            DisplayName = $"세션 {sessionRecords.Count + 1}"
+        };
+        sessionRecords.Add(record);
+
+        try
+        {
+            CompanionSession newSession = new CompanionSession(record.SessionKey, null, projectRoot);
+            newSession.Changed += () =>
+            {
+                record.RestoredSessionId = newSession.RestoredSessionId;
+                Repaint();
+            };
+            sessions.Add(newSession);
+            activeSessionIndex = sessions.Count - 1;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogException(ex);
+        }
+        Repaint();
+    }
+
     private void DrawCharacterStage()
     {
         Rect stage = GUILayoutUtility.GetRect(position.width, 96, GUILayout.ExpandWidth(true));
         EditorGUI.DrawRect(stage, StageColor);
 
-        bool busy = runner != null && runner.IsBusy;
+        bool busy = ActiveSession != null && ActiveSession.IsBusy;
         float t = (float)EditorApplication.timeSinceStartup;
 
         Vector2 center = new Vector2(stage.x + stage.width / 2f, stage.y + stage.height / 2f + 4f);
@@ -407,19 +526,16 @@ public class ClaudeCompanionWindow : EditorWindow
         // Only wipe the conversation for a genuinely fresh start. If a session id is
         // already known (e.g. the user is just reconnecting a bridge that dropped and
         // auto-resumed), clicking Start should not throw away the ongoing chat.
-        if (string.IsNullOrEmpty(restoredSessionId))
+        if (ActiveSession != null && string.IsNullOrEmpty(ActiveSession.RestoredSessionId))
         {
-            runner.ResetSession();
-            chatMessages.Clear();
-            activityLog.Clear();
-            CompanionLog.RotateForNewSession();
+            ActiveSession.ResetForNewConversation();
         }
         Repaint();
     }
 
     private async void StopSession()
     {
-        runner.Kill();
+        ActiveSession?.Runner.Kill();
         await MCPServiceLocator.Bridge.StopAsync();
         MCPServiceLocator.Server.StopLocalHttpServer();
         bridgeRunning = MCPServiceLocator.Bridge.IsRunning;
@@ -432,9 +548,9 @@ public class ClaudeCompanionWindow : EditorWindow
 
         // Whenever a message is added, jump the scroll view to the bottom so the latest
         // reply is visible without the user having to drag the scrollbar down every turn.
-        if (chatMessages.Count != lastChatMessageCount)
+        if (ActiveSession.ChatMessages.Count != lastChatMessageCount)
         {
-            lastChatMessageCount = chatMessages.Count;
+            lastChatMessageCount = ActiveSession.ChatMessages.Count;
             chatScroll.y = float.MaxValue;
         }
 
@@ -443,7 +559,7 @@ public class ClaudeCompanionWindow : EditorWindow
         // simply claims whatever space is left - no manual height math or cross-frame caching.
         chatScroll = EditorGUILayout.BeginScrollView(chatScroll, GUILayout.ExpandHeight(true));
 
-        foreach (ChatMessage message in chatMessages)
+        foreach (ChatMessage message in ActiveSession.ChatMessages)
         {
             DrawChatBubble(message);
         }
@@ -518,10 +634,11 @@ public class ClaudeCompanionWindow : EditorWindow
     }
 
     // Shared by both the inline chat row and ClaudeCompanionSendDialog (the fallback input
-    // window) so a message can be sent identically regardless of which UI triggered it.
+    // window) so a message can be sent identically regardless of which UI triggered it. Always
+    // targets whichever session is active at send time.
     private bool CanSendMessage(string text)
     {
-        return bridgeRunning && runner != null && !runner.IsBusy && !string.IsNullOrWhiteSpace(text);
+        return bridgeRunning && ActiveSession != null && !ActiveSession.IsBusy && !string.IsNullOrWhiteSpace(text);
     }
 
     public void SubmitMessage(string text)
@@ -530,10 +647,7 @@ public class ClaudeCompanionWindow : EditorWindow
         {
             return;
         }
-        chatMessages.Add(new ChatMessage("You", text));
-        CompanionLog.AppendChat("You", text);
-        runner.Send(text);
-        Repaint();
+        ActiveSession.Submit(text);
     }
 
     private void DrawActivityLog()
@@ -553,13 +667,13 @@ public class ClaudeCompanionWindow : EditorWindow
         }
 
         logScroll = EditorGUILayout.BeginScrollView(logScroll, GUILayout.Height(ActivityLogHeight));
-        foreach (string entry in activityLog)
+        foreach (string entry in ActiveSession.ActivityLog)
         {
             EditorGUILayout.LabelField(entry, GetLogEntryStyle(LogColor(entry)));
         }
         EditorGUILayout.EndScrollView();
 
-        EditorGUILayout.LabelField($"로그 파일: {CompanionLog.FilePath}", logPathStyle);
+        EditorGUILayout.LabelField($"로그 파일: {ActiveSession.Log.FilePath}", logPathStyle);
     }
 
     private static Color LogColor(string entry)
@@ -589,6 +703,14 @@ public class ClaudeCompanionWindow : EditorWindow
         Rect rect = GUILayoutUtility.GetRect(1, 1, GUILayout.ExpandWidth(true));
         EditorGUI.DrawRect(rect, DividerColor);
         GUILayout.Space(6);
+    }
+
+    private static void VerticalDivider()
+    {
+        GUILayout.Space(4);
+        Rect rect = GUILayoutUtility.GetRect(1, 1, GUILayout.ExpandHeight(true), GUILayout.Width(1));
+        EditorGUI.DrawRect(rect, DividerColor);
+        GUILayout.Space(4);
     }
 
     private static Texture2D CreateCircleTexture(int size)

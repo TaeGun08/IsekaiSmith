@@ -3,35 +3,37 @@ using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 
-public static class CompanionLog
+// One log file per Companion session/tab, keyed by a locally generated id that stays stable
+// across domain reloads (unlike the underlying Claude CLI session id, which changes on
+// reset) - this is what lets multiple concurrent sessions keep separate histories instead of
+// interleaving into one file.
+public class CompanionLog
 {
-    private static readonly string LogDirectory = Path.Combine(Directory.GetParent(Application.dataPath).FullName, "Library", "ClaudeCompanion");
-    private static readonly string LogPath = Path.Combine(LogDirectory, "session-log.txt");
+    private readonly string sessionKey;
+    private readonly string logDirectory;
+    private readonly string logPath;
 
-    public static string FilePath => LogPath;
+    public string FilePath => logPath;
 
-    public static void AppendChat(string role, string text)
+    public CompanionLog(string sessionKey)
     {
-        AppendLine($"CHAT\t{role}\t{Escape(text)}");
+        this.sessionKey = sessionKey;
+        logDirectory = Path.Combine(Directory.GetParent(Application.dataPath).FullName, "Library", "ClaudeCompanion");
+        logPath = Path.Combine(logDirectory, $"session-log-{sessionKey}.txt");
+        MigrateLegacyLogIfNeeded();
     }
 
-    public static void AppendActivity(string text)
-    {
-        AppendLine($"LOG\t{Escape(text)}");
-    }
-
-    /// <summary>
-    /// Archives the current log under a timestamped name so a fresh session starts clean
-    /// while past history stays recoverable on disk.
-    /// </summary>
-    public static void RotateForNewSession()
+    // Before multi-session support, every window shared one fixed "session-log.txt". Adopt
+    // it into this (the first) session's keyed file so existing chat history isn't silently
+    // orphaned by the rename.
+    private void MigrateLegacyLogIfNeeded()
     {
         try
         {
-            if (File.Exists(LogPath) && new FileInfo(LogPath).Length > 0)
+            string legacyPath = Path.Combine(logDirectory, "session-log.txt");
+            if (!File.Exists(logPath) && File.Exists(legacyPath))
             {
-                string archivePath = Path.Combine(LogDirectory, $"session-log-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
-                File.Move(LogPath, archivePath);
+                File.Move(legacyPath, logPath);
             }
         }
         catch (Exception ex)
@@ -40,7 +42,37 @@ public static class CompanionLog
         }
     }
 
-    public static List<ChatMessage> LoadChatHistory()
+    public void AppendChat(string role, string text)
+    {
+        AppendLine($"CHAT\t{role}\t{Escape(text)}");
+    }
+
+    public void AppendActivity(string text)
+    {
+        AppendLine($"LOG\t{Escape(text)}");
+    }
+
+    /// <summary>
+    /// Archives the current log under a timestamped name so a fresh session starts clean
+    /// while past history stays recoverable on disk.
+    /// </summary>
+    public void RotateForNewSession()
+    {
+        try
+        {
+            if (File.Exists(logPath) && new FileInfo(logPath).Length > 0)
+            {
+                string archivePath = Path.Combine(logDirectory, $"session-log-{sessionKey}-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
+                File.Move(logPath, archivePath);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogException(ex);
+        }
+    }
+
+    public List<ChatMessage> LoadChatHistory()
     {
         List<ChatMessage> result = new List<ChatMessage>();
         foreach (string line in ReadLines())
@@ -54,7 +86,7 @@ public static class CompanionLog
         return result;
     }
 
-    public static List<string> LoadActivityHistory()
+    public List<string> LoadActivityHistory()
     {
         List<string> result = new List<string>();
         foreach (string line in ReadLines())
@@ -68,17 +100,17 @@ public static class CompanionLog
         return result;
     }
 
-    private static void AppendLine(string payload)
+    private void AppendLine(string payload)
     {
         try
         {
-            if (!Directory.Exists(LogDirectory))
+            if (!Directory.Exists(logDirectory))
             {
-                Directory.CreateDirectory(LogDirectory);
+                Directory.CreateDirectory(logDirectory);
             }
 
             string line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}\t{payload}{Environment.NewLine}";
-            File.AppendAllText(LogPath, line);
+            File.AppendAllText(logPath, line);
         }
         catch (Exception ex)
         {
@@ -86,11 +118,11 @@ public static class CompanionLog
         }
     }
 
-    private static string[] ReadLines()
+    private string[] ReadLines()
     {
         try
         {
-            return File.Exists(LogPath) ? File.ReadAllLines(LogPath) : Array.Empty<string>();
+            return File.Exists(logPath) ? File.ReadAllLines(logPath) : Array.Empty<string>();
         }
         catch (Exception ex)
         {
