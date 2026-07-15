@@ -16,6 +16,12 @@ public class CompanionSession
     public readonly ClaudeSessionRunner Runner;
     public readonly CompanionLog Log;
 
+    // Messages submitted while a turn was already in flight, waiting to be sent as soon as
+    // the current one finishes. Previously Submit() while busy was simply unreachable (the
+    // Send button was disabled), forcing the user to babysit the window instead of typing
+    // ahead.
+    public readonly Queue<string> PendingMessages = new Queue<string>();
+
     public bool IsBusy => Runner.IsBusy;
 
     // Fired whenever chat/activity state changes, so a host window can Repaint (and persist
@@ -51,7 +57,7 @@ public class CompanionSession
             Log.AppendActivity(entry);
             Changed?.Invoke();
         };
-        Runner.OnTurnComplete += () => Changed?.Invoke();
+        Runner.OnTurnComplete += AdvanceQueueOrNotify;
         Runner.OnError += error =>
         {
             ActivityLog.Add("ERROR: " + error);
@@ -78,17 +84,59 @@ public class CompanionSession
         Runner.ResetSession();
         ChatMessages.Clear();
         ActivityLog.Clear();
+        PendingMessages.Clear();
         Log.RotateForNewSession();
         RestoredSessionId = null;
         Changed?.Invoke();
     }
 
+    // If the runner is already mid-turn, queue instead of dropping the message on the floor -
+    // AdvanceQueueOrNotify sends it automatically once the current turn finishes.
     public void Submit(string text)
+    {
+        if (Runner.IsBusy)
+        {
+            PendingMessages.Enqueue(text);
+            Changed?.Invoke();
+            return;
+        }
+        SendNow(text);
+    }
+
+    private void SendNow(string text)
     {
         ChatMessages.Add(new ChatMessage("You", text));
         Log.AppendChat("You", text);
         Runner.Send(text);
         Changed?.Invoke();
+    }
+
+    // Shared by turn-complete and cancel: if something is queued, start it immediately
+    // instead of leaving the user to notice the field is idle again and press Send by hand.
+    private void AdvanceQueueOrNotify()
+    {
+        if (PendingMessages.Count > 0)
+        {
+            SendNow(PendingMessages.Dequeue());
+        }
+        else
+        {
+            Changed?.Invoke();
+        }
+    }
+
+    // Kills only this session's claude process, unlike StopSession's bridge-wide stop in
+    // ClaudeCompanionWindow. Safe to call from another session's tab without affecting it.
+    public void CancelTurn()
+    {
+        if (!Runner.IsBusy)
+        {
+            return;
+        }
+        Runner.Kill();
+        ActivityLog.Add("system: 사용자가 턴을 취소했습니다");
+        Log.AppendActivity("system: 사용자가 턴을 취소했습니다");
+        AdvanceQueueOrNotify();
     }
 
     public void Dispose()

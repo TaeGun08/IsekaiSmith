@@ -26,6 +26,7 @@ public class ClaudeCompanionWindow : EditorWindow
     private static readonly Color BusyBodyColorA = new Color(1f, 0.62f, 0.25f);
     private static readonly Color BusyBodyColorB = new Color(1f, 0.85f, 0.4f);
     private static readonly Color ActiveSessionRowColor = new Color(1f, 1f, 1f, 0.07f);
+    private static readonly Color CodeBlockColor = new Color(0.09f, 0.09f, 0.11f);
 
     private bool bridgeRunning;
 
@@ -63,6 +64,15 @@ public class ClaudeCompanionWindow : EditorWindow
     private const float ActivityLogHeight = 120f;
     private const float SidebarWidth = 150f;
 
+    // Log filter chips - all on by default so filtering is opt-in (turning categories off),
+    // not opt-in-to-see-anything.
+    private bool logFilterError = true;
+    private bool logFilterToolUse = true;
+    private bool logFilterToolResult = true;
+    private bool logFilterSystem = true;
+    private bool logFilterOther = true;
+    private string logSearchText = "";
+
     private readonly List<CompanionSession> sessions = new List<CompanionSession>();
     private CompanionSession ActiveSession =>
         (activeSessionIndex >= 0 && activeSessionIndex < sessions.Count) ? sessions[activeSessionIndex] : null;
@@ -86,6 +96,7 @@ public class ClaudeCompanionWindow : EditorWindow
     private GUIStyle inputFieldStyle;
     private GUIStyle sessionItemStyle;
     private GUIStyle activeSessionItemStyle;
+    private GUIStyle codeBlockStyle;
     private readonly Dictionary<Color, GUIStyle> logEntryStyleCache = new Dictionary<Color, GUIStyle>();
 
     // A previous attempt throttled Repaint() by self-gating inside OnGUI (only calling
@@ -274,7 +285,20 @@ public class ClaudeCompanionWindow : EditorWindow
         bubbleTextStyle = new GUIStyle(EditorStyles.wordWrappedLabel)
         {
             normal = { textColor = Color.white },
-            padding = new RectOffset(6, 6, 0, 0)
+            padding = new RectOffset(6, 6, 0, 0),
+            // Lets ChatMarkdown.ToRichText's <b>/<color> tags actually render instead of
+            // showing up as literal text.
+            richText = true
+        };
+        codeBlockStyle = new GUIStyle(EditorStyles.wordWrappedLabel)
+        {
+            normal = { textColor = new Color(0.82f, 0.88f, 0.85f) },
+            padding = new RectOffset(6, 6, 3, 3),
+            fontSize = 11,
+            // Deliberately not rich-text: this holds fenced code verbatim, and running
+            // markdown/rich-text conversion over real code would mangle it (e.g. generics,
+            // comparison operators).
+            richText = false
         };
         characterStateLabelStyle = new GUIStyle(EditorStyles.miniLabel)
         {
@@ -494,7 +518,13 @@ public class ClaudeCompanionWindow : EditorWindow
         GUI.color = bridgeRunning ? StoppedColor : new Color(0.6f, 0.6f, 0.6f);
         GUI.DrawTexture(new Rect(dotRect.x, dotRect.y + 7, 12, 12), circleTexture);
         GUI.color = Color.white;
-        GUILayout.Label(bridgeRunning ? "브릿지 연결됨" : "브릿지 중지됨", EditorStyles.miniLabel, GUILayout.Width(90));
+        // The bridge is one shared connection for the whole editor, not per-session - Stop
+        // disconnects every session's MCP tool calls, not just the one currently in view.
+        // Surfaced via tooltip rather than a badge so it doesn't compete for space every frame.
+        GUIContent bridgeLabel = new GUIContent(
+            bridgeRunning ? "브릿지 연결됨" : "브릿지 중지됨",
+            "모든 세션이 이 브릿지를 공유합니다. Stop을 누르면 다른 세션의 MCP 연결도 함께 끊깁니다.");
+        GUILayout.Label(bridgeLabel, EditorStyles.miniLabel, GUILayout.Width(90));
 
         GUILayout.FlexibleSpace();
 
@@ -535,6 +565,32 @@ public class ClaudeCompanionWindow : EditorWindow
 
     private async void StopSession()
     {
+        // MCPServiceLocator.Bridge/the local HTTP server are singletons shared by every
+        // session in this window, not per-session - stopping them here would silently cut
+        // off any other session that's still mid-turn. Warn before doing that instead of
+        // doing it quietly (see AddNewSession/DrawSessionSidebar for the multi-session model).
+        int otherBusyCount = 0;
+        for (int i = 0; i < sessions.Count; i++)
+        {
+            if (i != activeSessionIndex && sessions[i].IsBusy)
+            {
+                otherBusyCount++;
+            }
+        }
+
+        if (otherBusyCount > 0)
+        {
+            bool proceed = EditorUtility.DisplayDialog(
+                "브릿지 중지 확인",
+                $"다른 세션 {otherBusyCount}개가 아직 작업 중입니다. 브릿지는 모든 세션이 공유하므로 지금 중지하면 그 세션들의 MCP 연결도 함께 끊깁니다.\n\n계속하시겠습니까?",
+                "중지",
+                "취소");
+            if (!proceed)
+            {
+                return;
+            }
+        }
+
         ActiveSession?.Runner.Kill();
         await MCPServiceLocator.Bridge.StopAsync();
         MCPServiceLocator.Server.StopLocalHttpServer();
@@ -546,11 +602,12 @@ public class ClaudeCompanionWindow : EditorWindow
     {
         EditorGUILayout.LabelField("채팅", sectionHeaderStyle);
 
-        // Whenever a message is added, jump the scroll view to the bottom so the latest
-        // reply is visible without the user having to drag the scrollbar down every turn.
-        if (ActiveSession.ChatMessages.Count != lastChatMessageCount)
+        // Whenever a message is added (sent or merely queued), jump the scroll view to the
+        // bottom so the latest reply/queued bubble is visible without manual scrolling.
+        int totalMessageCount = ActiveSession.ChatMessages.Count + ActiveSession.PendingMessages.Count;
+        if (totalMessageCount != lastChatMessageCount)
         {
-            lastChatMessageCount = ActiveSession.ChatMessages.Count;
+            lastChatMessageCount = totalMessageCount;
             chatScroll.y = float.MaxValue;
         }
 
@@ -561,10 +618,23 @@ public class ClaudeCompanionWindow : EditorWindow
 
         foreach (ChatMessage message in ActiveSession.ChatMessages)
         {
-            DrawChatBubble(message);
+            DrawChatBubble(message, pending: false);
+        }
+
+        // Messages typed while a turn was already in flight - CompanionSession.Submit queued
+        // them instead of sending, and they'll fire automatically once the current turn ends.
+        // Rendered dimmed so it's visually clear they haven't actually been sent to Claude yet.
+        foreach (string pendingText in ActiveSession.PendingMessages)
+        {
+            DrawChatBubble(new ChatMessage("You", pendingText), pending: true);
         }
 
         EditorGUILayout.EndScrollView();
+
+        if (ActiveSession.PendingMessages.Count > 0)
+        {
+            EditorGUILayout.LabelField($"메시지 {ActiveSession.PendingMessages.Count}개 전송 대기 중", logPathStyle);
+        }
 
         EditorGUILayout.BeginHorizontal();
 
@@ -593,6 +663,13 @@ public class ClaudeCompanionWindow : EditorWindow
         bool sendPressed = GUILayout.Button("Send", GUILayout.Width(60));
         EditorGUI.EndDisabledGroup();
 
+        // Only meaningful while this specific session is mid-turn - unlike the Stop button
+        // in DrawControls, this cancels just the active session's process, not the shared
+        // bridge, so other sessions keep running.
+        EditorGUI.BeginDisabledGroup(ActiveSession == null || !ActiveSession.IsBusy);
+        bool cancelPressed = GUILayout.Button("취소", GUILayout.Width(50));
+        EditorGUI.EndDisabledGroup();
+
         EditorGUILayout.EndHorizontal();
 
         if ((sendPressed || enterPressed) && canSend)
@@ -601,9 +678,14 @@ public class ClaudeCompanionWindow : EditorWindow
             inputText = "";
             GUI.FocusControl(null);
         }
+
+        if (cancelPressed && ActiveSession != null && ActiveSession.IsBusy)
+        {
+            ActiveSession.CancelTurn();
+        }
     }
 
-    private void DrawChatBubble(ChatMessage message)
+    private void DrawChatBubble(ChatMessage message, bool pending)
     {
         bool isUser = message.Role == "You";
 
@@ -615,11 +697,18 @@ public class ClaudeCompanionWindow : EditorWindow
 
         GUILayout.BeginVertical(GUILayout.MaxWidth(position.width * 0.72f));
         Rect bubbleRect = EditorGUILayout.BeginVertical();
-        EditorGUI.DrawRect(bubbleRect, isUser ? UserBubbleColor : ClaudeBubbleColor);
+        Color bubbleColor = isUser ? UserBubbleColor : ClaudeBubbleColor;
+        if (pending)
+        {
+            // Halved alpha is enough to read as "not sent yet" without a separate style/
+            // layout pass - same trick as the busy-state dot colors elsewhere in this file.
+            bubbleColor.a *= 0.5f;
+        }
+        EditorGUI.DrawRect(bubbleRect, bubbleColor);
 
         GUILayout.Space(3);
-        EditorGUILayout.LabelField(message.Role, bubbleRoleStyle);
-        EditorGUILayout.LabelField(message.Text, bubbleTextStyle);
+        EditorGUILayout.LabelField(pending ? message.Role + " · 전송 대기" : message.Role, bubbleRoleStyle);
+        DrawMessageBody(message.Text);
         GUILayout.Space(3);
 
         EditorGUILayout.EndVertical();
@@ -633,12 +722,41 @@ public class ClaudeCompanionWindow : EditorWindow
         GUILayout.Space(4);
     }
 
+    // Renders fenced code blocks in their own plain (non-rich-text) box and everything else
+    // as rich text with bold/inline-code/bullets converted - see ChatMarkdown for what's
+    // actually supported. Anything Claude sends that isn't one of those just prints as-is.
+    private void DrawMessageBody(string text)
+    {
+        foreach (ChatMarkdown.Segment segment in ChatMarkdown.Split(text))
+        {
+            if (string.IsNullOrWhiteSpace(segment.Text))
+            {
+                continue;
+            }
+
+            if (segment.IsCode)
+            {
+                Rect codeRect = EditorGUILayout.BeginVertical();
+                EditorGUI.DrawRect(codeRect, CodeBlockColor);
+                GUILayout.Space(2);
+                EditorGUILayout.LabelField(segment.Text, codeBlockStyle);
+                GUILayout.Space(2);
+                EditorGUILayout.EndVertical();
+            }
+            else
+            {
+                EditorGUILayout.LabelField(ChatMarkdown.ToRichText(segment.Text), bubbleTextStyle);
+            }
+        }
+    }
+
     // Shared by both the inline chat row and ClaudeCompanionSendDialog (the fallback input
     // window) so a message can be sent identically regardless of which UI triggered it. Always
-    // targets whichever session is active at send time.
+    // targets whichever session is active at send time. Deliberately allows submitting while
+    // ActiveSession.IsBusy - CompanionSession.Submit queues it instead of sending immediately.
     private bool CanSendMessage(string text)
     {
-        return bridgeRunning && ActiveSession != null && !ActiveSession.IsBusy && !string.IsNullOrWhiteSpace(text);
+        return bridgeRunning && ActiveSession != null && !string.IsNullOrWhiteSpace(text);
     }
 
     public void SubmitMessage(string text)
@@ -666,9 +784,15 @@ public class ClaudeCompanionWindow : EditorWindow
             return;
         }
 
+        DrawActivityLogFilters();
+
         logScroll = EditorGUILayout.BeginScrollView(logScroll, GUILayout.Height(ActivityLogHeight));
         foreach (string entry in ActiveSession.ActivityLog)
         {
+            if (!PassesLogFilter(entry))
+            {
+                continue;
+            }
             EditorGUILayout.LabelField(entry, GetLogEntryStyle(LogColor(entry)));
         }
         EditorGUILayout.EndScrollView();
@@ -676,25 +800,59 @@ public class ClaudeCompanionWindow : EditorWindow
         EditorGUILayout.LabelField($"로그 파일: {ActiveSession.Log.FilePath}", logPathStyle);
     }
 
+    // Category chips (toggle buttons) plus a substring search box. Both this and LogColor
+    // key off the same entry prefixes CompanionLog/ClaudeSessionRunner already write
+    // ("ERROR", "tool_use", "tool_result", "system") so adding a new prefix only needs to be
+    // taught to LogCategory once.
+    private void DrawActivityLogFilters()
+    {
+        EditorGUILayout.BeginHorizontal();
+        logFilterError = GUILayout.Toggle(logFilterError, "오류", EditorStyles.miniButton, GUILayout.Width(45));
+        logFilterToolUse = GUILayout.Toggle(logFilterToolUse, "도구 호출", EditorStyles.miniButton, GUILayout.Width(60));
+        logFilterToolResult = GUILayout.Toggle(logFilterToolResult, "결과", EditorStyles.miniButton, GUILayout.Width(45));
+        logFilterSystem = GUILayout.Toggle(logFilterSystem, "시스템", EditorStyles.miniButton, GUILayout.Width(50));
+        logFilterOther = GUILayout.Toggle(logFilterOther, "기타", EditorStyles.miniButton, GUILayout.Width(40));
+        EditorGUILayout.EndHorizontal();
+
+        logSearchText = EditorGUILayout.TextField(logSearchText, EditorStyles.toolbarSearchField);
+    }
+
+    private bool PassesLogFilter(string entry)
+    {
+        if (!string.IsNullOrEmpty(logSearchText) && entry.IndexOf(logSearchText, StringComparison.OrdinalIgnoreCase) < 0)
+        {
+            return false;
+        }
+
+        switch (LogCategory(entry))
+        {
+            case "ERROR": return logFilterError;
+            case "tool_use": return logFilterToolUse;
+            case "tool_result": return logFilterToolResult;
+            case "system": return logFilterSystem;
+            default: return logFilterOther;
+        }
+    }
+
+    private static string LogCategory(string entry)
+    {
+        if (entry.StartsWith("ERROR")) return "ERROR";
+        if (entry.StartsWith("tool_use")) return "tool_use";
+        if (entry.StartsWith("tool_result")) return "tool_result";
+        if (entry.StartsWith("system")) return "system";
+        return "other";
+    }
+
     private static Color LogColor(string entry)
     {
-        if (entry.StartsWith("ERROR"))
+        switch (LogCategory(entry))
         {
-            return new Color(1f, 0.45f, 0.45f);
+            case "ERROR": return new Color(1f, 0.45f, 0.45f);
+            case "tool_use": return new Color(0.55f, 0.8f, 1f);
+            case "tool_result": return new Color(0.6f, 0.9f, 0.6f);
+            case "system": return new Color(0.75f, 0.75f, 0.82f);
+            default: return new Color(0.7f, 0.7f, 0.7f);
         }
-        if (entry.StartsWith("tool_use"))
-        {
-            return new Color(0.55f, 0.8f, 1f);
-        }
-        if (entry.StartsWith("tool_result"))
-        {
-            return new Color(0.6f, 0.9f, 0.6f);
-        }
-        if (entry.StartsWith("system"))
-        {
-            return new Color(0.75f, 0.75f, 0.82f);
-        }
-        return new Color(0.7f, 0.7f, 0.7f);
     }
 
     private static void Divider()
