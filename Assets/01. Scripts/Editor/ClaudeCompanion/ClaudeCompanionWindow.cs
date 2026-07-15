@@ -418,9 +418,19 @@ public class ClaudeCompanionWindow : EditorWindow
         EditorGUILayout.BeginVertical(GUILayout.Width(SidebarWidth), GUILayout.ExpandHeight(true));
         EditorGUILayout.LabelField("세션", sectionHeaderStyle);
 
+        // Deletion is deferred until after the loop instead of mutating sessions/sessionRecords
+        // mid-iteration, which would desync the index this loop is currently on.
+        int deleteRequestIndex = -1;
         for (int i = 0; i < sessions.Count; i++)
         {
-            DrawSessionListItem(i);
+            if (DrawSessionListItem(i))
+            {
+                deleteRequestIndex = i;
+            }
+        }
+        if (deleteRequestIndex >= 0)
+        {
+            RemoveSession(deleteRequestIndex);
         }
 
         GUILayout.FlexibleSpace();
@@ -432,10 +442,13 @@ public class ClaudeCompanionWindow : EditorWindow
         EditorGUILayout.EndVertical();
     }
 
-    private void DrawSessionListItem(int index)
+    // Returns true if this row's delete button was clicked - actual removal happens in the
+    // caller, after this loop over sessions finishes (see DrawSessionSidebar).
+    private bool DrawSessionListItem(int index)
     {
         CompanionSession s = sessions[index];
         bool isActive = index == activeSessionIndex;
+        bool deleteRequested = false;
 
         Rect rowRect = EditorGUILayout.BeginHorizontal(GUILayout.Height(24));
         if (isActive)
@@ -458,7 +471,68 @@ public class ClaudeCompanionWindow : EditorWindow
             Repaint();
         }
 
+        // Deleting kills the session's underlying claude process (if any) via
+        // CompanionSession.Dispose - besides freeing that process, this is also the only way
+        // to release a domain-reload lock a busy session is holding (see
+        // ClaudeSessionRunner.LockReload), which otherwise blocks Unity from ever swapping in
+        // newly compiled code while that session stays busy.
+        if (GUILayout.Button("×", EditorStyles.miniButton, GUILayout.Width(18)))
+        {
+            deleteRequested = true;
+        }
+
         EditorGUILayout.EndHorizontal();
+        return deleteRequested;
+    }
+
+    private void RemoveSession(int index)
+    {
+        if (index < 0 || index >= sessions.Count)
+        {
+            return;
+        }
+
+        CompanionSession session = sessions[index];
+        if (session.IsBusy)
+        {
+            bool proceed = EditorUtility.DisplayDialog(
+                "세션 삭제 확인",
+                "이 세션은 아직 작업 중입니다. 지금 삭제하면 진행 중인 응답이 강제로 중단됩니다.\n\n계속하시겠습니까?",
+                "삭제",
+                "취소");
+            if (!proceed)
+            {
+                return;
+            }
+        }
+
+        try
+        {
+            session.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogException(ex);
+        }
+
+        // The chat/activity log on disk (CompanionLog) is intentionally left alone - this
+        // only removes the tab, the same "recoverable, never silently destroyed" philosophy
+        // as ResetForNewConversation's archiving instead of deleting.
+        sessions.RemoveAt(index);
+        if (index < sessionRecords.Count)
+        {
+            sessionRecords.RemoveAt(index);
+        }
+
+        if (activeSessionIndex > index)
+        {
+            activeSessionIndex--;
+        }
+        activeSessionIndex = Mathf.Clamp(activeSessionIndex, 0, Mathf.Max(0, sessions.Count - 1));
+
+        SaveManifest();
+        GUI.FocusControl(null);
+        Repaint();
     }
 
     private void AddNewSession()
@@ -808,10 +882,19 @@ public class ClaudeCompanionWindow : EditorWindow
                 GUILayout.FlexibleSpace();
             }
 
-            // 0.85 (not the ~0.7 typical of chat apps with avatars) because this pane is
-            // already narrowed by the session sidebar - capping bubbles further on top of
-            // that made ordinary one-sentence messages wrap into a tall, hard-to-read column.
-            GUILayout.BeginVertical(GUILayout.MaxWidth(chatAreaWidth * 0.85f));
+            // GUILayout.MaxWidth is only a soft cap - nested inside this row's
+            // BeginHorizontal/FlexibleSpace, it was not actually shrinking the group, so the
+            // word-wrapped label inside kept wrapping to (and overflowing past) its own
+            // unconstrained natural width instead of the intended 85%. Computing an exact
+            // pixel width up front and forcing it with GUILayout.Width sidesteps that
+            // negotiation entirely: the group (and therefore the wrap width used inside it)
+            // is exactly this number, every time. Still shrinks to fit short messages by
+            // measuring the text's natural (unwrapped) width first and only clamping down to
+            // the 85% cap when the message is actually longer than that.
+            float maxBubbleWidth = chatAreaWidth * 0.85f;
+            float naturalBubbleWidth = bubbleTextStyle.CalcSize(new GUIContent(message.Text)).x + 12f;
+            float bubbleWidth = Mathf.Clamp(naturalBubbleWidth, 80f, maxBubbleWidth);
+            GUILayout.BeginVertical(GUILayout.Width(bubbleWidth));
             try
             {
                 Rect bubbleRect = EditorGUILayout.BeginVertical();
@@ -829,7 +912,7 @@ public class ClaudeCompanionWindow : EditorWindow
 
                     GUILayout.Space(3);
                     EditorGUILayout.LabelField(pending ? message.Role + " · 전송 대기" : message.Role, bubbleRoleStyle);
-                    DrawMessageBody(message.Text);
+                    DrawMessageBody(message.Text, bubbleWidth);
                     GUILayout.Space(3);
                 }
                 finally
@@ -857,8 +940,17 @@ public class ClaudeCompanionWindow : EditorWindow
     // Renders fenced code blocks in their own plain (non-rich-text) box and everything else
     // as rich text with bold/inline-code/bullets converted - see ChatMarkdown for what's
     // actually supported. Anything Claude sends that isn't one of those just prints as-is.
-    private void DrawMessageBody(string text)
+    //
+    // Every label's height here is computed explicitly (CalcHeight for a known width) and
+    // drawn into an exact GUILayoutUtility.GetRect rather than left to EditorGUILayout's
+    // automatic sizing - the automatic path was intermittently allocating only one line's
+    // worth of height for text that actually needed to wrap to two or more lines inside the
+    // fixed-width bubble from DrawChatBubble, clipping the rest instead of growing the bubble.
+    // Explicit width/height removes that ambiguity the same way the input box's sizing does.
+    private void DrawMessageBody(string text, float bubbleWidth)
     {
+        float contentWidth = Mathf.Max(20f, bubbleWidth - 12f);
+
         foreach (ChatMarkdown.Segment segment in ChatMarkdown.Split(text))
         {
             if (string.IsNullOrWhiteSpace(segment.Text))
@@ -868,6 +960,9 @@ public class ClaudeCompanionWindow : EditorWindow
 
             if (segment.IsCode)
             {
+                GUIContent codeContent = new GUIContent(segment.Text);
+                float codeTextHeight = codeBlockStyle.CalcHeight(codeContent, contentWidth);
+
                 // try/finally: a LabelField on unusually long/pathological text has been
                 // observed to throw inside Unity's own layout code (NullReferenceException
                 // deep in EditorGUILayout.LabelField). Without the finally, the unmatched
@@ -879,7 +974,8 @@ public class ClaudeCompanionWindow : EditorWindow
                 {
                     EditorGUI.DrawRect(codeRect, CodeBlockColor);
                     GUILayout.Space(2);
-                    EditorGUILayout.LabelField(segment.Text, codeBlockStyle);
+                    Rect codeTextRect = GUILayoutUtility.GetRect(contentWidth, codeTextHeight);
+                    EditorGUI.LabelField(codeTextRect, codeContent, codeBlockStyle);
                     GUILayout.Space(2);
                 }
                 finally
@@ -889,7 +985,10 @@ public class ClaudeCompanionWindow : EditorWindow
             }
             else
             {
-                EditorGUILayout.LabelField(ChatMarkdown.ToRichText(segment.Text), bubbleTextStyle);
+                GUIContent richContent = new GUIContent(ChatMarkdown.ToRichText(segment.Text));
+                float textHeight = bubbleTextStyle.CalcHeight(richContent, contentWidth);
+                Rect textRect = GUILayoutUtility.GetRect(contentWidth, textHeight);
+                EditorGUI.LabelField(textRect, richContent, bubbleTextStyle);
             }
         }
     }
