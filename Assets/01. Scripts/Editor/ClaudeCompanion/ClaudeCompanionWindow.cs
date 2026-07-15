@@ -113,6 +113,17 @@ public class ClaudeCompanionWindow : EditorWindow
     private int lastChatMessageCount = -1;
 
     private const float SidebarWidth = 150f;
+    // VerticalDivider: GUILayout.Space(4) + a 1px rect + GUILayout.Space(4).
+    private const float SidebarDividerWidth = 9f;
+    // Reserves room for the chat scroll view's own vertical scrollbar, which otherwise eats
+    // into the same width a same-frame GetControlRect measurement inside that scroll view
+    // was reporting as still free - see GetChatPaneWidth.
+    private const float ChatScrollbarWidth = 16f;
+
+    // Bounds for the auto-growing chat input box (see DrawChat) - min is one line, max caps
+    // growth around ~5-6 lines so a long paste can't swallow the whole window.
+    private const float MinInputHeight = 24f;
+    private const float MaxInputHeight = 120f;
 
     private readonly List<CompanionSession> sessions = new List<CompanionSession>();
     private CompanionSession ActiveSession =>
@@ -288,12 +299,18 @@ public class ClaudeCompanionWindow : EditorWindow
 
             EditorGUI.DrawRect(new Rect(0, 0, position.width, position.height), BackgroundColor);
 
-            EditorGUILayout.BeginHorizontal();
+            // Both groups need an explicit ExpandHeight so DrawChat's own ExpandHeight
+            // scroll view actually gets capped to the leftover window space instead of
+            // growing with chat content - without it, nothing constrains this column's
+            // height and the input row/Send button get pushed further below the visible
+            // window as the conversation grows (the sidebar was already fine since its own
+            // BeginVertical below already has ExpandHeight).
+            EditorGUILayout.BeginHorizontal(GUILayout.ExpandHeight(true));
 
             DrawSessionSidebar();
             VerticalDivider();
 
-            EditorGUILayout.BeginVertical();
+            EditorGUILayout.BeginVertical(GUILayout.ExpandHeight(true));
             if (ActiveSession == null)
             {
                 GUILayout.FlexibleSpace();
@@ -377,7 +394,7 @@ public class ClaudeCompanionWindow : EditorWindow
             normal = { textColor = Color.white }
         };
 
-        // The default EditorStyles.textField skin barely contrasts against this window's
+        // The default EditorStyles.textArea skin barely contrasts against this window's
         // custom dark BackgroundColor when the field is empty - see DrawChat(). Nulling out
         // normal/focused.background here to force our own EditorGUI.DrawRect underneath was
         // tried first, but it made Unity's internal TextEditor throw a NullReferenceException
@@ -385,11 +402,14 @@ public class ClaudeCompanionWindow : EditorWindow
         // clicked into - which, caught by OnGUI's outer try/catch, silently killed that
         // frame's rendering and looked exactly like the field "disappearing". Leaving the
         // native background alone and only tinting text color is the safe way to adjust this.
-        inputFieldStyle = new GUIStyle(EditorStyles.textField)
+        // Based on textArea (not textField) and word-wrapped so the input can grow to more
+        // than one line - see DrawChat's auto-growing input box.
+        inputFieldStyle = new GUIStyle(EditorStyles.textArea)
         {
             normal = { textColor = Color.white },
             focused = { textColor = Color.white },
-            padding = new RectOffset(6, 6, 2, 2)
+            padding = new RectOffset(6, 6, 4, 4),
+            wordWrap = true
         };
     }
 
@@ -648,6 +668,18 @@ public class ClaudeCompanionWindow : EditorWindow
         Repaint();
     }
 
+    // A same-frame EditorGUILayout.GetControlRect(GUILayout.Height(0)) call was tried here
+    // first (both inside the chat scroll view and for the input row below it) to measure
+    // "how wide is this pane right now", but it returned inconsistent values in each of those
+    // two spots - bubbles came out far narrower than intended, while the input row came out
+    // wider than the pane, spilling out past the sidebar/window edge. Computing the pane width
+    // directly from position.width and the sidebar/divider's own fixed sizes removes that
+    // per-frame ambiguity - it's the same number every time, in every context.
+    private float GetChatPaneWidth()
+    {
+        return Mathf.Max(200f, position.width - SidebarWidth - SidebarDividerWidth);
+    }
+
     private void DrawChat()
     {
         EditorGUILayout.LabelField("채팅", sectionHeaderStyle);
@@ -666,11 +698,9 @@ public class ClaudeCompanionWindow : EditorWindow
         // simply claims whatever space is left - no manual height math or cross-frame caching.
         chatScroll = EditorGUILayout.BeginScrollView(chatScroll, GUILayout.ExpandHeight(true));
 
-        // Measured here (inside the scroll view, on this frame) instead of derived from
-        // position.width * ratio - the latter ignores the sidebar/divider width already
-        // consumed to its left, so bubbles were sized wider than the space actually left for
-        // them and their wrapped text overflowed past the visible pane/window edge.
-        float chatAreaWidth = EditorGUILayout.GetControlRect(GUILayout.Height(0)).width;
+        // Reserve room for this scroll view's own vertical scrollbar so bubble text isn't
+        // wrapped to a width wider than what's actually left once the scrollbar is drawn.
+        float chatAreaWidth = GetChatPaneWidth() - ChatScrollbarWidth;
 
         foreach (ChatMessage message in ActiveSession.ChatMessages)
         {
@@ -692,27 +722,47 @@ public class ClaudeCompanionWindow : EditorWindow
             EditorGUILayout.LabelField($"메시지 {ActiveSession.PendingMessages.Count}개 전송 대기 중", logPathStyle);
         }
 
-        EditorGUILayout.BeginHorizontal();
+        // Same deterministic width as the chat bubbles above (no scrollbar reservation
+        // needed here - this row isn't inside a scroll view).
+        float inputAreaWidth = GetChatPaneWidth();
 
-        // A bare EditorGUILayout.TextField's default skin barely contrasts against this
-        // window's custom dark BackgroundColor - when empty (no text/selection highlight
-        // to draw the eye), the field reads as "missing" even though it's rendering fine.
-        // Painting an explicit background rect first (same approach as the chat bubbles)
-        // guarantees it stays visible regardless of content.
-        Rect inputRect = GUILayoutUtility.GetRect(GUIContent.none, EditorStyles.textField, GUILayout.ExpandWidth(true));
-        EditorGUI.DrawRect(inputRect, InputFieldColor);
-        GUI.SetNextControlName("ChatInput");
-        inputText = EditorGUI.TextField(inputRect, inputText, inputFieldStyle);
+        // Auto-growing input box (like Claude's/ChatGPT's chat UI): height tracks the
+        // wrapped line count of what's currently typed instead of staying a fixed single
+        // line, so a longer message is visible in place rather than requiring the window to
+        // be resized to see what was typed.
+        float desiredHeight = inputFieldStyle.CalcHeight(new GUIContent(inputText), inputAreaWidth) + 4f;
+        float inputHeight = Mathf.Clamp(desiredHeight, MinInputHeight, MaxInputHeight);
 
-        bool enterPressed = false;
+        // Enter sends (matching the previous single-line behavior); Shift+Enter falls
+        // through to the text area's own default handling so a multi-line message can still
+        // be composed before sending. Must be checked and consumed *before* the TextArea
+        // below runs - TextArea is a multi-line control that handles Return itself (inserting
+        // a newline) as part of its own native event handling, which used the event up before
+        // a check placed after the TextArea call ever saw it as still KeyDown. That was why
+        // Enter silently stopped sending and only inserted a newline after this field switched
+        // from TextField to TextArea.
         Event current = Event.current;
-        if (current.type == EventType.KeyDown
+        bool enterPressed = current.type == EventType.KeyDown
             && (current.keyCode == KeyCode.Return || current.keyCode == KeyCode.KeypadEnter)
-            && GUI.GetNameOfFocusedControl() == "ChatInput")
+            && !current.shift
+            && GUI.GetNameOfFocusedControl() == "ChatInput";
+        if (enterPressed)
         {
-            enterPressed = true;
             current.Use();
         }
+
+        Rect inputRect = GUILayoutUtility.GetRect(inputAreaWidth, inputHeight);
+        // A bare EditorGUI.TextArea's default skin barely contrasts against this window's
+        // custom dark BackgroundColor - when empty (no text/selection highlight to draw the
+        // eye), the field reads as "missing" even though it's rendering fine. Painting an
+        // explicit background rect first (same approach as the chat bubbles) guarantees it
+        // stays visible regardless of content.
+        EditorGUI.DrawRect(inputRect, InputFieldColor);
+        GUI.SetNextControlName("ChatInput");
+        inputText = EditorGUI.TextArea(inputRect, inputText, inputFieldStyle);
+
+        EditorGUILayout.BeginHorizontal();
+        GUILayout.FlexibleSpace();
 
         bool canSend = CanSendMessage(inputText);
         EditorGUI.BeginDisabledGroup(!canSend);
@@ -758,7 +808,10 @@ public class ClaudeCompanionWindow : EditorWindow
                 GUILayout.FlexibleSpace();
             }
 
-            GUILayout.BeginVertical(GUILayout.MaxWidth(chatAreaWidth * 0.72f));
+            // 0.85 (not the ~0.7 typical of chat apps with avatars) because this pane is
+            // already narrowed by the session sidebar - capping bubbles further on top of
+            // that made ordinary one-sentence messages wrap into a tall, hard-to-read column.
+            GUILayout.BeginVertical(GUILayout.MaxWidth(chatAreaWidth * 0.85f));
             try
             {
                 Rect bubbleRect = EditorGUILayout.BeginVertical();
