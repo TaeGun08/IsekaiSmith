@@ -44,6 +44,63 @@ public class ClaudeCompanionWindow : EditorWindow
     [SerializeField] private List<SessionRecord> sessionRecords = new List<SessionRecord>();
     [SerializeField] private int activeSessionIndex;
 
+    // sessionRecords above only survives a domain reload - Unity discards an EditorWindow's
+    // fields entirely once the window is actually closed (not just reloaded), so reopening it
+    // previously always fell through to the "no records yet" seed path below and silently
+    // started a brand new session 1, orphaning every other tab's chat history on disk even
+    // though the underlying session-log-*.txt files were all still there. Mirroring the record
+    // list to this small manifest file lets OnEnable rebuild the real tab list after a full
+    // close, the same way CompanionLog already recovers each tab's chat text.
+    [Serializable]
+    private class SessionManifest
+    {
+        public List<SessionRecord> Records = new List<SessionRecord>();
+        public int ActiveIndex;
+    }
+
+    private static string ManifestPath =>
+        Path.Combine(Directory.GetParent(Application.dataPath).FullName, "Library", "ClaudeCompanion", "sessions.json");
+
+    private void SaveManifest()
+    {
+        try
+        {
+            string dir = Path.GetDirectoryName(ManifestPath);
+            if (!Directory.Exists(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+            SessionManifest manifest = new SessionManifest { Records = sessionRecords, ActiveIndex = activeSessionIndex };
+            File.WriteAllText(ManifestPath, JsonUtility.ToJson(manifest));
+        }
+        catch (Exception ex)
+        {
+            Debug.LogException(ex);
+        }
+    }
+
+    private static List<SessionRecord> LoadManifest(out int savedActiveIndex)
+    {
+        savedActiveIndex = 0;
+        try
+        {
+            if (File.Exists(ManifestPath))
+            {
+                SessionManifest manifest = JsonUtility.FromJson<SessionManifest>(File.ReadAllText(ManifestPath));
+                if (manifest?.Records != null && manifest.Records.Count > 0)
+                {
+                    savedActiveIndex = manifest.ActiveIndex;
+                    return manifest.Records;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogException(ex);
+        }
+        return null;
+    }
+
     // Pre-multi-session fields. Unity's serializer matches by field name, so renaming/removing
     // these would silently orphan whatever session was live when this refactor landed (wrong
     // log file, and the next Send() would start a brand new Claude conversation instead of
@@ -53,25 +110,9 @@ public class ClaudeCompanionWindow : EditorWindow
 
     private string inputText = "";
     private Vector2 chatScroll;
-    private Vector2 logScroll;
     private int lastChatMessageCount = -1;
 
-    // Hidden by default - the activity log went through several rounds of resize/measurement
-    // logic that kept fighting with the chat area's layout (see git history). Instead of
-    // continuing to patch that coupling, the log now only keeps a minimal collapsed trace by
-    // default; expanding it uses a fixed height so it can never feed back into chat sizing.
-    [SerializeField] private bool activityLogCollapsed = true;
-    private const float ActivityLogHeight = 120f;
     private const float SidebarWidth = 150f;
-
-    // Log filter chips - all on by default so filtering is opt-in (turning categories off),
-    // not opt-in-to-see-anything.
-    private bool logFilterError = true;
-    private bool logFilterToolUse = true;
-    private bool logFilterToolResult = true;
-    private bool logFilterSystem = true;
-    private bool logFilterOther = true;
-    private string logSearchText = "";
 
     private readonly List<CompanionSession> sessions = new List<CompanionSession>();
     private CompanionSession ActiveSession =>
@@ -97,7 +138,6 @@ public class ClaudeCompanionWindow : EditorWindow
     private GUIStyle sessionItemStyle;
     private GUIStyle activeSessionItemStyle;
     private GUIStyle codeBlockStyle;
-    private readonly Dictionary<Color, GUIStyle> logEntryStyleCache = new Dictionary<Color, GUIStyle>();
 
     // A previous attempt throttled Repaint() by self-gating inside OnGUI (only calling
     // Repaint() again if enough time had passed). That broke the animation because OnGUI
@@ -116,15 +156,28 @@ public class ClaudeCompanionWindow : EditorWindow
 
         if (sessionRecords.Count == 0)
         {
-            // Fold the pre-multi-session identity in, if any, so the conversation that was
-            // live before this refactor keeps resuming instead of silently starting fresh.
-            string seedKey = !string.IsNullOrEmpty(companionSessionKey) ? companionSessionKey : Guid.NewGuid().ToString("N");
-            sessionRecords.Add(new SessionRecord
+            // A real Close (not a domain reload) destroys this window instance, so the
+            // in-memory sessionRecords above is always empty on the way back in - recover
+            // the tab list from the on-disk manifest first before assuming this is a
+            // genuinely first-ever launch.
+            List<SessionRecord> restored = LoadManifest(out int savedActiveIndex);
+            if (restored != null)
             {
-                SessionKey = seedKey,
-                RestoredSessionId = restoredSessionId,
-                DisplayName = "세션 1"
-            });
+                sessionRecords.AddRange(restored);
+                activeSessionIndex = savedActiveIndex;
+            }
+            else
+            {
+                // Fold the pre-multi-session identity in, if any, so the conversation that was
+                // live before this refactor keeps resuming instead of silently starting fresh.
+                string seedKey = !string.IsNullOrEmpty(companionSessionKey) ? companionSessionKey : Guid.NewGuid().ToString("N");
+                sessionRecords.Add(new SessionRecord
+                {
+                    SessionKey = seedKey,
+                    RestoredSessionId = restoredSessionId,
+                    DisplayName = "세션 1"
+                });
+            }
         }
 
         string projectRoot = Directory.GetParent(Application.dataPath).FullName;
@@ -137,6 +190,7 @@ public class ClaudeCompanionWindow : EditorWindow
                 newSession.Changed += () =>
                 {
                     record.RestoredSessionId = newSession.RestoredSessionId;
+                    SaveManifest();
                     Repaint();
                 };
                 sessions.Add(newSession);
@@ -150,6 +204,7 @@ public class ClaudeCompanionWindow : EditorWindow
             }
         }
         activeSessionIndex = Mathf.Clamp(activeSessionIndex, 0, Mathf.Max(0, sessions.Count - 1));
+        SaveManifest();
 
         try
         {
@@ -182,6 +237,10 @@ public class ClaudeCompanionWindow : EditorWindow
     private void OnDisable()
     {
         EditorApplication.update -= OnEditorUpdate;
+        // Fires on a real window Close too, not just a domain reload - this is the last
+        // chance to persist the tab list (see SessionManifest) before sessionRecords itself
+        // is discarded along with this window instance.
+        SaveManifest();
         foreach (CompanionSession s in sessions)
         {
             try
@@ -249,8 +308,6 @@ public class ClaudeCompanionWindow : EditorWindow
                 DrawControls();
                 Divider();
                 DrawChat();
-                Divider();
-                DrawActivityLog();
             }
             EditorGUILayout.EndVertical();
 
@@ -336,16 +393,6 @@ public class ClaudeCompanionWindow : EditorWindow
         };
     }
 
-    private GUIStyle GetLogEntryStyle(Color color)
-    {
-        if (!logEntryStyleCache.TryGetValue(color, out GUIStyle style))
-        {
-            style = new GUIStyle(EditorStyles.wordWrappedMiniLabel) { normal = { textColor = color } };
-            logEntryStyleCache[color] = style;
-        }
-        return style;
-    }
-
     private void DrawSessionSidebar()
     {
         EditorGUILayout.BeginVertical(GUILayout.Width(SidebarWidth), GUILayout.ExpandHeight(true));
@@ -386,6 +433,7 @@ public class ClaudeCompanionWindow : EditorWindow
         if (GUILayout.Button(label, style))
         {
             activeSessionIndex = index;
+            SaveManifest();
             GUI.FocusControl(null);
             Repaint();
         }
@@ -409,6 +457,7 @@ public class ClaudeCompanionWindow : EditorWindow
             newSession.Changed += () =>
             {
                 record.RestoredSessionId = newSession.RestoredSessionId;
+                SaveManifest();
                 Repaint();
             };
             sessions.Add(newSession);
@@ -418,6 +467,7 @@ public class ClaudeCompanionWindow : EditorWindow
         {
             Debug.LogException(ex);
         }
+        SaveManifest();
         Repaint();
     }
 
@@ -616,9 +666,15 @@ public class ClaudeCompanionWindow : EditorWindow
         // simply claims whatever space is left - no manual height math or cross-frame caching.
         chatScroll = EditorGUILayout.BeginScrollView(chatScroll, GUILayout.ExpandHeight(true));
 
+        // Measured here (inside the scroll view, on this frame) instead of derived from
+        // position.width * ratio - the latter ignores the sidebar/divider width already
+        // consumed to its left, so bubbles were sized wider than the space actually left for
+        // them and their wrapped text overflowed past the visible pane/window edge.
+        float chatAreaWidth = EditorGUILayout.GetControlRect(GUILayout.Height(0)).width;
+
         foreach (ChatMessage message in ActiveSession.ChatMessages)
         {
-            DrawChatBubble(message, pending: false);
+            DrawChatBubble(message, pending: false, chatAreaWidth);
         }
 
         // Messages typed while a turn was already in flight - CompanionSession.Submit queued
@@ -626,7 +682,7 @@ public class ClaudeCompanionWindow : EditorWindow
         // Rendered dimmed so it's visually clear they haven't actually been sent to Claude yet.
         foreach (string pendingText in ActiveSession.PendingMessages)
         {
-            DrawChatBubble(new ChatMessage("You", pendingText), pending: true);
+            DrawChatBubble(new ChatMessage("You", pendingText), pending: true, chatAreaWidth);
         }
 
         EditorGUILayout.EndScrollView();
@@ -685,40 +741,63 @@ public class ClaudeCompanionWindow : EditorWindow
         }
     }
 
-    private void DrawChatBubble(ChatMessage message, bool pending)
+    private void DrawChatBubble(ChatMessage message, bool pending, float chatAreaWidth)
     {
         bool isUser = message.Role == "You";
 
+        // Every Begin*/End* pair below is try/finally-guarded so a rendering exception on
+        // one message (e.g. from an unusually long/pathological body) can't leave GUILayout's
+        // group stack unbalanced - an unmatched Begin desyncs it for the rest of this OnGUI
+        // call, which previously showed up as the input row/activity log silently failing to
+        // render at all rather than as a visible error.
         GUILayout.BeginHorizontal();
-        if (isUser)
+        try
         {
-            GUILayout.FlexibleSpace();
-        }
+            if (isUser)
+            {
+                GUILayout.FlexibleSpace();
+            }
 
-        GUILayout.BeginVertical(GUILayout.MaxWidth(position.width * 0.72f));
-        Rect bubbleRect = EditorGUILayout.BeginVertical();
-        Color bubbleColor = isUser ? UserBubbleColor : ClaudeBubbleColor;
-        if (pending)
+            GUILayout.BeginVertical(GUILayout.MaxWidth(chatAreaWidth * 0.72f));
+            try
+            {
+                Rect bubbleRect = EditorGUILayout.BeginVertical();
+                try
+                {
+                    Color bubbleColor = isUser ? UserBubbleColor : ClaudeBubbleColor;
+                    if (pending)
+                    {
+                        // Halved alpha is enough to read as "not sent yet" without a separate
+                        // style/layout pass - same trick as the busy-state dot colors
+                        // elsewhere in this file.
+                        bubbleColor.a *= 0.5f;
+                    }
+                    EditorGUI.DrawRect(bubbleRect, bubbleColor);
+
+                    GUILayout.Space(3);
+                    EditorGUILayout.LabelField(pending ? message.Role + " · 전송 대기" : message.Role, bubbleRoleStyle);
+                    DrawMessageBody(message.Text);
+                    GUILayout.Space(3);
+                }
+                finally
+                {
+                    EditorGUILayout.EndVertical();
+                }
+            }
+            finally
+            {
+                GUILayout.EndVertical();
+            }
+
+            if (!isUser)
+            {
+                GUILayout.FlexibleSpace();
+            }
+        }
+        finally
         {
-            // Halved alpha is enough to read as "not sent yet" without a separate style/
-            // layout pass - same trick as the busy-state dot colors elsewhere in this file.
-            bubbleColor.a *= 0.5f;
+            GUILayout.EndHorizontal();
         }
-        EditorGUI.DrawRect(bubbleRect, bubbleColor);
-
-        GUILayout.Space(3);
-        EditorGUILayout.LabelField(pending ? message.Role + " · 전송 대기" : message.Role, bubbleRoleStyle);
-        DrawMessageBody(message.Text);
-        GUILayout.Space(3);
-
-        EditorGUILayout.EndVertical();
-        GUILayout.EndVertical();
-
-        if (!isUser)
-        {
-            GUILayout.FlexibleSpace();
-        }
-        GUILayout.EndHorizontal();
         GUILayout.Space(4);
     }
 
@@ -736,12 +815,24 @@ public class ClaudeCompanionWindow : EditorWindow
 
             if (segment.IsCode)
             {
+                // try/finally: a LabelField on unusually long/pathological text has been
+                // observed to throw inside Unity's own layout code (NullReferenceException
+                // deep in EditorGUILayout.LabelField). Without the finally, the unmatched
+                // BeginVertical desyncs GUILayout's group stack for the rest of this OnGUI
+                // call, which is what was silently swallowing the Send button/activity log
+                // below - not an actual absence of those controls.
                 Rect codeRect = EditorGUILayout.BeginVertical();
-                EditorGUI.DrawRect(codeRect, CodeBlockColor);
-                GUILayout.Space(2);
-                EditorGUILayout.LabelField(segment.Text, codeBlockStyle);
-                GUILayout.Space(2);
-                EditorGUILayout.EndVertical();
+                try
+                {
+                    EditorGUI.DrawRect(codeRect, CodeBlockColor);
+                    GUILayout.Space(2);
+                    EditorGUILayout.LabelField(segment.Text, codeBlockStyle);
+                    GUILayout.Space(2);
+                }
+                finally
+                {
+                    EditorGUILayout.EndVertical();
+                }
             }
             else
             {
@@ -766,93 +857,6 @@ public class ClaudeCompanionWindow : EditorWindow
             return;
         }
         ActiveSession.Submit(text);
-    }
-
-    private void DrawActivityLog()
-    {
-        EditorGUILayout.BeginHorizontal();
-        EditorGUILayout.LabelField("도구 활동 로그", sectionHeaderStyle);
-        GUILayout.FlexibleSpace();
-        if (GUILayout.Button(activityLogCollapsed ? "펼치기 ▲" : "접기 ▼", EditorStyles.miniButton, GUILayout.Width(70)))
-        {
-            activityLogCollapsed = !activityLogCollapsed;
-        }
-        EditorGUILayout.EndHorizontal();
-
-        if (activityLogCollapsed)
-        {
-            return;
-        }
-
-        DrawActivityLogFilters();
-
-        logScroll = EditorGUILayout.BeginScrollView(logScroll, GUILayout.Height(ActivityLogHeight));
-        foreach (string entry in ActiveSession.ActivityLog)
-        {
-            if (!PassesLogFilter(entry))
-            {
-                continue;
-            }
-            EditorGUILayout.LabelField(entry, GetLogEntryStyle(LogColor(entry)));
-        }
-        EditorGUILayout.EndScrollView();
-
-        EditorGUILayout.LabelField($"로그 파일: {ActiveSession.Log.FilePath}", logPathStyle);
-    }
-
-    // Category chips (toggle buttons) plus a substring search box. Both this and LogColor
-    // key off the same entry prefixes CompanionLog/ClaudeSessionRunner already write
-    // ("ERROR", "tool_use", "tool_result", "system") so adding a new prefix only needs to be
-    // taught to LogCategory once.
-    private void DrawActivityLogFilters()
-    {
-        EditorGUILayout.BeginHorizontal();
-        logFilterError = GUILayout.Toggle(logFilterError, "오류", EditorStyles.miniButton, GUILayout.Width(45));
-        logFilterToolUse = GUILayout.Toggle(logFilterToolUse, "도구 호출", EditorStyles.miniButton, GUILayout.Width(60));
-        logFilterToolResult = GUILayout.Toggle(logFilterToolResult, "결과", EditorStyles.miniButton, GUILayout.Width(45));
-        logFilterSystem = GUILayout.Toggle(logFilterSystem, "시스템", EditorStyles.miniButton, GUILayout.Width(50));
-        logFilterOther = GUILayout.Toggle(logFilterOther, "기타", EditorStyles.miniButton, GUILayout.Width(40));
-        EditorGUILayout.EndHorizontal();
-
-        logSearchText = EditorGUILayout.TextField(logSearchText, EditorStyles.toolbarSearchField);
-    }
-
-    private bool PassesLogFilter(string entry)
-    {
-        if (!string.IsNullOrEmpty(logSearchText) && entry.IndexOf(logSearchText, StringComparison.OrdinalIgnoreCase) < 0)
-        {
-            return false;
-        }
-
-        switch (LogCategory(entry))
-        {
-            case "ERROR": return logFilterError;
-            case "tool_use": return logFilterToolUse;
-            case "tool_result": return logFilterToolResult;
-            case "system": return logFilterSystem;
-            default: return logFilterOther;
-        }
-    }
-
-    private static string LogCategory(string entry)
-    {
-        if (entry.StartsWith("ERROR")) return "ERROR";
-        if (entry.StartsWith("tool_use")) return "tool_use";
-        if (entry.StartsWith("tool_result")) return "tool_result";
-        if (entry.StartsWith("system")) return "system";
-        return "other";
-    }
-
-    private static Color LogColor(string entry)
-    {
-        switch (LogCategory(entry))
-        {
-            case "ERROR": return new Color(1f, 0.45f, 0.45f);
-            case "tool_use": return new Color(0.55f, 0.8f, 1f);
-            case "tool_result": return new Color(0.6f, 0.9f, 0.6f);
-            case "system": return new Color(0.75f, 0.75f, 0.82f);
-            default: return new Color(0.7f, 0.7f, 0.7f);
-        }
     }
 
     private static void Divider()
