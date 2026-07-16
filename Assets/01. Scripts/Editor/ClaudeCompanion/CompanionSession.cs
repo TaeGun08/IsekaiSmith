@@ -16,6 +16,66 @@ public class CompanionSession
     public readonly ClaudeSessionRunner Runner;
     public readonly CompanionLog Log;
 
+    // Coarse "what is Claude doing right now" signal for the character stage - see
+    // CharacterActivity. Derived from tool_use activity, not persisted (a fresh Idle on every
+    // reload is fine, this is purely cosmetic).
+    public CharacterActivity CurrentActivity { get; private set; } = CharacterActivity.Idle;
+
+    // Just the current (or most recently finished) turn's raw activity entries, for the turn
+    // progress stepper - unlike ActivityLog (which keeps growing for the whole conversation and
+    // is what's mirrored to disk), this is cleared every time a new turn starts (see SendNow),
+    // so the stepper always shows "what just happened" instead of the entire session's history.
+    public readonly List<string> CurrentTurnSteps = new List<string>();
+
+    private static readonly HashSet<string> ReadingTools = new HashSet<string>
+        { "Read", "Glob", "Grep", "WebFetch", "WebSearch", "NotebookRead" };
+    private static readonly HashSet<string> EditingTools = new HashSet<string>
+        { "Edit", "Write", "NotebookEdit", "MultiEdit", "TodoWrite" };
+    private static readonly HashSet<string> RunningTools = new HashSet<string>
+        { "Bash", "BashOutput", "KillShell", "Task", "SlashCommand" };
+
+    // Shared by CurrentActivity classification (below) and the stepper's chip coloring in
+    // ClaudeCompanionWindow, so the "which bucket does this tool fall into" rule only lives
+    // in one place.
+    public static CharacterActivity ClassifyTool(string toolName)
+    {
+        if (string.IsNullOrEmpty(toolName))
+        {
+            return CharacterActivity.Thinking;
+        }
+        if (ReadingTools.Contains(toolName))
+        {
+            return CharacterActivity.Reading;
+        }
+        if (EditingTools.Contains(toolName))
+        {
+            return CharacterActivity.Editing;
+        }
+        if (RunningTools.Contains(toolName) || toolName.StartsWith("mcp__"))
+        {
+            return CharacterActivity.Running;
+        }
+        return CharacterActivity.Thinking;
+    }
+
+    // "tool_use: X" entries carry the real tool name; everything else (tool_result, system,
+    // error lines) doesn't represent new work starting, so it leaves CurrentActivity as-is
+    // rather than guessing.
+    private CharacterActivity ClassifyActivityEntry(string entry)
+    {
+        const string toolUsePrefix = "tool_use: ";
+        if (entry.StartsWith(toolUsePrefix))
+        {
+            return ClassifyTool(entry.Substring(toolUsePrefix.Length));
+        }
+        if (entry == "tool_result received")
+        {
+            // Claude is deciding what to do next, not idle.
+            return CharacterActivity.Thinking;
+        }
+        return CurrentActivity;
+    }
+
     // Messages submitted while a turn was already in flight, waiting to be sent as soon as
     // the current one finishes. Previously Submit() while busy was simply unreachable (the
     // Send button was disabled), forcing the user to babysit the window instead of typing
@@ -54,7 +114,9 @@ public class CompanionSession
         Runner.OnToolActivity += entry =>
         {
             ActivityLog.Add(entry);
+            CurrentTurnSteps.Add(entry);
             Log.AppendActivity(entry);
+            CurrentActivity = ClassifyActivityEntry(entry);
             Changed?.Invoke();
         };
         Runner.OnTurnComplete += AdvanceQueueOrNotify;
@@ -87,6 +149,8 @@ public class CompanionSession
         PendingMessages.Clear();
         Log.RotateForNewSession();
         RestoredSessionId = null;
+        CurrentActivity = CharacterActivity.Idle;
+        CurrentTurnSteps.Clear();
         Changed?.Invoke();
     }
 
@@ -107,7 +171,9 @@ public class CompanionSession
     {
         ChatMessages.Add(new ChatMessage("You", text));
         Log.AppendChat("You", text);
+        CurrentTurnSteps.Clear();
         Runner.Send(text);
+        CurrentActivity = CharacterActivity.Thinking;
         Changed?.Invoke();
     }
 
@@ -121,6 +187,7 @@ public class CompanionSession
         }
         else
         {
+            CurrentActivity = CharacterActivity.Idle;
             Changed?.Invoke();
         }
     }

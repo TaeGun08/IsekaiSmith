@@ -1,11 +1,12 @@
-/* Structural + static color styling for ClaudeCompanionWindow's UI Toolkit view.
-   Values here intentionally mirror the old IMGUI palette (see ClaudeCompanionWindow's
-   Color constants) so the M1 migration changes *how* the window is built, not how it looks -
-   visual identity work is scoped to a later milestone. */
+/* M2 visual identity pass: warm dark neutrals + a terracotta brand accent, replacing the
+   cool-gray placeholder palette M1 ported 1:1 from the old IMGUI colors. Session identity
+   (accent stripe/bar) and hover/focus/active microinteractions live here too - state colors
+   (busy/idle/running/stopped) stay semantic and are NOT part of this pass, see
+   CharacterStageElement.cs / ClaudeCompanionWindow's Running/Stopped/Busy/Idle constants. */
 
 .root {
     flex-grow: 1;
-    background-color: rgb(33, 33, 38);
+    background-color: rgb(26, 24, 23);
 }
 
 .main-row {
@@ -22,7 +23,7 @@
 .sidebar-title {
     -unity-font-style: bold;
     font-size: 12px;
-    color: rgb(230, 230, 242);
+    color: rgb(230, 227, 224);
     margin-bottom: 4px;
 }
 
@@ -44,12 +45,24 @@
     flex-direction: row;
     align-items: center;
     height: 24px;
-    border-radius: 3px;
+    border-radius: 4px;
     margin-bottom: 2px;
+    border-left-width: 3px;
+    border-left-color: rgba(0, 0, 0, 0);
+    transition-property: background-color;
+    transition-duration: 120ms;
+}
+
+.session-row:hover {
+    background-color: rgba(255, 255, 255, 0.05);
 }
 
 .session-row--active {
     background-color: rgba(255, 255, 255, 0.07);
+}
+
+.session-row--active:hover {
+    background-color: rgba(255, 255, 255, 0.10);
 }
 
 .session-dot {
@@ -62,7 +75,7 @@
 
 .session-label {
     flex-grow: 1;
-    color: rgb(191, 191, 204);
+    color: rgb(197, 191, 186);
     -unity-text-align: middle-left;
 }
 
@@ -73,6 +86,12 @@
 
 .session-delete-button {
     width: 18px;
+    transition-property: background-color;
+    transition-duration: 120ms;
+}
+
+.session-delete-button:hover {
+    background-color: rgba(217, 89, 89, 0.35);
 }
 
 .new-session-button {
@@ -90,13 +109,21 @@
 .empty-state-label {
     flex-grow: 1;
     -unity-text-align: middle-center;
-    color: rgb(230, 230, 242);
+    color: rgb(230, 227, 224);
     font-size: 12px;
+}
+
+.session-accent-bar {
+    height: 3px;
+    border-radius: 2px;
+    margin-bottom: 6px;
+    transition-property: background-color;
+    transition-duration: 200ms;
 }
 
 .character-stage {
     height: 96px;
-    background-color: rgb(43, 46, 51);
+    background-color: rgb(35, 32, 31);
     position: relative;
     margin-bottom: 6px;
 }
@@ -114,7 +141,7 @@
     height: 16px;
     -unity-text-align: middle-center;
     font-size: 10px;
-    color: rgb(217, 217, 230);
+    color: rgb(214, 209, 204);
 }
 
 .controls-row {
@@ -123,9 +150,90 @@
     margin-bottom: 4px;
 }
 
+.stepper-section {
+    margin-bottom: 4px;
+}
+
+.stepper-header {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 3px;
+}
+
+.stepper-title {
+    -unity-font-style: bold;
+    font-size: 11px;
+    color: rgb(197, 191, 186);
+}
+
+.stepper-toggle-button {
+    width: 70px;
+    height: 18px;
+    font-size: 10px;
+}
+
+.stepper-scroll {
+    max-height: 64px;
+}
+
+.stepper-content {
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.stepper-placeholder {
+    font-size: 10px;
+    color: rgb(120, 114, 109);
+}
+
+.step-chip {
+    flex-direction: row;
+    align-items: center;
+    background-color: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    padding: 2px 8px 2px 6px;
+    margin-right: 4px;
+    margin-bottom: 4px;
+}
+
+.step-chip-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 3px;
+    margin-right: 5px;
+}
+
+.step-chip-label {
+    font-size: 10px;
+    color: rgb(214, 209, 204);
+}
+
 .bridge-toggle-button {
     width: 90px;
     height: 24px;
+    color: rgb(255, 255, 255);
+    transition-property: background-color, scale;
+    transition-duration: 120ms;
+}
+
+.bridge-toggle-button:active {
+    scale: 0.96;
+}
+
+.bridge-toggle-button--running {
+    background-color: rgb(196, 82, 82);
+}
+
+.bridge-toggle-button--running:hover {
+    background-color: rgb(214, 98, 98);
+}
+
+.bridge-toggle-button--stopped {
+    background-color: rgb(84, 158, 105);
+}
+
+.bridge-toggle-button--stopped:hover {
+    background-color: rgb(98, 176, 120);
 }
 
 .bridge-dot {
@@ -139,7 +247,7 @@
 .bridge-label {
     width: 90px;
     font-size: 10px;
-    color: rgb(191, 191, 204);
+    color: rgb(197, 191, 186);
 }
 
 .spacer {
@@ -148,6 +256,8 @@
 
 .fallback-input-button {
     width: 80px;
+    transition-property: background-color;
+    transition-duration: 120ms;
 }
 
 .chat-scroll {
@@ -169,16 +279,18 @@
 
 .chat-bubble {
     max-width: 85%;
-    border-radius: 4px;
+    border-radius: 6px;
     padding: 3px 6px;
+    transition-property: opacity;
+    transition-duration: 150ms;
 }
 
 .chat-bubble--user {
-    background-color: rgb(51, 92, 148);
+    background-color: rgb(58, 91, 133);
 }
 
 .chat-bubble--claude {
-    background-color: rgb(61, 61, 71);
+    background-color: rgb(52, 48, 47);
 }
 
 .chat-bubble--pending {
@@ -188,7 +300,7 @@
 .chat-bubble-role {
     -unity-font-style: bold;
     font-size: 10px;
-    color: rgb(204, 217, 242);
+    color: rgb(210, 218, 232);
 }
 
 .chat-bubble-text {
@@ -197,7 +309,8 @@
 }
 
 .chat-code-block {
-    background-color: rgb(23, 23, 28);
+    background-color: rgb(17, 16, 15);
+    border-radius: 3px;
     padding: 3px 6px;
     margin-top: 2px;
     margin-bottom: 2px;
@@ -210,7 +323,7 @@
 }
 
 .pending-count-label {
-    color: rgb(140, 140, 153);
+    color: rgb(150, 143, 137);
     font-size: 10px;
     margin-top: 2px;
     margin-bottom: 2px;
@@ -220,18 +333,27 @@
     min-height: 24px;
     max-height: 120px;
     margin: 0;
+    border-radius: 4px;
+    overflow: hidden;
 }
 
 .chat-input-inner {
-    background-color: rgb(61, 61, 71);
+    background-color: rgb(52, 48, 47);
     color: rgb(255, 255, 255);
     white-space: normal;
     overflow: hidden;
     border-left-width: 0;
     border-right-width: 0;
     border-top-width: 0;
-    border-bottom-width: 0;
+    border-bottom-width: 2px;
+    border-bottom-color: rgba(0, 0, 0, 0);
     padding: 4px 6px;
+    transition-property: border-bottom-color;
+    transition-duration: 120ms;
+}
+
+.chat-input-inner:focus {
+    border-bottom-color: rgb(217, 119, 87);
 }
 
 .chat-buttons-row {
@@ -242,9 +364,34 @@
 
 .send-button {
     width: 60px;
+    background-color: rgb(217, 119, 87);
+    color: rgb(255, 255, 255);
+    -unity-font-style: bold;
+    transition-property: background-color, scale;
+    transition-duration: 120ms;
+}
+
+.send-button:hover {
+    background-color: rgb(230, 138, 108);
+}
+
+.send-button:active {
+    scale: 0.96;
 }
 
 .cancel-button {
     width: 50px;
     margin-left: 4px;
+    background-color: rgba(196, 82, 82, 0.18);
+    color: rgb(230, 190, 190);
+    transition-property: background-color, scale;
+    transition-duration: 120ms;
+}
+
+.cancel-button:hover {
+    background-color: rgba(196, 82, 82, 0.32);
+}
+
+.cancel-button:active {
+    scale: 0.96;
 }

@@ -11,9 +11,16 @@ using UnityEngine.UIElements;
 public class CharacterStageElement : VisualElement
 {
     private static readonly Color IdleBodyColor = new Color(0.55f, 0.62f, 0.72f);
-    private static readonly Color BusyBodyColorA = new Color(1f, 0.62f, 0.25f);
-    private static readonly Color BusyBodyColorB = new Color(1f, 0.85f, 0.4f);
-    private static readonly Color OrbitDotColor = new Color(1f, 0.85f, 0.4f, 0.85f);
+    private static readonly Color ThinkingColorA = new Color(0.62f, 0.52f, 0.84f);
+    private static readonly Color ThinkingColorB = new Color(0.75f, 0.68f, 0.92f);
+    private static readonly Color ReadingColorA = new Color(0.38f, 0.66f, 0.64f);
+    private static readonly Color ReadingColorB = new Color(0.55f, 0.80f, 0.78f);
+    private static readonly Color EditingColorA = new Color(1f, 0.62f, 0.25f);
+    private static readonly Color EditingColorB = new Color(1f, 0.85f, 0.4f);
+    private static readonly Color RunningColorA = new Color(0.85f, 0.47f, 0.34f);
+    private static readonly Color RunningColorB = new Color(0.95f, 0.6f, 0.45f);
+    private static readonly Color SuccessColor = new Color(0.4f, 0.75f, 0.5f);
+    private static readonly Color ErrorColor = new Color(0.85f, 0.35f, 0.35f);
     private static readonly Color EyeColor = new Color(0.15f, 0.15f, 0.18f);
 
     private const float BodySize = 56f;
@@ -22,6 +29,8 @@ public class CharacterStageElement : VisualElement
     private const float EyeYOffset = -6f;
     private const int OrbitDotCount = 3;
     private const float OrbitRadius = 42f;
+    private const double SuccessFlashSeconds = 1.2;
+    private const double ErrorFlashSeconds = 1.4;
 
     private readonly VisualElement body;
     private readonly VisualElement eyeLeft;
@@ -32,6 +41,9 @@ public class CharacterStageElement : VisualElement
     private bool isBlinking;
     private double nextBlinkTime;
     private double blinkEndTime;
+
+    private double flashUntil;
+    private bool flashIsError;
 
     public CharacterStageElement()
     {
@@ -52,7 +64,6 @@ public class CharacterStageElement : VisualElement
         for (int i = 0; i < OrbitDotCount; i++)
         {
             VisualElement dot = MakeCircle(8f);
-            dot.style.backgroundColor = OrbitDotColor;
             dot.style.display = DisplayStyle.None;
             orbitDots[i] = dot;
             Add(dot);
@@ -74,9 +85,25 @@ public class CharacterStageElement : VisualElement
         return circle;
     }
 
-    // Called every animation tick with the active session's busy state - purely visual, this
-    // class doesn't touch CompanionSession/session data itself.
-    public void Tick(bool busy, double t)
+    // One-shot reactions to a turn actually finishing - called by the host window from
+    // CompanionSession.Runner.OnTurnComplete/OnError, not derived from CurrentActivity (which
+    // is already back to Idle/Thinking by the time those fire). Purely a timed visual overlay;
+    // doesn't touch any session state.
+    public void FlashSuccess()
+    {
+        flashUntil = EditorApplication.timeSinceStartup + SuccessFlashSeconds;
+        flashIsError = false;
+    }
+
+    public void FlashError()
+    {
+        flashUntil = EditorApplication.timeSinceStartup + ErrorFlashSeconds;
+        flashIsError = true;
+    }
+
+    // Called every animation tick with the active session's current activity - purely visual,
+    // this class doesn't touch CompanionSession/session data itself.
+    public void Tick(CharacterActivity activity, double t)
     {
         float width = resolvedStyle.width;
         float height = resolvedStyle.height;
@@ -87,11 +114,21 @@ public class CharacterStageElement : VisualElement
             return;
         }
 
+        bool busy = activity != CharacterActivity.Idle;
+        bool flashing = t < flashUntil;
+
         Vector2 center = new Vector2(width / 2f, height / 2f + 4f);
 
         float bobAmplitude = busy ? 7f : 3f;
         float bobSpeed = busy ? 6f : 2f;
         float bobY = Mathf.Sin((float)t * bobSpeed) * bobAmplitude;
+
+        GetActivityStyle(activity, out Color colorA, out Color colorB, out string label);
+        if (flashing)
+        {
+            colorA = colorB = flashIsError ? ErrorColor : SuccessColor;
+            label = flashIsError ? "문제가 발생했어요" : "완료!";
+        }
 
         for (int i = 0; i < OrbitDotCount; i++)
         {
@@ -106,17 +143,27 @@ public class CharacterStageElement : VisualElement
             Vector2 dotPos = center + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle) * 0.6f) * OrbitRadius;
             dot.style.left = dotPos.x - 4f;
             dot.style.top = dotPos.y - 4f;
+            Color dotColor = colorB;
+            dotColor.a = 0.85f;
+            dot.style.backgroundColor = dotColor;
         }
 
-        Color bodyColor = busy
-            ? Color.Lerp(BusyBodyColorA, BusyBodyColorB, Mathf.PingPong((float)t * 3f, 1f))
-            : IdleBodyColor;
+        Color bodyColor = (busy || flashing)
+            ? Color.Lerp(colorA, colorB, Mathf.PingPong((float)t * 3f, 1f))
+            : colorA;
         body.style.backgroundColor = bodyColor;
         body.style.left = center.x - BodySize / 2f;
         body.style.top = center.y - BodySize / 2f + bobY;
 
         UpdateBlink(t);
         float eyeOpen = isBlinking ? 0.15f : 1f;
+        if (flashing)
+        {
+            // Wide "happy" eyes on success, a brief squint on error - skips the blink cycle
+            // entirely since the flash is short enough that a mid-flash blink would just read
+            // as a glitch rather than an expression.
+            eyeOpen = flashIsError ? 0.5f : 1.3f;
+        }
         float eyeHeight = EyeSize * eyeOpen;
         float eyeY = center.y + bobY + EyeYOffset - eyeHeight / 2f;
 
@@ -128,7 +175,46 @@ public class CharacterStageElement : VisualElement
         eyeRight.style.left = center.x + EyeSpacing - EyeSize / 2f;
         eyeRight.style.top = eyeY;
 
-        stateLabel.text = busy ? "열심히 작업 중..." : "대기 중";
+        stateLabel.text = label;
+    }
+
+    private static void GetActivityStyle(CharacterActivity activity, out Color colorA, out Color colorB, out string label)
+    {
+        switch (activity)
+        {
+            case CharacterActivity.Thinking:
+                colorA = ThinkingColorA;
+                colorB = ThinkingColorB;
+                label = "생각하는 중...";
+                break;
+            case CharacterActivity.Reading:
+                colorA = ReadingColorA;
+                colorB = ReadingColorB;
+                label = "파일 읽는 중...";
+                break;
+            case CharacterActivity.Editing:
+                colorA = EditingColorA;
+                colorB = EditingColorB;
+                label = "코드 수정 중...";
+                break;
+            case CharacterActivity.Running:
+                colorA = RunningColorA;
+                colorB = RunningColorB;
+                label = "명령 실행 중...";
+                break;
+            default:
+                colorA = colorB = IdleBodyColor;
+                label = "대기 중";
+                break;
+        }
+    }
+
+    // Shared with the sidebar's per-session busy dots (see ClaudeCompanionWindow.OnAnimationTick)
+    // so a background tab's dot hints at what it's doing without needing to switch to it.
+    public static Color GetIndicatorColor(CharacterActivity activity)
+    {
+        GetActivityStyle(activity, out Color colorA, out Color colorB, out _);
+        return activity == CharacterActivity.Idle ? colorA : colorB;
     }
 
     private void UpdateBlink(double t)

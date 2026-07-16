@@ -19,12 +19,54 @@ public class ClaudeCompanionWindow : EditorWindow
         "Assets/01. Scripts/Editor/ClaudeCompanion/UI/ClaudeCompanionStyles.uss";
 
     // The only colors still needed in C#: everything else is static USS. These are computed
-    // per-frame/per-event (button state, busy dots) so they can't just live in the stylesheet.
-    private static readonly Color RunningColor = new Color(0.85f, 0.35f, 0.35f);
+    // per-frame/per-event (busy dots) or are semantic state colors that must win over any USS
+    // hover rule, so they can't just live in the stylesheet - see UpdateBridgeControlsVisual
+    // for why the Start/Stop button itself uses toggled USS classes instead (inline style beats
+    // USS specificity, including :hover, so a button colored via C# can never show a hover tint).
     private static readonly Color StoppedColor = new Color(0.35f, 0.75f, 0.45f);
     private static readonly Color BridgeDotOffColor = new Color(0.6f, 0.6f, 0.6f);
-    private static readonly Color BusyDotColor = new Color(1f, 0.62f, 0.25f);
-    private static readonly Color IdleDotColor = new Color(0.55f, 0.62f, 0.72f);
+    private static readonly Color StepErrorColor = new Color(0.85f, 0.35f, 0.35f);
+
+    // Friendly Korean labels for the turn-progress stepper's chips - falls back to the raw
+    // tool name (or, for mcp__ tools, the part after the last "__") when a tool isn't listed
+    // here, so an unrecognized/new tool never renders as a blank chip.
+    private static readonly Dictionary<string, string> ToolLabels = new Dictionary<string, string>
+    {
+        { "Read", "파일 읽기" },
+        { "Glob", "파일 검색" },
+        { "Grep", "내용 검색" },
+        { "WebFetch", "웹 조회" },
+        { "WebSearch", "웹 검색" },
+        { "NotebookRead", "노트북 읽기" },
+        { "Edit", "코드 수정" },
+        { "MultiEdit", "코드 수정" },
+        { "Write", "파일 작성" },
+        { "NotebookEdit", "노트북 수정" },
+        { "TodoWrite", "할 일 갱신" },
+        { "Bash", "명령 실행" },
+        { "BashOutput", "명령 출력 확인" },
+        { "KillShell", "프로세스 종료" },
+        { "Task", "하위 작업 실행" },
+        { "SlashCommand", "명령어 실행" },
+    };
+
+    // Per-session identity color (sidebar stripe + a top accent bar on the active session's main
+    // column) - purely cosmetic, assigned by tab index so switching/adding tabs stays visually
+    // distinguishable. Not tied to busy/idle state, which stays semantic (see CharacterStageElement).
+    private static readonly Color[] SessionAccentPalette =
+    {
+        new Color(0.85f, 0.47f, 0.34f), // coral (brand)
+        new Color(0.38f, 0.66f, 0.64f), // teal
+        new Color(0.62f, 0.52f, 0.84f), // violet
+        new Color(0.84f, 0.71f, 0.35f), // gold
+        new Color(0.42f, 0.61f, 0.79f), // sky
+        new Color(0.49f, 0.67f, 0.46f), // sage
+    };
+
+    private static Color GetSessionAccent(int index)
+    {
+        return SessionAccentPalette[((index % SessionAccentPalette.Length) + SessionAccentPalette.Length) % SessionAccentPalette.Length];
+    }
 
     private bool bridgeRunning;
 
@@ -41,6 +83,7 @@ public class ClaudeCompanionWindow : EditorWindow
 
     [SerializeField] private List<SessionRecord> sessionRecords = new List<SessionRecord>();
     [SerializeField] private int activeSessionIndex;
+    [SerializeField] private bool turnStepperCollapsed;
 
     // sessionRecords above only survives a domain reload - Unity discards an EditorWindow's
     // fields entirely once the window is actually closed (not just reloaded), so reopening it
@@ -110,9 +153,9 @@ public class ClaudeCompanionWindow : EditorWindow
     private CompanionSession ActiveSession =>
         (activeSessionIndex >= 0 && activeSessionIndex < sessions.Count) ? sessions[activeSessionIndex] : null;
 
-    // Whichever session's Changed event RefreshChat is currently subscribed to - always kept
-    // in sync with ActiveSession by RebuildMainColumn, so switching tabs can't leave a stale
-    // subscription refreshing the wrong (now-hidden) session's chat view.
+    // Whichever session's Changed/OnTurnComplete/OnError events this window is currently
+    // subscribed to - always kept in sync with ActiveSession by RebuildMainColumn, so switching
+    // tabs can't leave a stale subscription refreshing the wrong (now-hidden) session's view.
     private CompanionSession boundSession;
 
     private readonly Dictionary<CompanionSession, VisualElement> sidebarDots = new Dictionary<CompanionSession, VisualElement>();
@@ -123,6 +166,9 @@ public class ClaudeCompanionWindow : EditorWindow
     private Button bridgeToggleButton;
     private VisualElement bridgeDot;
     private Label bridgeLabel;
+    private ScrollView stepperScroll;
+    private VisualElement stepperContent;
+    private Button stepperToggleButton;
     private ScrollView chatScrollView;
     private Label pendingCountLabel;
     private TextField inputField;
@@ -277,12 +323,12 @@ public class ClaudeCompanionWindow : EditorWindow
 
         if (characterStage != null)
         {
-            characterStage.Tick(ActiveSession != null && ActiveSession.IsBusy, t);
+            characterStage.Tick(ActiveSession != null ? ActiveSession.CurrentActivity : CharacterActivity.Idle, t);
         }
 
         foreach (KeyValuePair<CompanionSession, VisualElement> kv in sidebarDots)
         {
-            kv.Value.style.backgroundColor = kv.Key.IsBusy ? BusyDotColor : IdleDotColor;
+            kv.Value.style.backgroundColor = CharacterStageElement.GetIndicatorColor(kv.Key.CurrentActivity);
         }
     }
 
@@ -345,10 +391,11 @@ public class ClaudeCompanionWindow : EditorWindow
         {
             row.AddToClassList("session-row--active");
         }
+        row.style.borderLeftColor = GetSessionAccent(index);
 
         VisualElement dot = new VisualElement();
         dot.AddToClassList("session-dot");
-        dot.style.backgroundColor = s.IsBusy ? BusyDotColor : IdleDotColor;
+        dot.style.backgroundColor = CharacterStageElement.GetIndicatorColor(s.CurrentActivity);
         row.Add(dot);
         sidebarDots[s] = dot;
 
@@ -476,7 +523,9 @@ public class ClaudeCompanionWindow : EditorWindow
 
         if (boundSession != null)
         {
-            boundSession.Changed -= RefreshChat;
+            boundSession.Changed -= OnSessionChanged;
+            boundSession.Runner.OnTurnComplete -= OnActiveTurnComplete;
+            boundSession.Runner.OnError -= OnActiveTurnError;
             boundSession = null;
         }
 
@@ -485,6 +534,9 @@ public class ClaudeCompanionWindow : EditorWindow
         bridgeToggleButton = null;
         bridgeDot = null;
         bridgeLabel = null;
+        stepperScroll = null;
+        stepperContent = null;
+        stepperToggleButton = null;
         chatScrollView = null;
         pendingCountLabel = null;
         inputField = null;
@@ -499,10 +551,17 @@ public class ClaudeCompanionWindow : EditorWindow
             return;
         }
 
+        VisualElement accentBar = new VisualElement();
+        accentBar.AddToClassList("session-accent-bar");
+        accentBar.style.backgroundColor = GetSessionAccent(activeSessionIndex);
+        mainColumn.Add(accentBar);
+
         characterStage = new CharacterStageElement();
         mainColumn.Add(characterStage);
 
         mainColumn.Add(BuildControlsRow());
+
+        mainColumn.Add(BuildStepperSection());
 
         VisualElement hDivider = new VisualElement();
         hDivider.AddToClassList("horizontal-divider");
@@ -511,9 +570,181 @@ public class ClaudeCompanionWindow : EditorWindow
         mainColumn.Add(BuildChatArea());
 
         boundSession = ActiveSession;
-        boundSession.Changed += RefreshChat;
+        boundSession.Changed += OnSessionChanged;
+        boundSession.Runner.OnTurnComplete += OnActiveTurnComplete;
+        boundSession.Runner.OnError += OnActiveTurnError;
 
+        OnSessionChanged();
+    }
+
+    private void OnSessionChanged()
+    {
         RefreshChat();
+        RefreshStepper();
+    }
+
+    private VisualElement BuildStepperSection()
+    {
+        VisualElement section = new VisualElement();
+        section.AddToClassList("stepper-section");
+
+        VisualElement header = new VisualElement();
+        header.AddToClassList("stepper-header");
+
+        Label title = new Label("진행 상황");
+        title.AddToClassList("stepper-title");
+        header.Add(title);
+
+        VisualElement spacer = new VisualElement();
+        spacer.AddToClassList("spacer");
+        header.Add(spacer);
+
+        stepperToggleButton = new Button(ToggleStepperCollapsed)
+        {
+            text = turnStepperCollapsed ? "펼치기 ▲" : "접기 ▼"
+        };
+        stepperToggleButton.AddToClassList("stepper-toggle-button");
+        header.Add(stepperToggleButton);
+
+        section.Add(header);
+
+        stepperScroll = new ScrollView(ScrollViewMode.Vertical);
+        stepperScroll.AddToClassList("stepper-scroll");
+        stepperScroll.style.display = turnStepperCollapsed ? DisplayStyle.None : DisplayStyle.Flex;
+        section.Add(stepperScroll);
+
+        stepperContent = new VisualElement();
+        stepperContent.AddToClassList("stepper-content");
+        stepperScroll.Add(stepperContent);
+
+        return section;
+    }
+
+    private void ToggleStepperCollapsed()
+    {
+        turnStepperCollapsed = !turnStepperCollapsed;
+        stepperScroll.style.display = turnStepperCollapsed ? DisplayStyle.None : DisplayStyle.Flex;
+        stepperToggleButton.text = turnStepperCollapsed ? "펼치기 ▲" : "접기 ▼";
+    }
+
+    // Renders the current (or most recently finished) turn's tool calls as a row of small
+    // chips - see CompanionSession.CurrentTurnSteps. This replaces the old activity log panel
+    // that was stripped out before the UI Toolkit renewal; scoped to just the current turn
+    // (rather than the whole session's history) keeps it small enough to never need the manual
+    // height/scroll math that kept breaking under IMGUI - the ScrollView here just clips at a
+    // fixed max-height (see "stepper-scroll" in the USS) regardless of how many chips there are.
+    private void RefreshStepper()
+    {
+        if (stepperContent == null || ActiveSession == null)
+        {
+            return;
+        }
+
+        stepperContent.Clear();
+
+        if (ActiveSession.CurrentTurnSteps.Count == 0)
+        {
+            Label placeholder = new Label("최근 턴의 활동이 여기 표시됩니다.");
+            placeholder.AddToClassList("stepper-placeholder");
+            stepperContent.Add(placeholder);
+            return;
+        }
+
+        foreach (string entry in ActiveSession.CurrentTurnSteps)
+        {
+            stepperContent.Add(BuildStepChip(entry));
+        }
+    }
+
+    private static VisualElement BuildStepChip(string entry)
+    {
+        DescribeStep(entry, out Color color, out string label);
+
+        VisualElement chip = new VisualElement();
+        chip.AddToClassList("step-chip");
+
+        VisualElement dot = new VisualElement();
+        dot.AddToClassList("step-chip-dot");
+        dot.style.backgroundColor = color;
+        chip.Add(dot);
+
+        Label text = new Label(label);
+        text.AddToClassList("step-chip-label");
+        chip.Add(text);
+
+        return chip;
+    }
+
+    // Maps one raw CompanionSession activity-log entry to a chip color + friendly label.
+    private static void DescribeStep(string entry, out Color color, out string label)
+    {
+        const string toolUsePrefix = "tool_use: ";
+        const string errorPrefix = "ERROR: ";
+        const string systemPrefix = "system: ";
+
+        if (entry.StartsWith(toolUsePrefix))
+        {
+            string toolName = entry.Substring(toolUsePrefix.Length);
+            color = CharacterStageElement.GetIndicatorColor(CompanionSession.ClassifyTool(toolName));
+            label = FriendlyToolLabel(toolName);
+            return;
+        }
+        if (entry == "tool_result received")
+        {
+            color = CharacterStageElement.GetIndicatorColor(CharacterActivity.Thinking);
+            label = "결과 확인";
+            return;
+        }
+        if (entry.StartsWith(errorPrefix))
+        {
+            color = StepErrorColor;
+            label = Truncate(entry.Substring(errorPrefix.Length), 40);
+            return;
+        }
+        if (entry.StartsWith(systemPrefix))
+        {
+            color = CharacterStageElement.GetIndicatorColor(CharacterActivity.Thinking);
+            label = "시스템: " + Truncate(entry.Substring(systemPrefix.Length), 30);
+            return;
+        }
+
+        color = CharacterStageElement.GetIndicatorColor(CharacterActivity.Thinking);
+        label = Truncate(entry, 40);
+    }
+
+    private static string FriendlyToolLabel(string toolName)
+    {
+        if (ToolLabels.TryGetValue(toolName, out string label))
+        {
+            return label;
+        }
+        if (toolName.StartsWith("mcp__"))
+        {
+            int lastSeparator = toolName.LastIndexOf("__", StringComparison.Ordinal);
+            string tail = lastSeparator >= 0 && lastSeparator + 2 < toolName.Length
+                ? toolName.Substring(lastSeparator + 2)
+                : toolName;
+            return tail.Replace('_', ' ');
+        }
+        return toolName;
+    }
+
+    private static string Truncate(string text, int maxLength)
+    {
+        return text.Length <= maxLength ? text : text.Substring(0, maxLength - 1) + "…";
+    }
+
+    // One-shot success/error reactions on the character - these aren't part of CompanionSession's
+    // persisted CurrentActivity (which is usually already back to Idle/Thinking by the time these
+    // fire), just a brief visual overlay triggered directly off the underlying process events.
+    private void OnActiveTurnComplete()
+    {
+        characterStage?.FlashSuccess();
+    }
+
+    private void OnActiveTurnError(string _)
+    {
+        characterStage?.FlashError();
     }
 
     private VisualElement BuildControlsRow()
@@ -572,7 +803,9 @@ public class ClaudeCompanionWindow : EditorWindow
             return;
         }
         bridgeToggleButton.text = bridgeRunning ? "■ Stop" : "▶ Start";
-        bridgeToggleButton.style.backgroundColor = bridgeRunning ? RunningColor : StoppedColor;
+        bridgeToggleButton.RemoveFromClassList("bridge-toggle-button--running");
+        bridgeToggleButton.RemoveFromClassList("bridge-toggle-button--stopped");
+        bridgeToggleButton.AddToClassList(bridgeRunning ? "bridge-toggle-button--running" : "bridge-toggle-button--stopped");
         bridgeDot.style.backgroundColor = bridgeRunning ? StoppedColor : BridgeDotOffColor;
         bridgeLabel.text = bridgeRunning ? "브릿지 연결됨" : "브릿지 중지됨";
     }
