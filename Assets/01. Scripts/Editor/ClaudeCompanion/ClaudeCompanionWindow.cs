@@ -84,6 +84,7 @@ public class ClaudeCompanionWindow : EditorWindow
     [SerializeField] private List<SessionRecord> sessionRecords = new List<SessionRecord>();
     [SerializeField] private int activeSessionIndex;
     [SerializeField] private bool turnStepperCollapsed;
+    [SerializeField] private bool soundEnabled = true;
 
     // sessionRecords above only survives a domain reload - Unity discards an EditorWindow's
     // fields entirely once the window is actually closed (not just reloaded), so reopening it
@@ -166,6 +167,7 @@ public class ClaudeCompanionWindow : EditorWindow
     private Button bridgeToggleButton;
     private VisualElement bridgeDot;
     private Label bridgeLabel;
+    private Button soundToggleButton;
     private ScrollView stepperScroll;
     private VisualElement stepperContent;
     private Button stepperToggleButton;
@@ -174,6 +176,11 @@ public class ClaudeCompanionWindow : EditorWindow
     private TextField inputField;
     private Button sendButton;
     private Button cancelButton;
+
+    // Non-null exactly while a "typing..." bubble is showing at the bottom of the chat - see
+    // BuildTypingIndicator/RefreshChat. Animated from OnAnimationTick rather than a dedicated
+    // scheduled callback so it shares the same 60fps tick as the character stage.
+    private VisualElement[] typingDots;
 
     private void OnEnable()
     {
@@ -329,6 +336,15 @@ public class ClaudeCompanionWindow : EditorWindow
         foreach (KeyValuePair<CompanionSession, VisualElement> kv in sidebarDots)
         {
             kv.Value.style.backgroundColor = CharacterStageElement.GetIndicatorColor(kv.Key.CurrentActivity);
+        }
+
+        if (typingDots != null)
+        {
+            for (int i = 0; i < typingDots.Length; i++)
+            {
+                float phase = (float)(t * 4.0) - i * 0.6f;
+                typingDots[i].style.opacity = 0.35f + 0.65f * (0.5f + 0.5f * Mathf.Sin(phase));
+            }
         }
     }
 
@@ -534,6 +550,7 @@ public class ClaudeCompanionWindow : EditorWindow
         bridgeToggleButton = null;
         bridgeDot = null;
         bridgeLabel = null;
+        soundToggleButton = null;
         stepperScroll = null;
         stepperContent = null;
         stepperToggleButton = null;
@@ -542,6 +559,7 @@ public class ClaudeCompanionWindow : EditorWindow
         inputField = null;
         sendButton = null;
         cancelButton = null;
+        typingDots = null;
 
         if (ActiveSession == null)
         {
@@ -740,11 +758,33 @@ public class ClaudeCompanionWindow : EditorWindow
     private void OnActiveTurnComplete()
     {
         characterStage?.FlashSuccess();
+        if (soundEnabled)
+        {
+            // A plain system beep rather than an imported AudioClip - this is an Editor tool,
+            // not the game, so pulling in an audio asset (plus the import/mixer plumbing that
+            // implies) for a single notification ding would be a lot of weight for very little.
+            EditorApplication.Beep();
+        }
     }
 
     private void OnActiveTurnError(string _)
     {
         characterStage?.FlashError();
+    }
+
+    private void ToggleSound()
+    {
+        soundEnabled = !soundEnabled;
+        UpdateSoundToggleVisual();
+    }
+
+    private void UpdateSoundToggleVisual()
+    {
+        if (soundToggleButton == null)
+        {
+            return;
+        }
+        soundToggleButton.text = soundEnabled ? "🔔 알림음" : "🔕 알림음";
     }
 
     private VisualElement BuildControlsRow()
@@ -772,6 +812,10 @@ public class ClaudeCompanionWindow : EditorWindow
         spacer.AddToClassList("spacer");
         row.Add(spacer);
 
+        soundToggleButton = new Button(ToggleSound);
+        soundToggleButton.AddToClassList("sound-toggle-button");
+        row.Add(soundToggleButton);
+
         // Fallback path for the chat input row's recurring visibility bugs under the old IMGUI
         // implementation: an independent popup window that shares none of this window's
         // layout. Kept for now even though UI Toolkit removes the root cause of that bug class
@@ -781,6 +825,7 @@ public class ClaudeCompanionWindow : EditorWindow
         row.Add(fallbackButton);
 
         UpdateBridgeControlsVisual();
+        UpdateSoundToggleVisual();
         return row;
     }
 
@@ -967,6 +1012,15 @@ public class ClaudeCompanionWindow : EditorWindow
             AddChatBubble(new ChatMessage("You", pendingText), pending: true);
         }
 
+        if (ActiveSession.IsBusy)
+        {
+            chatScrollView.Add(BuildTypingIndicator());
+        }
+        else
+        {
+            typingDots = null;
+        }
+
         int pendingCount = ActiveSession.PendingMessages.Count;
         pendingCountLabel.text = pendingCount > 0 ? $"메시지 {pendingCount}개 전송 대기 중" : "";
         pendingCountLabel.style.display = pendingCount > 0 ? DisplayStyle.Flex : DisplayStyle.None;
@@ -1011,6 +1065,34 @@ public class ClaudeCompanionWindow : EditorWindow
 
         row.Add(bubble);
         chatScrollView.Add(row);
+    }
+
+    // A small "..." bubble shown at the bottom of the chat while ActiveSession.IsBusy - see
+    // RefreshChat/OnAnimationTick. Populates the typingDots field the tick loop animates;
+    // callers must not reuse the returned element after the next RefreshChat clears the scroll
+    // view (typingDots is reset alongside it).
+    private VisualElement BuildTypingIndicator()
+    {
+        VisualElement row = new VisualElement();
+        row.AddToClassList("chat-bubble-row");
+        row.AddToClassList("chat-bubble-row--claude");
+
+        VisualElement bubble = new VisualElement();
+        bubble.AddToClassList("chat-bubble");
+        bubble.AddToClassList("chat-bubble--claude");
+        bubble.AddToClassList("typing-indicator");
+
+        typingDots = new VisualElement[3];
+        for (int i = 0; i < typingDots.Length; i++)
+        {
+            VisualElement dot = new VisualElement();
+            dot.AddToClassList("typing-dot");
+            typingDots[i] = dot;
+            bubble.Add(dot);
+        }
+
+        row.Add(bubble);
+        return row;
     }
 
     // Renders fenced code blocks in their own plain (non-rich-text) box and everything else as

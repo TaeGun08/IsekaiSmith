@@ -42,6 +42,7 @@ public class CharacterStageElement : VisualElement
     private double nextBlinkTime;
     private double blinkEndTime;
 
+    private double flashStart;
     private double flashUntil;
     private bool flashIsError;
 
@@ -91,13 +92,15 @@ public class CharacterStageElement : VisualElement
     // doesn't touch any session state.
     public void FlashSuccess()
     {
-        flashUntil = EditorApplication.timeSinceStartup + SuccessFlashSeconds;
+        flashStart = EditorApplication.timeSinceStartup;
+        flashUntil = flashStart + SuccessFlashSeconds;
         flashIsError = false;
     }
 
     public void FlashError()
     {
-        flashUntil = EditorApplication.timeSinceStartup + ErrorFlashSeconds;
+        flashStart = EditorApplication.timeSinceStartup;
+        flashUntil = flashStart + ErrorFlashSeconds;
         flashIsError = true;
     }
 
@@ -130,6 +133,27 @@ public class CharacterStageElement : VisualElement
             label = flashIsError ? "문제가 발생했어요" : "완료!";
         }
 
+        // A little physicality on top of the color/eye change: a quick horizontal shake that
+        // decays over the error flash, a single scale "pop" over the success flash. Both are
+        // pure functions of elapsed flash time, not stored velocity/state, so they can't drift
+        // or accumulate across ticks.
+        float shakeX = 0f;
+        float bodyScale = 1f;
+        if (flashing)
+        {
+            float elapsed = (float)(t - flashStart);
+            if (flashIsError)
+            {
+                float decay = 1f - Mathf.Clamp01(elapsed / (float)ErrorFlashSeconds);
+                shakeX = Mathf.Sin(elapsed * 40f) * 6f * decay;
+            }
+            else
+            {
+                float progress = Mathf.Clamp01(elapsed / (float)SuccessFlashSeconds);
+                bodyScale = 1f + Mathf.Sin(progress * Mathf.PI) * 0.18f;
+            }
+        }
+
         for (int i = 0; i < OrbitDotCount; i++)
         {
             VisualElement dot = orbitDots[i];
@@ -152,8 +176,9 @@ public class CharacterStageElement : VisualElement
             ? Color.Lerp(colorA, colorB, Mathf.PingPong((float)t * 3f, 1f))
             : colorA;
         body.style.backgroundColor = bodyColor;
-        body.style.left = center.x - BodySize / 2f;
+        body.style.left = center.x - BodySize / 2f + shakeX;
         body.style.top = center.y - BodySize / 2f + bobY;
+        body.style.scale = new Scale(new Vector3(bodyScale, bodyScale, 1f));
 
         UpdateBlink(t);
         float eyeOpen = isBlinking ? 0.15f : 1f;
@@ -168,11 +193,11 @@ public class CharacterStageElement : VisualElement
         float eyeY = center.y + bobY + EyeYOffset - eyeHeight / 2f;
 
         eyeLeft.style.height = eyeHeight;
-        eyeLeft.style.left = center.x - EyeSpacing - EyeSize / 2f;
+        eyeLeft.style.left = center.x - EyeSpacing - EyeSize / 2f + shakeX;
         eyeLeft.style.top = eyeY;
 
         eyeRight.style.height = eyeHeight;
-        eyeRight.style.left = center.x + EyeSpacing - EyeSize / 2f;
+        eyeRight.style.left = center.x + EyeSpacing - EyeSize / 2f + shakeX;
         eyeRight.style.top = eyeY;
 
         stateLabel.text = label;

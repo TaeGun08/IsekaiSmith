@@ -260,6 +260,27 @@
     transition-duration: 120ms;
 }
 
+.sound-toggle-button {
+    width: 76px;
+    margin-right: 4px;
+    transition-property: background-color;
+    transition-duration: 120ms;
+}
+
+.typing-indicator {
+    flex-direction: row;
+    align-items: center;
+    padding: 8px 10px;
+}
+
+.typing-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 3px;
+    background-color: rgb(214, 209, 204);
+    margin-right: 4px;
+}
+
 .chat-scroll {
     flex-grow: 1;
 }

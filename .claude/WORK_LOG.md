@@ -6,6 +6,42 @@
 
 ---
 
+## 2026-07-16 (5) M5 마이크로인터랙션 폴리싱 구현 (컴파일 확인, 런타임 검증은 다음 턴)
+
+사용자 지시: "진행해줘" (M4 완료 보고 후 M5로 진행).
+
+### 한 것
+- `UI/CharacterStageElement.cs`: success/error 플래시에 물리적 반응 추가.
+  `flashStart` 필드로 경과 시간 추적 → 에러는 감쇠하는 좌우 shake(`Mathf.Sin(elapsed*40)*
+  decay`), 성공은 한 번의 scale "pop"(사인 커브로 1.0→1.18→1.0). body와 눈 위치 모두
+  `shakeX` 반영, `body.style.scale`에 bounce 반영.
+- `ClaudeCompanionWindow.cs`:
+  - 타이핑 인디케이터: `ActiveSession.IsBusy`일 때 채팅 맨 아래에 점 3개 말풍선
+    (`BuildTypingIndicator`) 추가, `OnAnimationTick`에서 위상차 있는 사인파로 점마다
+    opacity 애니메이션 (`typingDots` 필드, 세션 전환/리페인트 시 null로 정리).
+  - 사운드 알림: `[SerializeField] soundEnabled`(기본 true) + 컨트롤 바에 토글 버튼
+    ("🔔 알림음"/"🔕 알림음"). 턴이 성공적으로 끝나면(`OnActiveTurnComplete`)
+    `EditorApplication.Beep()` — 별도 오디오 에셋 임포트 없이 에디터 툴다운 알림음 정도로
+    충분하다고 판단, 에러 시엔 안 울리게 해서 스팸 방지.
+- `UI/ClaudeCompanionStyles.uss`: `.sound-toggle-button`, `.typing-indicator`,
+  `.typing-dot` 클래스 추가.
+
+### 검증 상태
+`read_console` 에러/경고 0건. 이번에도 컴파일 완료 시점이 마지막 도메인 리로드보다 늦어서
+(`last_compile_finished` > `last_domain_reload_after`) 런타임 리플렉션 검증은 다음 턴으로
+미룸 (M4와 동일 패턴, [[project_claude_companion_parallel_sessions]] 참고).
+
+### 다음에 할 일 (TODO)
+- [ ] 도메인 리로드 완료 확인 후 리플렉션으로: `CharacterStageElement.FlashSuccess/FlashError`
+      호출 시 `body.style.scale`/`body.style.left`가 실제로 변하는지, `soundEnabled` 토글
+      버튼 텍스트가 바뀌는지, `ActiveSession`을 busy로 흉내내고 `RefreshChat()` 호출 시
+      `typingDots`가 채워지고 `OnAnimationTick` 호출로 opacity가 변하는지 확인
+- [ ] Task #6(M5) 완료 처리 후 사용자에게 보고
+- [ ] M6(안정화 — 멀티세션 동시성/도메인 리로드 시나리오 재검증)로 진행할지, 아니면 여기서
+      사용자가 직접 써보고 방향 확인할지 여쭤보기
+
+---
+
 ## 2026-07-16 (4) M4 턴 진행 스텝퍼 — 활동 로그 패널 대체 구현 (컴파일 확인, 런타임 검증은 다음 턴)
 
 사용자 지시: "진행해줘" (M3 완료 보고 후 M4로 진행).
@@ -35,13 +71,21 @@
 런타임 반영 완료)을 새로 기록해둠.
 **`read_console` 자체는 0 에러/0 경고** — 소스 레벨 정확성은 확인됨.
 
+### 검증 완료 (같은 날, 다음 턴)
+`editor_state`로 도메인 리로드가 이미 끝난 것 확인(`last_domain_reload_after_unix_ms` >
+이전 턴의 컴파일 완료 시점) 후 리플렉션 재시도 — 이번엔 필드/메서드 전부 정상 조회됨.
+`CurrentTurnSteps`에 6개 샘플 엔트리(Read/mcp 도구/tool_result/Bash/ERROR/system) 주입 →
+`RefreshStepper()` 호출 → 칩 6개 전부 의도한 색상·라벨로 렌더링 확인 (읽기=틸,
+mcp__UnityMCP__manage_gameobject→"manage gameobject"로 접두사 정리, 결과확인/시스템=
+바이올렛, 실행=코랄, 에러=빨강+"…" 말줄임). `ToggleStepperCollapsed()` 두 번 호출로
+`stepperScroll.style.display`가 `None ↔ Flex`로 정확히 토글되는 것도 확인. 테스트 데이터는
+정리(`CurrentTurnSteps.Clear()` + `RefreshStepper()`)해서 세션 원상복구.
+
 ### 다음에 할 일 (TODO)
-- [ ] 다음 세션 시작 시 도메인 리로드가 실제로 끝났는지 `editor_state`로 먼저 확인 후
-      (`last_domain_reload_after_unix_ms` > 이번 커밋 시점) 리플렉션으로 스텝퍼 칩 렌더링
-      (`CurrentTurnSteps`에 샘플 엔트리 넣고 `RefreshStepper()` 호출 → 색상/라벨 확인) 재시도
-- [ ] 접기/펼치기 토글 버튼 동작도 리플렉션으로 확인 (`ToggleStepperCollapsed` 호출 후
-      `stepperScroll.style.display` 값 확인)
-- [ ] Task #5(M4) 완료 처리 후 사용자에게 보고, M5(마이크로인터랙션 폴리싱)로 진행할지 확인
+- [x] 도메인 리로드 완료 확인 후 리플렉션 재검증 → 전부 통과
+- [x] 접기/펼치기 토글 확인 → 통과
+- [x] Task #5(M4) 완료 처리
+- [ ] 사용자에게 보고, M5(마이크로인터랙션 폴리싱)로 진행할지 확인
 
 ---
 
