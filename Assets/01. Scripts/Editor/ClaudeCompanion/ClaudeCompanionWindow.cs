@@ -4,6 +4,7 @@ using System.IO;
 using MCPForUnity.Editor.Services;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 public class ClaudeCompanionWindow : EditorWindow
 {
@@ -14,19 +15,16 @@ public class ClaudeCompanionWindow : EditorWindow
         window.minSize = new Vector2(640, 760);
     }
 
-    private static readonly Color BackgroundColor = new Color(0.13f, 0.13f, 0.15f);
-    private static readonly Color StageColor = new Color(0.17f, 0.18f, 0.20f);
-    private static readonly Color DividerColor = new Color(1f, 1f, 1f, 0.08f);
-    private static readonly Color UserBubbleColor = new Color(0.20f, 0.36f, 0.58f);
-    private static readonly Color ClaudeBubbleColor = new Color(0.24f, 0.24f, 0.28f);
-    private static readonly Color InputFieldColor = new Color(0.24f, 0.24f, 0.28f);
+    private const string StyleSheetPath =
+        "Assets/01. Scripts/Editor/ClaudeCompanion/UI/ClaudeCompanionStyles.uss";
+
+    // The only colors still needed in C#: everything else is static USS. These are computed
+    // per-frame/per-event (button state, busy dots) so they can't just live in the stylesheet.
     private static readonly Color RunningColor = new Color(0.85f, 0.35f, 0.35f);
     private static readonly Color StoppedColor = new Color(0.35f, 0.75f, 0.45f);
-    private static readonly Color IdleBodyColor = new Color(0.55f, 0.62f, 0.72f);
-    private static readonly Color BusyBodyColorA = new Color(1f, 0.62f, 0.25f);
-    private static readonly Color BusyBodyColorB = new Color(1f, 0.85f, 0.4f);
-    private static readonly Color ActiveSessionRowColor = new Color(1f, 1f, 1f, 0.07f);
-    private static readonly Color CodeBlockColor = new Color(0.09f, 0.09f, 0.11f);
+    private static readonly Color BridgeDotOffColor = new Color(0.6f, 0.6f, 0.6f);
+    private static readonly Color BusyDotColor = new Color(1f, 0.62f, 0.25f);
+    private static readonly Color IdleDotColor = new Color(0.55f, 0.62f, 0.72f);
 
     private bool bridgeRunning;
 
@@ -108,63 +106,31 @@ public class ClaudeCompanionWindow : EditorWindow
     [SerializeField] private string restoredSessionId;
     [SerializeField] private string companionSessionKey;
 
-    private string inputText = "";
-    private Vector2 chatScroll;
-    private int lastChatMessageCount = -1;
-
-    private const float SidebarWidth = 150f;
-    // VerticalDivider: GUILayout.Space(4) + a 1px rect + GUILayout.Space(4).
-    private const float SidebarDividerWidth = 9f;
-    // Reserves room for the chat scroll view's own vertical scrollbar, which otherwise eats
-    // into the same width a same-frame GetControlRect measurement inside that scroll view
-    // was reporting as still free - see GetChatPaneWidth.
-    private const float ChatScrollbarWidth = 16f;
-
-    // Bounds for the auto-growing chat input box (see DrawChat) - min is one line, max caps
-    // growth around ~5-6 lines so a long paste can't swallow the whole window.
-    private const float MinInputHeight = 24f;
-    private const float MaxInputHeight = 120f;
-
     private readonly List<CompanionSession> sessions = new List<CompanionSession>();
     private CompanionSession ActiveSession =>
         (activeSessionIndex >= 0 && activeSessionIndex < sessions.Count) ? sessions[activeSessionIndex] : null;
 
-    private Texture2D circleTexture;
+    // Whichever session's Changed event RefreshChat is currently subscribed to - always kept
+    // in sync with ActiveSession by RebuildMainColumn, so switching tabs can't leave a stale
+    // subscription refreshing the wrong (now-hidden) session's chat view.
+    private CompanionSession boundSession;
 
-    private bool isBlinking;
-    private double nextBlinkTime;
-    private double blinkEndTime;
+    private readonly Dictionary<CompanionSession, VisualElement> sidebarDots = new Dictionary<CompanionSession, VisualElement>();
 
-    // GUIStyle allocates on every construction, and OnGUI runs many times a second while
-    // this window is open (see RepaintInterval below). Building these fresh per call/per
-    // label was the single biggest per-frame allocation source, especially the activity
-    // log style which used to be re-created for every entry, every frame. Built once,
-    // lazily, on first use.
-    private GUIStyle sectionHeaderStyle;
-    private GUIStyle bubbleRoleStyle;
-    private GUIStyle bubbleTextStyle;
-    private GUIStyle characterStateLabelStyle;
-    private GUIStyle logPathStyle;
-    private GUIStyle inputFieldStyle;
-    private GUIStyle sessionItemStyle;
-    private GUIStyle activeSessionItemStyle;
-    private GUIStyle codeBlockStyle;
-
-    // A previous attempt throttled Repaint() by self-gating inside OnGUI (only calling
-    // Repaint() again if enough time had passed). That broke the animation because OnGUI
-    // only reruns when Repaint() fires - gating from inside that same loop makes the
-    // effective frame timing depend on the editor's own unrelated scheduling, producing
-    // visible jitter (see git history). Driving the gate from EditorApplication.update
-    // instead - a callback that ticks on its own regardless of whether we just repainted -
-    // keeps the interval regular while still capping how often the (potentially expensive,
-    // unbounded chat history) OnGUI layout actually runs.
-    private const double RepaintInterval = 1.0 / 30.0;
-    private double lastRepaintTime;
+    private VisualElement sidebarContainer;
+    private VisualElement mainColumn;
+    private CharacterStageElement characterStage;
+    private Button bridgeToggleButton;
+    private VisualElement bridgeDot;
+    private Label bridgeLabel;
+    private ScrollView chatScrollView;
+    private Label pendingCountLabel;
+    private TextField inputField;
+    private Button sendButton;
+    private Button cancelButton;
 
     private void OnEnable()
     {
-        EditorApplication.update += OnEditorUpdate;
-
         if (sessionRecords.Count == 0)
         {
             // A real Close (not a domain reload) destroys this window instance, so the
@@ -202,7 +168,6 @@ public class ClaudeCompanionWindow : EditorWindow
                 {
                     record.RestoredSessionId = newSession.RestoredSessionId;
                     SaveManifest();
-                    Repaint();
                 };
                 sessions.Add(newSession);
             }
@@ -227,11 +192,6 @@ public class ClaudeCompanionWindow : EditorWindow
             bridgeRunning = false;
         }
 
-        if (circleTexture == null)
-        {
-            circleTexture = CreateCircleTexture(64);
-        }
-
         foreach (CompanionSession s in sessions)
         {
             try
@@ -247,7 +207,6 @@ public class ClaudeCompanionWindow : EditorWindow
 
     private void OnDisable()
     {
-        EditorApplication.update -= OnEditorUpdate;
         // Fires on a real window Close too, not just a domain reload - this is the last
         // chance to persist the tab list (see SessionManifest) before sessionRecords itself
         // is discarded along with this window instance.
@@ -265,227 +224,169 @@ public class ClaudeCompanionWindow : EditorWindow
         }
     }
 
-    private void OnEditorUpdate()
+    // UI Toolkit entry point - Unity calls this after OnEnable, once the window's root visual
+    // element is actually needed. Building the tree once here (instead of every frame like the
+    // old OnGUI) is what removes the whole class of "layout formula desynced from what's
+    // actually drawn" bugs this file kept hitting - there's no per-frame height math to get out
+    // of sync anymore, Flexbox owns that.
+    private void CreateGUI()
     {
-        double now = EditorApplication.timeSinceStartup;
-        if (now - lastRepaintTime >= RepaintInterval)
+        VisualElement root = rootVisualElement;
+        root.Clear();
+        root.AddToClassList("root");
+
+        StyleSheet styleSheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(StyleSheetPath);
+        if (styleSheet != null)
         {
-            lastRepaintTime = now;
-            Repaint();
+            root.styleSheets.Add(styleSheet);
+        }
+
+        VisualElement mainRow = new VisualElement();
+        mainRow.AddToClassList("main-row");
+        root.Add(mainRow);
+
+        sidebarContainer = new VisualElement();
+        sidebarContainer.AddToClassList("sidebar");
+        mainRow.Add(sidebarContainer);
+
+        VisualElement vDivider = new VisualElement();
+        vDivider.AddToClassList("vertical-divider");
+        mainRow.Add(vDivider);
+
+        mainColumn = new VisualElement();
+        mainColumn.AddToClassList("main-column");
+        mainRow.Add(mainColumn);
+
+        RebuildSidebar();
+        RebuildMainColumn();
+
+        // Drives the character's idle/busy animation and the sidebar busy-dots. Unlike the old
+        // EditorApplication.update-based RepaintInterval gate, this doesn't fight a competing
+        // self-sustaining redraw loop - UI Toolkit panels only repaint when something dirties
+        // them, so this tick is the only thing driving redraws here, at a steady ~60fps.
+        root.schedule.Execute(OnAnimationTick).Every(16);
+
+        // The MCP bridge package can silently reconnect on its own after a domain reload
+        // (HttpBridgeReloadHandler); poll here so the button/label can't get stuck stale.
+        root.schedule.Execute(RefreshBridgeStatus).Every(500);
+    }
+
+    private void OnAnimationTick()
+    {
+        double t = EditorApplication.timeSinceStartup;
+
+        if (characterStage != null)
+        {
+            characterStage.Tick(ActiveSession != null && ActiveSession.IsBusy, t);
+        }
+
+        foreach (KeyValuePair<CompanionSession, VisualElement> kv in sidebarDots)
+        {
+            kv.Value.style.backgroundColor = kv.Key.IsBusy ? BusyDotColor : IdleDotColor;
         }
     }
 
-    private void OnGUI()
+    private void RefreshBridgeStatus()
     {
-        // The MCP bridge package can silently reconnect on its own after a domain reload
-        // (HttpBridgeReloadHandler), but bridgeRunning was previously only refreshed in
-        // OnEnable/StartSession/StopSession. That left the button stuck on "중지됨" long
-        // after the real connection came back, forcing the user to click Start again -
-        // which used to wipe the ongoing chat/session for no reason. Polling here keeps
-        // the UI truthful without needing a dedicated event hook.
+        bool wasRunning = bridgeRunning;
         try
         {
             bridgeRunning = MCPServiceLocator.Bridge.IsRunning;
         }
         catch (Exception)
         {
-            // Services may be mid-teardown/setup right around a reload; keep the last
-            // known value rather than logging every frame.
+            // Services may be mid-teardown/setup right around a reload; keep the last known
+            // value rather than logging every poll.
         }
 
-        try
+        if (bridgeRunning != wasRunning)
         {
-            EnsureStylesInitialized();
-
-            EditorGUI.DrawRect(new Rect(0, 0, position.width, position.height), BackgroundColor);
-
-            // Both groups need an explicit ExpandHeight so DrawChat's own ExpandHeight
-            // scroll view actually gets capped to the leftover window space instead of
-            // growing with chat content - without it, nothing constrains this column's
-            // height and the input row/Send button get pushed further below the visible
-            // window as the conversation grows (the sidebar was already fine since its own
-            // BeginVertical below already has ExpandHeight).
-            EditorGUILayout.BeginHorizontal(GUILayout.ExpandHeight(true));
-
-            DrawSessionSidebar();
-            VerticalDivider();
-
-            EditorGUILayout.BeginVertical(GUILayout.ExpandHeight(true));
-            if (ActiveSession == null)
-            {
-                GUILayout.FlexibleSpace();
-                EditorGUILayout.LabelField("활성 세션이 없습니다. '+ 새 세션'을 눌러주세요.", sectionHeaderStyle);
-                GUILayout.FlexibleSpace();
-            }
-            else
-            {
-                GUILayout.Space(4);
-                DrawCharacterStage();
-                GUILayout.Space(6);
-                DrawControls();
-                Divider();
-                DrawChat();
-            }
-            EditorGUILayout.EndVertical();
-
-            EditorGUILayout.EndHorizontal();
-        }
-        catch (Exception ex)
-        {
-            // A single bad frame (e.g. a null session right after a failed OnEnable)
-            // shouldn't take the whole window down - log it and keep repainting.
-            Debug.LogException(ex);
+            UpdateBridgeControlsVisual();
+            UpdateSendControlsEnabled();
         }
     }
 
-    private void EnsureStylesInitialized()
+    private void RebuildSidebar()
     {
-        if (sectionHeaderStyle != null)
+        if (sidebarContainer == null)
         {
             return;
         }
 
-        sectionHeaderStyle = new GUIStyle(EditorStyles.boldLabel)
-        {
-            fontSize = 12,
-            normal = { textColor = new Color(0.9f, 0.9f, 0.95f) },
-            margin = new RectOffset(2, 0, 0, 4)
-        };
-        bubbleRoleStyle = new GUIStyle(EditorStyles.miniBoldLabel)
-        {
-            normal = { textColor = new Color(0.8f, 0.85f, 0.95f) },
-            padding = new RectOffset(6, 6, 0, 0)
-        };
-        bubbleTextStyle = new GUIStyle(EditorStyles.wordWrappedLabel)
-        {
-            normal = { textColor = Color.white },
-            padding = new RectOffset(6, 6, 0, 0),
-            // Lets ChatMarkdown.ToRichText's <b>/<color> tags actually render instead of
-            // showing up as literal text.
-            richText = true
-        };
-        codeBlockStyle = new GUIStyle(EditorStyles.wordWrappedLabel)
-        {
-            normal = { textColor = new Color(0.82f, 0.88f, 0.85f) },
-            padding = new RectOffset(6, 6, 3, 3),
-            fontSize = 11,
-            // Deliberately not rich-text: this holds fenced code verbatim, and running
-            // markdown/rich-text conversion over real code would mangle it (e.g. generics,
-            // comparison operators).
-            richText = false
-        };
-        characterStateLabelStyle = new GUIStyle(EditorStyles.miniLabel)
-        {
-            alignment = TextAnchor.MiddleCenter,
-            normal = { textColor = new Color(0.85f, 0.85f, 0.9f) }
-        };
-        logPathStyle = new GUIStyle(EditorStyles.miniLabel)
-        {
-            normal = { textColor = new Color(0.55f, 0.55f, 0.6f) }
-        };
-        sessionItemStyle = new GUIStyle(EditorStyles.label)
-        {
-            padding = new RectOffset(4, 4, 4, 4),
-            normal = { textColor = new Color(0.75f, 0.75f, 0.8f) }
-        };
-        activeSessionItemStyle = new GUIStyle(sessionItemStyle)
-        {
-            fontStyle = FontStyle.Bold,
-            normal = { textColor = Color.white }
-        };
+        sidebarContainer.Clear();
+        sidebarDots.Clear();
 
-        // The default EditorStyles.textArea skin barely contrasts against this window's
-        // custom dark BackgroundColor when the field is empty - see DrawChat(). Nulling out
-        // normal/focused.background here to force our own EditorGUI.DrawRect underneath was
-        // tried first, but it made Unity's internal TextEditor throw a NullReferenceException
-        // (in TextEditor.UpdateTextHandle/MoveCursorToPosition) as soon as the field was
-        // clicked into - which, caught by OnGUI's outer try/catch, silently killed that
-        // frame's rendering and looked exactly like the field "disappearing". Leaving the
-        // native background alone and only tinting text color is the safe way to adjust this.
-        // Based on textArea (not textField) and word-wrapped so the input can grow to more
-        // than one line - see DrawChat's auto-growing input box.
-        inputFieldStyle = new GUIStyle(EditorStyles.textArea)
-        {
-            normal = { textColor = Color.white },
-            focused = { textColor = Color.white },
-            padding = new RectOffset(6, 6, 4, 4),
-            wordWrap = true
-        };
-    }
+        Label title = new Label("세션");
+        title.AddToClassList("sidebar-title");
+        sidebarContainer.Add(title);
 
-    private void DrawSessionSidebar()
-    {
-        EditorGUILayout.BeginVertical(GUILayout.Width(SidebarWidth), GUILayout.ExpandHeight(true));
-        EditorGUILayout.LabelField("세션", sectionHeaderStyle);
-
-        // Deletion is deferred until after the loop instead of mutating sessions/sessionRecords
-        // mid-iteration, which would desync the index this loop is currently on.
-        int deleteRequestIndex = -1;
         for (int i = 0; i < sessions.Count; i++)
         {
-            if (DrawSessionListItem(i))
-            {
-                deleteRequestIndex = i;
-            }
-        }
-        if (deleteRequestIndex >= 0)
-        {
-            RemoveSession(deleteRequestIndex);
+            sidebarContainer.Add(BuildSessionRow(i));
         }
 
-        GUILayout.FlexibleSpace();
-        if (GUILayout.Button("+ 새 세션", GUILayout.Height(22)))
-        {
-            AddNewSession();
-        }
-        GUILayout.Space(4);
-        EditorGUILayout.EndVertical();
+        VisualElement spacer = new VisualElement();
+        spacer.AddToClassList("spacer");
+        sidebarContainer.Add(spacer);
+
+        Button addButton = new Button(AddNewSession) { text = "+ 새 세션" };
+        addButton.AddToClassList("new-session-button");
+        sidebarContainer.Add(addButton);
     }
 
-    // Returns true if this row's delete button was clicked - actual removal happens in the
-    // caller, after this loop over sessions finishes (see DrawSessionSidebar).
-    private bool DrawSessionListItem(int index)
+    private VisualElement BuildSessionRow(int index)
     {
         CompanionSession s = sessions[index];
         bool isActive = index == activeSessionIndex;
-        bool deleteRequested = false;
 
-        Rect rowRect = EditorGUILayout.BeginHorizontal(GUILayout.Height(24));
+        VisualElement row = new VisualElement();
+        row.AddToClassList("session-row");
         if (isActive)
         {
-            EditorGUI.DrawRect(rowRect, ActiveSessionRowColor);
+            row.AddToClassList("session-row--active");
         }
 
-        Rect dotRect = GUILayoutUtility.GetRect(10, 24, GUILayout.Width(10));
-        GUI.color = s.IsBusy ? BusyBodyColorA : IdleBodyColor;
-        GUI.DrawTexture(new Rect(dotRect.x, dotRect.y + 8, 8, 8), circleTexture);
-        GUI.color = Color.white;
+        VisualElement dot = new VisualElement();
+        dot.AddToClassList("session-dot");
+        dot.style.backgroundColor = s.IsBusy ? BusyDotColor : IdleDotColor;
+        row.Add(dot);
+        sidebarDots[s] = dot;
 
         string label = index < sessionRecords.Count ? sessionRecords[index].DisplayName : $"세션 {index + 1}";
-        GUIStyle style = isActive ? activeSessionItemStyle : sessionItemStyle;
-        if (GUILayout.Button(label, style))
+        Label nameLabel = new Label(label);
+        nameLabel.AddToClassList("session-label");
+        if (isActive)
         {
-            activeSessionIndex = index;
-            SaveManifest();
-            GUI.FocusControl(null);
-            Repaint();
+            nameLabel.AddToClassList("session-label--active");
         }
+        nameLabel.RegisterCallback<ClickEvent>(_ => SwitchToSession(index));
+        row.Add(nameLabel);
 
         // Deleting kills the session's underlying claude process (if any) via
         // CompanionSession.Dispose - besides freeing that process, this is also the only way
         // to release a domain-reload lock a busy session is holding (see
         // ClaudeSessionRunner.LockReload), which otherwise blocks Unity from ever swapping in
         // newly compiled code while that session stays busy.
-        if (GUILayout.Button("×", EditorStyles.miniButton, GUILayout.Width(18)))
-        {
-            deleteRequested = true;
-        }
+        Button deleteButton = new Button(() => RequestRemoveSession(index)) { text = "×" };
+        deleteButton.AddToClassList("session-delete-button");
+        row.Add(deleteButton);
 
-        EditorGUILayout.EndHorizontal();
-        return deleteRequested;
+        return row;
     }
 
-    private void RemoveSession(int index)
+    private void SwitchToSession(int index)
+    {
+        if (index == activeSessionIndex)
+        {
+            return;
+        }
+        activeSessionIndex = index;
+        SaveManifest();
+        RebuildSidebar();
+        RebuildMainColumn();
+    }
+
+    private void RequestRemoveSession(int index)
     {
         if (index < 0 || index >= sessions.Count)
         {
@@ -531,8 +432,8 @@ public class ClaudeCompanionWindow : EditorWindow
         activeSessionIndex = Mathf.Clamp(activeSessionIndex, 0, Mathf.Max(0, sessions.Count - 1));
 
         SaveManifest();
-        GUI.FocusControl(null);
-        Repaint();
+        RebuildSidebar();
+        RebuildMainColumn();
     }
 
     private void AddNewSession()
@@ -552,7 +453,6 @@ public class ClaudeCompanionWindow : EditorWindow
             {
                 record.RestoredSessionId = newSession.RestoredSessionId;
                 SaveManifest();
-                Repaint();
             };
             sessions.Add(newSession);
             activeSessionIndex = sessions.Count - 1;
@@ -561,126 +461,120 @@ public class ClaudeCompanionWindow : EditorWindow
         {
             Debug.LogException(ex);
         }
+
         SaveManifest();
-        Repaint();
+        RebuildSidebar();
+        RebuildMainColumn();
     }
 
-    private void DrawCharacterStage()
+    private void RebuildMainColumn()
     {
-        Rect stage = GUILayoutUtility.GetRect(position.width, 96, GUILayout.ExpandWidth(true));
-        EditorGUI.DrawRect(stage, StageColor);
-
-        bool busy = ActiveSession != null && ActiveSession.IsBusy;
-        float t = (float)EditorApplication.timeSinceStartup;
-
-        Vector2 center = new Vector2(stage.x + stage.width / 2f, stage.y + stage.height / 2f + 4f);
-
-        float bobAmplitude = busy ? 7f : 3f;
-        float bobSpeed = busy ? 6f : 2f;
-        float bobY = Mathf.Sin(t * bobSpeed) * bobAmplitude;
-
-        if (busy)
+        if (mainColumn == null)
         {
-            int dotCount = 3;
-            float orbitRadius = 42f;
-            for (int i = 0; i < dotCount; i++)
-            {
-                float angle = t * 4f + i * (Mathf.PI * 2f / dotCount);
-                Vector2 dotPos = center + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle) * 0.6f) * orbitRadius;
-                GUI.color = new Color(1f, 0.85f, 0.4f, 0.85f);
-                GUI.DrawTexture(new Rect(dotPos.x - 4f, dotPos.y - 4f, 8f, 8f), circleTexture);
-            }
-            GUI.color = Color.white;
+            return;
         }
 
-        const float bodySize = 56f;
-        Color bodyColor = busy
-            ? Color.Lerp(BusyBodyColorA, BusyBodyColorB, Mathf.PingPong(t * 3f, 1f))
-            : IdleBodyColor;
+        if (boundSession != null)
+        {
+            boundSession.Changed -= RefreshChat;
+            boundSession = null;
+        }
 
-        GUI.color = bodyColor;
-        GUI.DrawTexture(new Rect(center.x - bodySize / 2f, center.y - bodySize / 2f + bobY, bodySize, bodySize), circleTexture, ScaleMode.ScaleToFit);
-        GUI.color = Color.white;
+        mainColumn.Clear();
+        characterStage = null;
+        bridgeToggleButton = null;
+        bridgeDot = null;
+        bridgeLabel = null;
+        chatScrollView = null;
+        pendingCountLabel = null;
+        inputField = null;
+        sendButton = null;
+        cancelButton = null;
 
-        UpdateBlink(t);
-        float eyeOpen = isBlinking ? 0.15f : 1f;
-        const float eyeSize = 8f;
-        const float eyeSpacing = 10f;
-        const float eyeYOffset = -6f;
-        float eyeHeight = eyeSize * eyeOpen;
-        float eyeY = center.y + bobY + eyeYOffset - eyeHeight / 2f;
+        if (ActiveSession == null)
+        {
+            Label empty = new Label("활성 세션이 없습니다. '+ 새 세션'을 눌러주세요.");
+            empty.AddToClassList("empty-state-label");
+            mainColumn.Add(empty);
+            return;
+        }
 
-        GUI.color = new Color(0.15f, 0.15f, 0.18f);
-        GUI.DrawTexture(new Rect(center.x - eyeSpacing - eyeSize / 2f, eyeY, eyeSize, eyeHeight), circleTexture);
-        GUI.DrawTexture(new Rect(center.x + eyeSpacing - eyeSize / 2f, eyeY, eyeSize, eyeHeight), circleTexture);
-        GUI.color = Color.white;
+        characterStage = new CharacterStageElement();
+        mainColumn.Add(characterStage);
 
-        GUI.Label(new Rect(stage.x, stage.yMax - 16, stage.width, 16), busy ? "열심히 작업 중..." : "대기 중", characterStateLabelStyle);
+        mainColumn.Add(BuildControlsRow());
+
+        VisualElement hDivider = new VisualElement();
+        hDivider.AddToClassList("horizontal-divider");
+        mainColumn.Add(hDivider);
+
+        mainColumn.Add(BuildChatArea());
+
+        boundSession = ActiveSession;
+        boundSession.Changed += RefreshChat;
+
+        RefreshChat();
     }
 
-    private void UpdateBlink(double t)
+    private VisualElement BuildControlsRow()
     {
-        if (nextBlinkTime <= 0)
-        {
-            nextBlinkTime = t + UnityEngine.Random.Range(2f, 5f);
-        }
+        VisualElement row = new VisualElement();
+        row.AddToClassList("controls-row");
 
-        if (!isBlinking && t >= nextBlinkTime)
-        {
-            isBlinking = true;
-            blinkEndTime = t + 0.12;
-        }
-        else if (isBlinking && t >= blinkEndTime)
-        {
-            isBlinking = false;
-            nextBlinkTime = t + UnityEngine.Random.Range(2f, 5f);
-        }
-    }
+        bridgeToggleButton = new Button(OnBridgeToggleClicked);
+        bridgeToggleButton.AddToClassList("bridge-toggle-button");
+        row.Add(bridgeToggleButton);
 
-    private void DrawControls()
-    {
-        EditorGUILayout.BeginHorizontal();
+        bridgeDot = new VisualElement();
+        bridgeDot.AddToClassList("bridge-dot");
+        row.Add(bridgeDot);
 
-        Color previousBackground = GUI.backgroundColor;
-        GUI.backgroundColor = bridgeRunning ? RunningColor : StoppedColor;
-        if (GUILayout.Button(bridgeRunning ? "■ Stop" : "▶ Start", GUILayout.Width(90), GUILayout.Height(24)))
-        {
-            if (bridgeRunning)
-            {
-                StopSession();
-            }
-            else
-            {
-                StartSession();
-            }
-        }
-        GUI.backgroundColor = previousBackground;
-
-        GUILayout.Space(6);
-
-        Rect dotRect = GUILayoutUtility.GetRect(14, 24, GUILayout.Width(14));
-        GUI.color = bridgeRunning ? StoppedColor : new Color(0.6f, 0.6f, 0.6f);
-        GUI.DrawTexture(new Rect(dotRect.x, dotRect.y + 7, 12, 12), circleTexture);
-        GUI.color = Color.white;
         // The bridge is one shared connection for the whole editor, not per-session - Stop
         // disconnects every session's MCP tool calls, not just the one currently in view.
-        // Surfaced via tooltip rather than a badge so it doesn't compete for space every frame.
-        GUIContent bridgeLabel = new GUIContent(
-            bridgeRunning ? "브릿지 연결됨" : "브릿지 중지됨",
-            "모든 세션이 이 브릿지를 공유합니다. Stop을 누르면 다른 세션의 MCP 연결도 함께 끊깁니다.");
-        GUILayout.Label(bridgeLabel, EditorStyles.miniLabel, GUILayout.Width(90));
+        // Surfaced via tooltip rather than a badge so it doesn't compete for space.
+        bridgeLabel = new Label();
+        bridgeLabel.AddToClassList("bridge-label");
+        bridgeLabel.tooltip = "모든 세션이 이 브릿지를 공유합니다. Stop을 누르면 다른 세션의 MCP 연결도 함께 끊깁니다.";
+        row.Add(bridgeLabel);
 
-        GUILayout.FlexibleSpace();
+        VisualElement spacer = new VisualElement();
+        spacer.AddToClassList("spacer");
+        row.Add(spacer);
 
-        // Fallback path for the chat input row's recurring visibility bugs: an independent
-        // popup window that shares none of this window's layout/height calculations, so it
-        // keeps working even if the inline field ever breaks again.
-        if (GUILayout.Button("대체 입력창", EditorStyles.miniButton, GUILayout.Width(80)))
+        // Fallback path for the chat input row's recurring visibility bugs under the old IMGUI
+        // implementation: an independent popup window that shares none of this window's
+        // layout. Kept for now even though UI Toolkit removes the root cause of that bug class
+        // - safe to retire once the new input field has proven stable for a while.
+        Button fallbackButton = new Button(() => ClaudeCompanionSendDialog.Open(this)) { text = "대체 입력창" };
+        fallbackButton.AddToClassList("fallback-input-button");
+        row.Add(fallbackButton);
+
+        UpdateBridgeControlsVisual();
+        return row;
+    }
+
+    private void OnBridgeToggleClicked()
+    {
+        if (bridgeRunning)
         {
-            ClaudeCompanionSendDialog.Open(this);
+            StopSession();
         }
+        else
+        {
+            StartSession();
+        }
+    }
 
-        EditorGUILayout.EndHorizontal();
+    private void UpdateBridgeControlsVisual()
+    {
+        if (bridgeToggleButton == null)
+        {
+            return;
+        }
+        bridgeToggleButton.text = bridgeRunning ? "■ Stop" : "▶ Start";
+        bridgeToggleButton.style.backgroundColor = bridgeRunning ? RunningColor : StoppedColor;
+        bridgeDot.style.backgroundColor = bridgeRunning ? StoppedColor : BridgeDotOffColor;
+        bridgeLabel.text = bridgeRunning ? "브릿지 연결됨" : "브릿지 중지됨";
     }
 
     private async void StartSession()
@@ -704,7 +598,9 @@ public class ClaudeCompanionWindow : EditorWindow
         {
             ActiveSession.ResetForNewConversation();
         }
-        Repaint();
+
+        UpdateBridgeControlsVisual();
+        UpdateSendControlsEnabled();
     }
 
     private async void StopSession()
@@ -712,7 +608,7 @@ public class ClaudeCompanionWindow : EditorWindow
         // MCPServiceLocator.Bridge/the local HTTP server are singletons shared by every
         // session in this window, not per-session - stopping them here would silently cut
         // off any other session that's still mid-turn. Warn before doing that instead of
-        // doing it quietly (see AddNewSession/DrawSessionSidebar for the multi-session model).
+        // doing it quietly.
         int otherBusyCount = 0;
         for (int i = 0; i < sessions.Count; i++)
         {
@@ -739,218 +635,156 @@ public class ClaudeCompanionWindow : EditorWindow
         await MCPServiceLocator.Bridge.StopAsync();
         MCPServiceLocator.Server.StopLocalHttpServer();
         bridgeRunning = MCPServiceLocator.Bridge.IsRunning;
-        Repaint();
+
+        UpdateBridgeControlsVisual();
+        UpdateSendControlsEnabled();
     }
 
-    // A same-frame EditorGUILayout.GetControlRect(GUILayout.Height(0)) call was tried here
-    // first (both inside the chat scroll view and for the input row below it) to measure
-    // "how wide is this pane right now", but it returned inconsistent values in each of those
-    // two spots - bubbles came out far narrower than intended, while the input row came out
-    // wider than the pane, spilling out past the sidebar/window edge. Computing the pane width
-    // directly from position.width and the sidebar/divider's own fixed sizes removes that
-    // per-frame ambiguity - it's the same number every time, in every context.
-    private float GetChatPaneWidth()
+    private VisualElement BuildChatArea()
     {
-        return Mathf.Max(200f, position.width - SidebarWidth - SidebarDividerWidth);
-    }
+        VisualElement container = new VisualElement();
+        container.style.flexGrow = 1;
 
-    private void DrawChat()
-    {
-        EditorGUILayout.LabelField("채팅", sectionHeaderStyle);
+        Label chatTitle = new Label("채팅");
+        chatTitle.AddToClassList("sidebar-title");
+        container.Add(chatTitle);
 
-        // Whenever a message is added (sent or merely queued), jump the scroll view to the
-        // bottom so the latest reply/queued bubble is visible without manual scrolling.
-        int totalMessageCount = ActiveSession.ChatMessages.Count + ActiveSession.PendingMessages.Count;
-        if (totalMessageCount != lastChatMessageCount)
-        {
-            lastChatMessageCount = totalMessageCount;
-            chatScroll.y = float.MaxValue;
-        }
+        chatScrollView = new ScrollView(ScrollViewMode.Vertical);
+        chatScrollView.AddToClassList("chat-scroll");
+        container.Add(chatScrollView);
 
-        // Fixed-height regions below (input row, divider, activity log) are laid out normally;
-        // this scroll view is the only expanding element in the window's vertical layout, so it
-        // simply claims whatever space is left - no manual height math or cross-frame caching.
-        chatScroll = EditorGUILayout.BeginScrollView(chatScroll, GUILayout.ExpandHeight(true));
+        pendingCountLabel = new Label();
+        pendingCountLabel.AddToClassList("pending-count-label");
+        pendingCountLabel.style.display = DisplayStyle.None;
+        container.Add(pendingCountLabel);
 
-        // Reserve room for this scroll view's own vertical scrollbar so bubble text isn't
-        // wrapped to a width wider than what's actually left once the scrollbar is drawn.
-        float chatAreaWidth = GetChatPaneWidth() - ChatScrollbarWidth;
+        // Auto-grows with wrapped content up to the "chat-input" USS max-height, same idea as
+        // the old IMGUI auto-growing box but handled natively by the multiline TextField
+        // instead of a manual CalcHeight/Clamp pass every frame.
+        inputField = new TextField { multiline = true };
+        inputField.AddToClassList("chat-input");
+        VisualElement innerInput = inputField.Q(className: TextField.inputUssClassName);
+        innerInput?.AddToClassList("chat-input-inner");
+        // Enter sends; Shift+Enter falls through to the field's own default handling so a
+        // multi-line message can still be composed. Must run in the trickle-down (capture)
+        // phase so it intercepts before the TextField's own bubble-phase handler treats Return
+        // as "insert a newline".
+        inputField.RegisterCallback<KeyDownEvent>(OnInputKeyDown, TrickleDown.TrickleDown);
+        inputField.RegisterValueChangedCallback(_ => UpdateSendControlsEnabled());
+        container.Add(inputField);
 
-        foreach (ChatMessage message in ActiveSession.ChatMessages)
-        {
-            DrawChatBubble(message, pending: false, chatAreaWidth);
-        }
+        VisualElement buttonsRow = new VisualElement();
+        buttonsRow.AddToClassList("chat-buttons-row");
 
-        // Messages typed while a turn was already in flight - CompanionSession.Submit queued
-        // them instead of sending, and they'll fire automatically once the current turn ends.
-        // Rendered dimmed so it's visually clear they haven't actually been sent to Claude yet.
-        foreach (string pendingText in ActiveSession.PendingMessages)
-        {
-            DrawChatBubble(new ChatMessage("You", pendingText), pending: true, chatAreaWidth);
-        }
-
-        EditorGUILayout.EndScrollView();
-
-        if (ActiveSession.PendingMessages.Count > 0)
-        {
-            EditorGUILayout.LabelField($"메시지 {ActiveSession.PendingMessages.Count}개 전송 대기 중", logPathStyle);
-        }
-
-        // Same deterministic width as the chat bubbles above (no scrollbar reservation
-        // needed here - this row isn't inside a scroll view).
-        float inputAreaWidth = GetChatPaneWidth();
-
-        // Auto-growing input box (like Claude's/ChatGPT's chat UI): height tracks the
-        // wrapped line count of what's currently typed instead of staying a fixed single
-        // line, so a longer message is visible in place rather than requiring the window to
-        // be resized to see what was typed.
-        float desiredHeight = inputFieldStyle.CalcHeight(new GUIContent(inputText), inputAreaWidth) + 4f;
-        float inputHeight = Mathf.Clamp(desiredHeight, MinInputHeight, MaxInputHeight);
-
-        // Enter sends (matching the previous single-line behavior); Shift+Enter falls
-        // through to the text area's own default handling so a multi-line message can still
-        // be composed before sending. Must be checked and consumed *before* the TextArea
-        // below runs - TextArea is a multi-line control that handles Return itself (inserting
-        // a newline) as part of its own native event handling, which used the event up before
-        // a check placed after the TextArea call ever saw it as still KeyDown. That was why
-        // Enter silently stopped sending and only inserted a newline after this field switched
-        // from TextField to TextArea.
-        Event current = Event.current;
-        bool enterPressed = current.type == EventType.KeyDown
-            && (current.keyCode == KeyCode.Return || current.keyCode == KeyCode.KeypadEnter)
-            && !current.shift
-            && GUI.GetNameOfFocusedControl() == "ChatInput";
-        if (enterPressed)
-        {
-            current.Use();
-        }
-
-        Rect inputRect = GUILayoutUtility.GetRect(inputAreaWidth, inputHeight);
-        // A bare EditorGUI.TextArea's default skin barely contrasts against this window's
-        // custom dark BackgroundColor - when empty (no text/selection highlight to draw the
-        // eye), the field reads as "missing" even though it's rendering fine. Painting an
-        // explicit background rect first (same approach as the chat bubbles) guarantees it
-        // stays visible regardless of content.
-        EditorGUI.DrawRect(inputRect, InputFieldColor);
-        GUI.SetNextControlName("ChatInput");
-        inputText = EditorGUI.TextArea(inputRect, inputText, inputFieldStyle);
-
-        EditorGUILayout.BeginHorizontal();
-        GUILayout.FlexibleSpace();
-
-        bool canSend = CanSendMessage(inputText);
-        EditorGUI.BeginDisabledGroup(!canSend);
-        bool sendPressed = GUILayout.Button("Send", GUILayout.Width(60));
-        EditorGUI.EndDisabledGroup();
+        sendButton = new Button(TrySend) { text = "Send" };
+        sendButton.AddToClassList("send-button");
+        buttonsRow.Add(sendButton);
 
         // Only meaningful while this specific session is mid-turn - unlike the Stop button
-        // in DrawControls, this cancels just the active session's process, not the shared
-        // bridge, so other sessions keep running.
-        EditorGUI.BeginDisabledGroup(ActiveSession == null || !ActiveSession.IsBusy);
-        bool cancelPressed = GUILayout.Button("취소", GUILayout.Width(50));
-        EditorGUI.EndDisabledGroup();
+        // above, this cancels just the active session's process, not the shared bridge, so
+        // other sessions keep running.
+        cancelButton = new Button(() => ActiveSession?.CancelTurn()) { text = "취소" };
+        cancelButton.AddToClassList("cancel-button");
+        buttonsRow.Add(cancelButton);
 
-        EditorGUILayout.EndHorizontal();
+        container.Add(buttonsRow);
 
-        if ((sendPressed || enterPressed) && canSend)
+        return container;
+    }
+
+    private void OnInputKeyDown(KeyDownEvent evt)
+    {
+        if ((evt.keyCode == KeyCode.Return || evt.keyCode == KeyCode.KeypadEnter) && !evt.shiftKey)
         {
-            SubmitMessage(inputText);
-            inputText = "";
-            GUI.FocusControl(null);
-        }
-
-        if (cancelPressed && ActiveSession != null && ActiveSession.IsBusy)
-        {
-            ActiveSession.CancelTurn();
+            evt.StopPropagation();
+            evt.PreventDefault();
+            TrySend();
         }
     }
 
-    private void DrawChatBubble(ChatMessage message, bool pending, float chatAreaWidth)
+    private void TrySend()
+    {
+        string text = inputField?.value ?? "";
+        if (!CanSendMessage(text))
+        {
+            return;
+        }
+        SubmitMessage(text);
+        inputField.SetValueWithoutNotify("");
+        UpdateSendControlsEnabled();
+    }
+
+    // Whenever a message is added (sent, queued, or a reply arrives), rebuild the bubble list
+    // and jump the scroll view to the bottom - bound to CompanionSession.Changed for whichever
+    // session is currently active (see RebuildMainColumn).
+    private void RefreshChat()
+    {
+        if (chatScrollView == null || ActiveSession == null)
+        {
+            return;
+        }
+
+        chatScrollView.Clear();
+        foreach (ChatMessage message in ActiveSession.ChatMessages)
+        {
+            AddChatBubble(message, pending: false);
+        }
+        foreach (string pendingText in ActiveSession.PendingMessages)
+        {
+            AddChatBubble(new ChatMessage("You", pendingText), pending: true);
+        }
+
+        int pendingCount = ActiveSession.PendingMessages.Count;
+        pendingCountLabel.text = pendingCount > 0 ? $"메시지 {pendingCount}개 전송 대기 중" : "";
+        pendingCountLabel.style.display = pendingCount > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+
+        UpdateSendControlsEnabled();
+        ScrollChatToBottom();
+    }
+
+    private void ScrollChatToBottom()
+    {
+        // Deferred one tick: the newly added bubbles need a layout pass before
+        // contentContainer's height reflects them, otherwise this scrolls to the *previous*
+        // bottom instead of the new one.
+        chatScrollView.schedule.Execute(() =>
+        {
+            chatScrollView.scrollOffset = new Vector2(0f, chatScrollView.contentContainer.layout.height);
+        });
+    }
+
+    private void AddChatBubble(ChatMessage message, bool pending)
     {
         bool isUser = message.Role == "You";
 
-        // Every Begin*/End* pair below is try/finally-guarded so a rendering exception on
-        // one message (e.g. from an unusually long/pathological body) can't leave GUILayout's
-        // group stack unbalanced - an unmatched Begin desyncs it for the rest of this OnGUI
-        // call, which previously showed up as the input row/activity log silently failing to
-        // render at all rather than as a visible error.
-        GUILayout.BeginHorizontal();
-        try
+        VisualElement row = new VisualElement();
+        row.AddToClassList("chat-bubble-row");
+        row.AddToClassList(isUser ? "chat-bubble-row--user" : "chat-bubble-row--claude");
+
+        VisualElement bubble = new VisualElement();
+        bubble.AddToClassList("chat-bubble");
+        bubble.AddToClassList(isUser ? "chat-bubble--user" : "chat-bubble--claude");
+        if (pending)
         {
-            if (isUser)
-            {
-                GUILayout.FlexibleSpace();
-            }
-
-            // GUILayout.MaxWidth is only a soft cap - nested inside this row's
-            // BeginHorizontal/FlexibleSpace, it was not actually shrinking the group, so the
-            // word-wrapped label inside kept wrapping to (and overflowing past) its own
-            // unconstrained natural width instead of the intended 85%. Computing an exact
-            // pixel width up front and forcing it with GUILayout.Width sidesteps that
-            // negotiation entirely: the group (and therefore the wrap width used inside it)
-            // is exactly this number, every time. Still shrinks to fit short messages by
-            // measuring the text's natural (unwrapped) width first and only clamping down to
-            // the 85% cap when the message is actually longer than that.
-            float maxBubbleWidth = chatAreaWidth * 0.85f;
-            float naturalBubbleWidth = bubbleTextStyle.CalcSize(new GUIContent(message.Text)).x + 12f;
-            float bubbleWidth = Mathf.Clamp(naturalBubbleWidth, 80f, maxBubbleWidth);
-            GUILayout.BeginVertical(GUILayout.Width(bubbleWidth));
-            try
-            {
-                Rect bubbleRect = EditorGUILayout.BeginVertical();
-                try
-                {
-                    Color bubbleColor = isUser ? UserBubbleColor : ClaudeBubbleColor;
-                    if (pending)
-                    {
-                        // Halved alpha is enough to read as "not sent yet" without a separate
-                        // style/layout pass - same trick as the busy-state dot colors
-                        // elsewhere in this file.
-                        bubbleColor.a *= 0.5f;
-                    }
-                    EditorGUI.DrawRect(bubbleRect, bubbleColor);
-
-                    GUILayout.Space(3);
-                    EditorGUILayout.LabelField(pending ? message.Role + " · 전송 대기" : message.Role, bubbleRoleStyle);
-                    DrawMessageBody(message.Text, bubbleWidth);
-                    GUILayout.Space(3);
-                }
-                finally
-                {
-                    EditorGUILayout.EndVertical();
-                }
-            }
-            finally
-            {
-                GUILayout.EndVertical();
-            }
-
-            if (!isUser)
-            {
-                GUILayout.FlexibleSpace();
-            }
+            // Halved alpha is enough to read as "not sent yet" without a separate style pass.
+            bubble.AddToClassList("chat-bubble--pending");
         }
-        finally
-        {
-            GUILayout.EndHorizontal();
-        }
-        GUILayout.Space(4);
+
+        Label roleLabel = new Label(pending ? message.Role + " · 전송 대기" : message.Role);
+        roleLabel.AddToClassList("chat-bubble-role");
+        bubble.Add(roleLabel);
+
+        BuildBubbleContent(bubble, message.Text);
+
+        row.Add(bubble);
+        chatScrollView.Add(row);
     }
 
-    // Renders fenced code blocks in their own plain (non-rich-text) box and everything else
-    // as rich text with bold/inline-code/bullets converted - see ChatMarkdown for what's
-    // actually supported. Anything Claude sends that isn't one of those just prints as-is.
-    //
-    // Every label's height here is computed explicitly (CalcHeight for a known width) and
-    // drawn into an exact GUILayoutUtility.GetRect rather than left to EditorGUILayout's
-    // automatic sizing - the automatic path was intermittently allocating only one line's
-    // worth of height for text that actually needed to wrap to two or more lines inside the
-    // fixed-width bubble from DrawChatBubble, clipping the rest instead of growing the bubble.
-    // Explicit width/height removes that ambiguity the same way the input box's sizing does.
-    private void DrawMessageBody(string text, float bubbleWidth)
+    // Renders fenced code blocks in their own plain (non-rich-text) box and everything else as
+    // rich text with bold/inline-code/bullets converted - see ChatMarkdown for what's actually
+    // supported. Anything Claude sends that isn't one of those just prints as-is.
+    private static void BuildBubbleContent(VisualElement bubble, string text)
     {
-        float contentWidth = Mathf.Max(20f, bubbleWidth - 12f);
-
         foreach (ChatMarkdown.Segment segment in ChatMarkdown.Split(text))
         {
             if (string.IsNullOrWhiteSpace(segment.Text))
@@ -960,37 +794,36 @@ public class ClaudeCompanionWindow : EditorWindow
 
             if (segment.IsCode)
             {
-                GUIContent codeContent = new GUIContent(segment.Text);
-                float codeTextHeight = codeBlockStyle.CalcHeight(codeContent, contentWidth);
-
-                // try/finally: a LabelField on unusually long/pathological text has been
-                // observed to throw inside Unity's own layout code (NullReferenceException
-                // deep in EditorGUILayout.LabelField). Without the finally, the unmatched
-                // BeginVertical desyncs GUILayout's group stack for the rest of this OnGUI
-                // call, which is what was silently swallowing the Send button/activity log
-                // below - not an actual absence of those controls.
-                Rect codeRect = EditorGUILayout.BeginVertical();
-                try
+                VisualElement codeBlock = new VisualElement();
+                codeBlock.AddToClassList("chat-code-block");
+                Label codeLabel = new Label(segment.Text)
                 {
-                    EditorGUI.DrawRect(codeRect, CodeBlockColor);
-                    GUILayout.Space(2);
-                    Rect codeTextRect = GUILayoutUtility.GetRect(contentWidth, codeTextHeight);
-                    EditorGUI.LabelField(codeTextRect, codeContent, codeBlockStyle);
-                    GUILayout.Space(2);
-                }
-                finally
-                {
-                    EditorGUILayout.EndVertical();
-                }
+                    // Deliberately not rich-text: this holds fenced code verbatim, and running
+                    // rich-text conversion over real code would mangle it (generics, comparison
+                    // operators, etc).
+                    enableRichText = false
+                };
+                codeLabel.AddToClassList("chat-code-text");
+                codeBlock.Add(codeLabel);
+                bubble.Add(codeBlock);
             }
             else
             {
-                GUIContent richContent = new GUIContent(ChatMarkdown.ToRichText(segment.Text));
-                float textHeight = bubbleTextStyle.CalcHeight(richContent, contentWidth);
-                Rect textRect = GUILayoutUtility.GetRect(contentWidth, textHeight);
-                EditorGUI.LabelField(textRect, richContent, bubbleTextStyle);
+                Label textLabel = new Label(ChatMarkdown.ToRichText(segment.Text)) { enableRichText = true };
+                textLabel.AddToClassList("chat-bubble-text");
+                bubble.Add(textLabel);
             }
         }
+    }
+
+    private void UpdateSendControlsEnabled()
+    {
+        if (sendButton == null)
+        {
+            return;
+        }
+        sendButton.SetEnabled(CanSendMessage(inputField?.value ?? ""));
+        cancelButton.SetEnabled(ActiveSession != null && ActiveSession.IsBusy);
     }
 
     // Shared by both the inline chat row and ClaudeCompanionSendDialog (the fallback input
@@ -1009,40 +842,5 @@ public class ClaudeCompanionWindow : EditorWindow
             return;
         }
         ActiveSession.Submit(text);
-    }
-
-    private static void Divider()
-    {
-        GUILayout.Space(6);
-        Rect rect = GUILayoutUtility.GetRect(1, 1, GUILayout.ExpandWidth(true));
-        EditorGUI.DrawRect(rect, DividerColor);
-        GUILayout.Space(6);
-    }
-
-    private static void VerticalDivider()
-    {
-        GUILayout.Space(4);
-        Rect rect = GUILayoutUtility.GetRect(1, 1, GUILayout.ExpandHeight(true), GUILayout.Width(1));
-        EditorGUI.DrawRect(rect, DividerColor);
-        GUILayout.Space(4);
-    }
-
-    private static Texture2D CreateCircleTexture(int size)
-    {
-        Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
-        Vector2 center = new Vector2(size / 2f, size / 2f);
-        float radius = size / 2f;
-
-        for (int y = 0; y < size; y++)
-        {
-            for (int x = 0; x < size; x++)
-            {
-                float dist = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), center);
-                float alpha = Mathf.Clamp01(radius - dist);
-                texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
-            }
-        }
-        texture.Apply();
-        return texture;
     }
 }

@@ -6,6 +6,56 @@
 
 ---
 
+## 2026-07-16 리뉴얼 착수 — UI Toolkit 전환 결정 + 셸 마이그레이션(M1) 완료
+
+사용자 요청: "차라리 너가 계속 못 고치니깐 리뉴얼을 하자" — 반복된 레이아웃 붕괴 버그(입력창
+사라짐, 채팅 높이 깨짐 등, 이 로그의 2026-07-14 항목들 참고)를 근본적으로 없애고, 디자인/
+UI·UX를 "AI 개발을 시각적으로 즐길 수 있게" 다시 설계하기로 함.
+
+### 기획 (M0)
+- 반복 버그의 근본 원인은 IMGUI의 수동 rect/높이 계산이라고 진단 → **UI Toolkit(UXML/USS)로
+  전환**하기로 결정. Flexbox 기반이라 이 버그 클래스가 구조적으로 사라짐.
+- 캐릭터는 스프라이트 아트(B) 대신 **절차적 벡터(A)** 유지·확장 — 코드로 계속 다듬기 쉽고
+  상태별 일관성 유지가 쉬움.
+- 마일스톤: M0 설계 → M1 셸 마이그레이션(기능 동등성) → M2 비주얼 아이덴티티 → M3 캐릭터
+  상태 확장 → M4 턴 진행 스텝퍼(로그 부활) → M5 마이크로인터랙션 → M6 안정화.
+- 데이터/로직 경계 확정: `CompanionSession`/`ChatMessage`/`ChatMarkdown`/`CompanionLog`/
+  `ClaudeSessionRunner`는 이미 UI 프레임워크에 무관한 순수 C#이라 **전혀 손대지 않음** —
+  `ClaudeCompanionWindow`의 View 레이어만 교체.
+
+### M1 구현 (같은 날)
+- `Assets/01. Scripts/Editor/ClaudeCompanion/UI/ClaudeCompanionStyles.uss` 신규 — 기존
+  IMGUI 팔레트와 동일한 색으로 정적 스타일만 정의 (비주얼 변경은 M2로 미룸).
+- `UI/CharacterStageElement.cs` 신규 — 원형 텍스처(`CreateCircleTexture`) 대신
+  `VisualElement`(border-radius 50%) 조합으로 캐릭터 재구성. bob/blink/busy 오빗닷 로직은
+  기존 수식 그대로 이식, `Tick(bool busy, double t)`로 매 프레임 좌표만 갱신 (내부에서
+  MarkDirtyRepaint 안 부름 — 호스트 창의 스케줄러가 담당).
+- `ClaudeCompanionWindow.cs` 전면 재작성: `OnGUI()` → `CreateGUI()`. 세션 매니페스트
+  저장/복원, `OnEnable`/`OnDisable` 로직은 그대로 유지. `GetChatPaneWidth`/
+  `CalculateChatScrollHeight` 같은 수동 폭·높이 계산 전부 삭제 (Flexbox가 대체).
+  Enter-전송/Shift+Enter-줄바꿈은 IMGUI의 `Event.Use()` 트릭 대신 `TrickleDown.TrickleDown`
+  단계에서 `KeyDownEvent`를 가로채는 방식으로 교체. `EditorApplication.update` 기반
+  `RepaintInterval` 스로틀 제거 → UI Toolkit `root.schedule.Execute(...).Every(16)`으로
+  대체 (애니메이션 60fps, 브릿지 상태 폴링은 500ms 별도 스케줄).
+- `ClaudeCompanionSendDialog.cs`(대체 입력창 IMGUI 폴백)는 그대로 유지 — 새 입력창이
+  한동안 안정적으로 검증된 뒤 제거 후보.
+
+### 검증 상태 (미완료 — 다음 세션에서 이어서 할 것)
+`refresh_unity` 컴파일 요청이 60초 타임아웃, `read_console`에도 아직 에러가 안 찍힘 — 이
+대화 세션 자체가 `ClaudeCompanionWindow`가 띄운 `ClaudeSessionRunner` 프로세스일 가능성이
+높아 `LockReloadAssemblies`가 이 세션이 끝날 때까지 컴파일을 미루고 있는 것으로 추정
+(2026-07-15 `claude-companion-parallel-sessions` 메모에 기록된 것과 같은 패턴).
+
+### 다음에 할 일 (TODO)
+- [ ] 다음 세션 시작 시 `read_console`로 컴파일 에러 유무 먼저 확인
+- [ ] 에러 있으면 수정, 없으면 Unity 에디터에서 실제로 창 열어서 레이아웃 확인
+      (세션 전환/추가/삭제, 창 크기 조절, 메시지 전송/큐잉/취소, 코드블록·마크다운 렌더링,
+      브릿지 Start/Stop 전부 육안 회귀 확인 — 아직 전혀 미검증)
+- [ ] M1 안정성 확인되면 사용자에게 보여주고 M2(비주얼 아이덴티티)로 진행할지 확인
+- [ ] Task #2 (M1 마이그레이션) 완료 처리는 위 검증 끝난 뒤에
+
+---
+
 ## 2026-07-14 (4) 로그 접기/리사이즈 시 채팅 영역이 실제로 넓어지지 않던 문제 수정
 
 사용자 보고: "현재 로그 창만 넓어지고 접히고 하는데 내가 원하는건, 그 작용을 통해서 채팅창이
