@@ -29,7 +29,7 @@ public class ClaudeCompanionWindow : EditorWindow
     // USS specificity, including :hover, so a button colored via C# can never show a hover tint).
     private static readonly Color StoppedColor = new Color(0.35f, 0.75f, 0.45f);
     private static readonly Color BridgeDotOffColor = new Color(0.6f, 0.6f, 0.6f);
-    private static readonly Color StepErrorColor = new Color(0.85f, 0.35f, 0.35f);
+    private static readonly Color StepErrorColor = new Color(0.92f, 0.26f, 0.26f);
 
     // Friendly Korean labels for the turn-progress stepper's chips - falls back to the raw
     // tool name (or, for mcp__ tools, the part after the last "__") when a tool isn't listed
@@ -72,14 +72,16 @@ public class ClaudeCompanionWindow : EditorWindow
     // Per-session identity color (sidebar stripe + a top accent bar on the active session's main
     // column) - purely cosmetic, assigned by tab index so switching/adding tabs stays visually
     // distinguishable. Not tied to busy/idle state, which stays semantic (see CharacterStageElement).
+    // 2026-07-16: bumped saturation to match CharacterStageElement's richer activity colors -
+    // "dark theme is fine, but wants actual color presence" feedback.
     private static readonly Color[] SessionAccentPalette =
     {
-        new Color(0.85f, 0.47f, 0.34f), // coral (brand)
-        new Color(0.38f, 0.66f, 0.64f), // teal
-        new Color(0.62f, 0.52f, 0.84f), // violet
-        new Color(0.84f, 0.71f, 0.35f), // gold
-        new Color(0.42f, 0.61f, 0.79f), // sky
-        new Color(0.49f, 0.67f, 0.46f), // sage
+        new Color(0.95f, 0.36f, 0.20f), // coral (brand)
+        new Color(0.22f, 0.68f, 0.64f), // teal
+        new Color(0.58f, 0.44f, 0.88f), // violet
+        new Color(0.92f, 0.72f, 0.18f), // gold
+        new Color(0.26f, 0.56f, 0.86f), // sky
+        new Color(0.32f, 0.70f, 0.34f), // sage
     };
 
     private static Color GetSessionAccent(int index)

@@ -10,17 +10,19 @@ using UnityEngine.UIElements;
 // idle instead of forcing a full-window redraw every frame the way the old IMGUI version did.
 public class CharacterStageElement : VisualElement
 {
+    // 2026-07-16: bumped saturation across the board (esp. Running, which read as a dusty
+    // brown before) - "dark theme is fine, but wants actual color presence" feedback.
     private static readonly Color IdleBodyColor = new Color(0.55f, 0.62f, 0.72f);
-    private static readonly Color ThinkingColorA = new Color(0.62f, 0.52f, 0.84f);
-    private static readonly Color ThinkingColorB = new Color(0.75f, 0.68f, 0.92f);
-    private static readonly Color ReadingColorA = new Color(0.38f, 0.66f, 0.64f);
-    private static readonly Color ReadingColorB = new Color(0.55f, 0.80f, 0.78f);
+    private static readonly Color ThinkingColorA = new Color(0.58f, 0.44f, 0.88f);
+    private static readonly Color ThinkingColorB = new Color(0.72f, 0.62f, 0.96f);
+    private static readonly Color ReadingColorA = new Color(0.22f, 0.68f, 0.64f);
+    private static readonly Color ReadingColorB = new Color(0.38f, 0.85f, 0.80f);
     private static readonly Color EditingColorA = new Color(1f, 0.62f, 0.25f);
     private static readonly Color EditingColorB = new Color(1f, 0.85f, 0.4f);
-    private static readonly Color RunningColorA = new Color(0.85f, 0.47f, 0.34f);
-    private static readonly Color RunningColorB = new Color(0.95f, 0.6f, 0.45f);
-    private static readonly Color SuccessColor = new Color(0.4f, 0.75f, 0.5f);
-    private static readonly Color ErrorColor = new Color(0.85f, 0.35f, 0.35f);
+    private static readonly Color RunningColorA = new Color(0.95f, 0.36f, 0.20f);
+    private static readonly Color RunningColorB = new Color(1f, 0.54f, 0.30f);
+    private static readonly Color SuccessColor = new Color(0.28f, 0.80f, 0.46f);
+    private static readonly Color ErrorColor = new Color(0.92f, 0.26f, 0.26f);
     private static readonly Color EyeColor = new Color(0.15f, 0.15f, 0.18f);
 
     // A signature multi-hue ring that slowly rotates around the body regardless of activity -
@@ -28,9 +30,9 @@ public class CharacterStageElement : VisualElement
     // identity flourish (design direction "C: rich detail").
     private static readonly Color[] RingPalette =
     {
-        new Color(0.62f, 0.52f, 0.84f), // violet
-        new Color(0.85f, 0.47f, 0.34f), // coral
-        new Color(0.84f, 0.71f, 0.35f), // gold
+        new Color(0.58f, 0.44f, 0.88f), // violet
+        new Color(0.95f, 0.36f, 0.20f), // coral
+        new Color(0.92f, 0.72f, 0.18f), // gold
     };
 
     private const float BodySize = 56f;
@@ -40,6 +42,8 @@ public class CharacterStageElement : VisualElement
     private const float EyeSize = 8f;
     private const float EyeSpacing = 10f;
     private const float EyeYOffset = -6f;
+    private const float MouthYOffset = 13f;
+    private const float LabelReserve = 18f;
     private const int OrbitDotCount = 3;
     private const float OrbitRadius = 42f;
     private const double SuccessFlashSeconds = 1.2;
@@ -51,6 +55,7 @@ public class CharacterStageElement : VisualElement
     private readonly VisualElement ring;
     private readonly VisualElement eyeLeft;
     private readonly VisualElement eyeRight;
+    private readonly VisualElement mouth;
     private readonly VisualElement[] orbitDots;
     private readonly Label stateLabel;
 
@@ -93,6 +98,12 @@ public class CharacterStageElement : VisualElement
         eyeRight = MakeCircle(EyeSize);
         eyeRight.style.backgroundColor = EyeColor;
         Add(eyeRight);
+
+        mouth = new VisualElement();
+        mouth.AddToClassList("stage-mouth");
+        mouth.style.backgroundColor = EyeColor;
+        mouth.pickingMode = PickingMode.Ignore;
+        Add(mouth);
 
         orbitDots = new VisualElement[OrbitDotCount];
         for (int i = 0; i < OrbitDotCount; i++)
@@ -153,7 +164,13 @@ public class CharacterStageElement : VisualElement
         bool busy = activity != CharacterActivity.Idle;
         bool flashing = t < flashUntil;
 
-        Vector2 center = new Vector2(width / 2f, height / 2f + 4f);
+        // Reserve room for stateLabel at the very bottom (see LabelReserve) and center the
+        // character in what's left, instead of the stage's full height - the character's own
+        // body/eyes were overlapping (covering) the "대기 중" text at the old center (user
+        // report, 2026-07-16), since a full-height center left barely any gap once bob motion
+        // was added on top.
+        float characterAreaHeight = height - LabelReserve;
+        Vector2 center = new Vector2(width / 2f, characterAreaHeight / 2f);
 
         float bobAmplitude = busy ? 7f : 3f;
         float bobSpeed = busy ? 6f : 2f;
@@ -211,7 +228,14 @@ public class CharacterStageElement : VisualElement
         body.style.backgroundColor = bodyColor;
         body.style.left = center.x - BodySize / 2f + shakeX;
         body.style.top = center.y - BodySize / 2f + bobY;
-        body.style.scale = new Scale(new Vector3(bodyScale, bodyScale, 1f));
+
+        // Squash & stretch tied to the bob itself (classic animation principle) instead of a
+        // separate timer, so it can't drift out of sync: stretched (taller/narrower) near the
+        // top of the bob, squashed (shorter/wider) near the bottom - "simple but cute" was the
+        // starting point, this is the "give it more character" pass (user request, 2026-07-16).
+        float normalizedBob = bobAmplitude > 0f ? bobY / bobAmplitude : 0f;
+        float squash = busy ? normalizedBob * 0.07f : normalizedBob * 0.03f;
+        body.style.scale = new Scale(new Vector3(bodyScale * (1f - squash), bodyScale * (1f + squash), 1f));
 
         // Soft breathing glow behind the body - slower/independent of the body's own busy
         // pulse so it doesn't just look like a blurry copy of it.
@@ -254,6 +278,42 @@ public class CharacterStageElement : VisualElement
         eyeRight.style.height = eyeHeight;
         eyeRight.style.left = center.x + EyeSpacing - EyeSize / 2f + shakeX;
         eyeRight.style.top = eyeY;
+
+        float mouthWidth;
+        float mouthHeight;
+        if (flashing && !flashIsError)
+        {
+            mouthWidth = 22f;
+            mouthHeight = 10f;
+        }
+        else if (flashing)
+        {
+            mouthWidth = 10f;
+            mouthHeight = 3f;
+        }
+        else if (activity == CharacterActivity.Thinking)
+        {
+            // A small round "pondering" mouth.
+            mouthWidth = 8f;
+            mouthHeight = 8f;
+        }
+        else if (busy)
+        {
+            // Subtle chatter while actively working, distinct from the slower bob/blink cadence.
+            float chatter = 0.5f + 0.5f * Mathf.Sin((float)t * 10f);
+            mouthWidth = 14f;
+            mouthHeight = 3f + chatter * 4f;
+        }
+        else
+        {
+            mouthWidth = 12f;
+            mouthHeight = 2.5f;
+        }
+
+        mouth.style.width = mouthWidth;
+        mouth.style.height = mouthHeight;
+        mouth.style.left = center.x - mouthWidth / 2f + shakeX;
+        mouth.style.top = center.y + bobY + MouthYOffset - mouthHeight / 2f;
 
         stateLabel.text = label;
     }
