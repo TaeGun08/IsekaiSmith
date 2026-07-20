@@ -944,10 +944,15 @@ public class ClaudeCompanionWindow : EditorWindow
         VisualElement innerInput = inputField.Q(className: TextField.inputUssClassName);
         innerInput?.AddToClassList("chat-input-inner");
         // Enter sends; Shift+Enter falls through to the field's own default handling so a
-        // multi-line message can still be composed. Must run in the trickle-down (capture)
-        // phase so it intercepts before the TextField's own bubble-phase handler treats Return
-        // as "insert a newline".
-        inputField.RegisterCallback<KeyDownEvent>(OnInputKeyDown, TrickleDown.TrickleDown);
+        // multi-line message can still be composed. Registered on the *inner* text-input
+        // element (not the outer TextField wrapper) in the trickle-down (capture) phase, and
+        // using StopImmediatePropagation - the outer wrapper is just a composite control, the
+        // actual native "insert a newline on Return" handling lives on this inner element, and
+        // registering any further away/weaker than this let a stray newline through after Send
+        // in practice (report: message sent correctly, but a blank line was left behind/typed
+        // next). TrySend also defensively re-clears next frame as a second safety net in case
+        // the native handling still slips something in.
+        (innerInput ?? inputField).RegisterCallback<KeyDownEvent>(OnInputKeyDown, TrickleDown.TrickleDown);
         inputField.RegisterValueChangedCallback(_ => UpdateSendControlsEnabled());
         container.Add(inputField);
 
@@ -974,7 +979,7 @@ public class ClaudeCompanionWindow : EditorWindow
     {
         if ((evt.keyCode == KeyCode.Return || evt.keyCode == KeyCode.KeypadEnter) && !evt.shiftKey)
         {
-            evt.StopPropagation();
+            evt.StopImmediatePropagation();
             evt.PreventDefault();
             TrySend();
         }
@@ -990,6 +995,19 @@ public class ClaudeCompanionWindow : EditorWindow
         SubmitMessage(text);
         inputField.SetValueWithoutNotify("");
         UpdateSendControlsEnabled();
+
+        // Safety net: if the Enter keystroke that triggered this still manages to insert a
+        // newline into the field afterward (native text-input handling racing this callback),
+        // clean it up next frame rather than leaving a stray blank line sitting in an otherwise
+        // "just sent" input box.
+        TextField capturedField = inputField;
+        capturedField.schedule.Execute(() =>
+        {
+            if (capturedField.value != "")
+            {
+                capturedField.SetValueWithoutNotify("");
+            }
+        });
     }
 
     // Whenever a message is added (sent, queued, or a reply arrives), rebuild the bubble list

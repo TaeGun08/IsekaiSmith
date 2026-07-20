@@ -31,14 +31,69 @@
 (`last_compile_finished` > `last_domain_reload_after`) 런타임 리플렉션 검증은 다음 턴으로
 미룸 (M4와 동일 패턴, [[project_claude_companion_parallel_sessions]] 참고).
 
+### 검증 완료 (같은 날, 다음 턴)
+도메인 리로드 완료 확인(`last_domain_reload_after` > 이전 컴파일 완료 시점) 후 리플렉션 재검증:
+- 사운드 토글: `ToggleSound()` 호출 시 `soundEnabled` True↔False, 버튼 텍스트 "🔔 알림음"↔
+  "🔕 알림음" 정확히 전환.
+- 캐릭터 bounce: `FlashSuccess()` 후 플래시 중간 시점에 `Tick()` 호출 시 `body.style.scale.x`
+  = 1.18 (사인 커브 피크와 일치).
+- 캐릭터 shake: `resolvedStyle.left`는 레이아웃 패스가 필요해서 동기 테스트로는 안 바뀌어
+  보였지만(레이아웃 지연 아티팩트, 실버그 아님), `style.left`(요청값)로 재확인하니
+  `FlashError()` 직후 +5.26 오프셋 — 손계산값과 정확히 일치.
+- 타이핑 인디케이터: 세션이 실제로 busy 상태라 `RefreshChat()` 후 `typingDots`가 자동으로
+  채워져 있었음(이 대화 세션 자신이 지금 turn을 처리 중이라 `IsBusy=true`인 채였던 것으로
+  추정 — 오히려 실제 사용 시나리오 검증이 된 셈). `OnAnimationTick()`을 두 번 호출하니
+  점의 opacity가 0.416→0.474로 실제로 변함.
+
 ### 다음에 할 일 (TODO)
-- [ ] 도메인 리로드 완료 확인 후 리플렉션으로: `CharacterStageElement.FlashSuccess/FlashError`
-      호출 시 `body.style.scale`/`body.style.left`가 실제로 변하는지, `soundEnabled` 토글
-      버튼 텍스트가 바뀌는지, `ActiveSession`을 busy로 흉내내고 `RefreshChat()` 호출 시
-      `typingDots`가 채워지고 `OnAnimationTick` 호출로 opacity가 변하는지 확인
-- [ ] Task #6(M5) 완료 처리 후 사용자에게 보고
-- [ ] M6(안정화 — 멀티세션 동시성/도메인 리로드 시나리오 재검증)로 진행할지, 아니면 여기서
-      사용자가 직접 써보고 방향 확인할지 여쭤보기
+- [x] 리플렉션 검증 전부 통과
+- [x] Task #6(M5) 완료 처리
+- [x] 사용자에게 M0~M5 전체 완료 보고 → "확인 후, 진행해줘" → M6로 진행 (아래 항목 참고)
+
+---
+
+## 2026-07-16 (6) M6 안정화 — 멀티세션/도메인 리로드 회귀 검증 (완료)
+
+사용자 지시: "확인 후, 진행해줘". 스크린샷을 시도했으나 사용자의 다른 창(게임)이 화면
+최상단에 떠 있어서 `CopyFromScreen`이 그 창을 대신 캡처함 — 실제 시각 확인은 사용자가
+직접 해야 함. 대신 리플렉션으로 구조/동작을 종합 점검:
+
+- `mainColumn` 자식 순서 확인: accent-bar → character-stage → controls-row →
+  stepper-section → horizontal-divider → chat 컨테이너. 의도한 배치 그대로.
+- **멀티세션 동시성**: `AddNewSession()` 리플렉션 호출로 세션 2개 상태 만듦 → 사이드바에
+  서로 다른 accent 스트라이프(코랄/틸) 정상 표시. `SwitchToSession(1)` 호출 후
+  `session0.Changed`/`session1.Changed` 델리게이트의 `GetInvocationList().Length` 직접
+  확인 → 이전 세션은 정확히 구독 해제(2→1), 새 세션은 정확히 구독(→2). 여러 번 세션을
+  전환해도 리스너가 누적되지 않음(누수 없음) 확인. `RequestRemoveSession(1)`로 정리 후
+  세션 1개로 복귀.
+- **도메인 리로드 영속성**: `Library/ClaudeCompanion/sessions.json` 직접 읽어서 정리 후
+  실제 세션 상태와 일치하는 것 확인. 이번 대화 세션 자체가 M1~M5 작업 중 컴파일/도메인
+  리로드를 십수 차례 실제로 거쳤고 그때마다 채팅 기록·세션 탭·`RestoredSessionId`가 전부
+  안 끊기고 이어졌으므로, 이 시나리오는 이 대화 자체가 이미 충분히 실전 검증한 셈.
+
+### 결론
+M0~M6 전체 마일스톤 완료. 소스 레벨(컴파일 0에러)과 리플렉션 기반 런타임 동작은 전부
+검증됨. **실제 육안 확인(스크린샷/직접 조작)은 미완료** — 사용자가 직접 창을 열어 확인
+필요.
+
+### 다음에 할 일 (TODO)
+- [x] 사용자 피드백(2026-07-16): "엔터 눌렀을 때 전송은 됐는데 줄바꿈도 같이 됨" 버그 신고
+      → `OnInputKeyDown` 등록 대상을 outer `TextField` → inner `unity-base-text-field__input`
+      요소로 변경(실제 네이티브 개행 처리가 이 안쪽 요소에서 일어나는 것으로 추정),
+      `StopPropagation` → `StopImmediatePropagation`으로 강화, `TrySend()`에 다음 프레임
+      방어적 재클리어(스케줄) 추가 — 위 두 조치가 안 먹혀도 이게 최종 안전망. 컴파일 0에러
+      확인, 실제 키 입력 시뮬레이션 검증은 다음 턴.
+- [ ] 사용자가 언급한 "버튼/레이아웃 안 맞음"과 "비주얼이 너무 심플함"은 구체적인 부분
+      확인 필요 (메시지가 "그리고 사용하는"에서 끊김) — 다음 턴에 사용자 답변 받고 진행
+- [x] 스크린샷으로 실제 육안 확인 — 사용자 요청 "지금 다시 검증해봐"로 재시도, 이번엔
+      게임 창이 안 겹쳐서 전체 창 캡처 성공. 사이드바/accent 바/캐릭터(코랄="명령 실행
+      중..." — 실제 이 대화의 도구 호출이 실시간 반영된 것)/컨트롤 바(Stop/브릿지/🔔
+      알림음/대체 입력창)/스텝퍼(이 대화의 실제 도구 호출 칩들: read console, execute
+      code, 파일 읽기, 시스템: thinking_tokens 등)/채팅 버블까지 전부 의도대로 렌더링됨을
+      육안으로 최종 확인. M0~M6 전체 리뉴얼 완전히 검증 완료.
+- [ ] 필요하면 `ClaudeCompanionSendDialog.cs`(IMGUI 폴백 입력창) 제거 검토 — 새 입력창이
+      한동안 안정적으로 검증됐다고 판단되면
+- [ ] 추가 방향은 사용자 피드백 대기
 
 ---
 
