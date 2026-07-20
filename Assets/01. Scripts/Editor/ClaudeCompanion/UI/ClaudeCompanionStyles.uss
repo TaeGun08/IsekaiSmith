@@ -149,6 +149,9 @@
     background-color: rgb(35, 32, 31);
     position: relative;
     margin-bottom: 6px;
+    border-radius: 6px;
+    border-top-width: 1px;
+    border-top-color: rgba(255, 255, 255, 0.06);
 }
 
 .stage-circle {
@@ -182,7 +185,12 @@
 }
 
 .stepper-section {
-    margin-bottom: 4px;
+    margin-bottom: 6px;
+    background-color: rgb(32, 29, 28);
+    border-radius: 6px;
+    border-top-width: 1px;
+    border-top-color: rgba(255, 255, 255, 0.06);
+    padding: 5px 6px 3px;
 }
 
 .stepper-header {
@@ -220,7 +228,7 @@
 .step-chip {
     flex-direction: row;
     align-items: center;
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(255, 255, 255, 0.08);
     border-radius: 10px;
     border-width: 1px;
     padding: 2px 8px 2px 6px;
@@ -311,22 +319,35 @@
     margin-right: 4px;
 }
 
+.chat-area {
+    flex-grow: 1;
+    min-height: 0;
+    background-color: rgb(32, 29, 28);
+    border-radius: 6px;
+    border-top-width: 1px;
+    border-top-color: rgba(255, 255, 255, 0.06);
+    padding: 6px;
+}
+
 .chat-header-row {
     flex-direction: row;
     align-items: center;
-    margin-bottom: 3px;
+    flex-shrink: 0;
+    margin-bottom: 4px;
 }
 
 .chat-search-field {
     width: 120px;
+    height: 18px;
     margin: 0 4px 0 0;
 }
 
 .chat-search-field-inner {
-    background-color: rgb(42, 39, 38);
+    background-color: rgb(62, 58, 57);
     color: rgb(255, 255, 255);
     font-size: 10px;
-    padding: 2px 4px;
+    padding: 2px 5px;
+    border-radius: 3px;
     border-left-width: 0;
     border-right-width: 0;
     border-top-width: 0;
@@ -347,6 +368,12 @@
 
 .chat-scroll {
     flex-grow: 1;
+    /* Without this, a flex-grow child defaults to a min-height based on its own content (the
+       whole chat history) instead of shrinking to fit the space actually available - the
+       symptom was the input row/Send button getting pushed below the window's visible bounds
+       as the conversation grew (user report, 2026-07-16). This is what lets it actually
+       shrink and rely on ScrollView's own internal scrolling instead. */
+    min-height: 0;
 }
 
 .chat-bubble-row {
@@ -457,6 +484,7 @@
 .chat-input {
     min-height: 24px;
     max-height: 120px;
+    flex-shrink: 0;
     margin: 0;
     border-radius: 4px;
     overflow: hidden;
@@ -484,11 +512,15 @@
 .chat-buttons-row {
     flex-direction: row;
     justify-content: flex-end;
+    align-items: center;
+    height: 28px;
+    flex-shrink: 0;
     margin-top: 4px;
 }
 
 .send-button {
     width: 60px;
+    height: 24px;
     background-color: rgb(217, 119, 87);
     color: rgb(255, 255, 255);
     -unity-font-style: bold;
@@ -506,6 +538,7 @@
 
 .cancel-button {
     width: 50px;
+    height: 24px;
     margin-left: 4px;
     background-color: rgba(196, 82, 82, 0.18);
     color: rgb(230, 190, 190);

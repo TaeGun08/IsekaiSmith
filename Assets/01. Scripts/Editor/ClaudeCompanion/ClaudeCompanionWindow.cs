@@ -13,7 +13,10 @@ public class ClaudeCompanionWindow : EditorWindow
     public static void ShowWindow()
     {
         ClaudeCompanionWindow window = GetWindow<ClaudeCompanionWindow>("Claude Companion");
-        window.minSize = new Vector2(640, 760);
+        // Was 760 tall pre-M4/M7; the turn-progress stepper and chat search/export header
+        // added roughly 115px of fixed-height content since, so the old minimum left the chat
+        // scroll area barely any room (see the min-height:0 fix on "chat-scroll"/"chat-area").
+        window.minSize = new Vector2(640, 860);
     }
 
     private const string StyleSheetPath =
@@ -1085,7 +1088,7 @@ public class ClaudeCompanionWindow : EditorWindow
     private VisualElement BuildChatArea()
     {
         VisualElement container = new VisualElement();
-        container.style.flexGrow = 1;
+        container.AddToClassList("chat-area");
 
         VisualElement headerRow = new VisualElement();
         headerRow.AddToClassList("chat-header-row");
