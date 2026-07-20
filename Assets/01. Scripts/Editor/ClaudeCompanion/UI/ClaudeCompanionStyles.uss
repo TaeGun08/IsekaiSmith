@@ -65,6 +65,29 @@
     background-color: rgba(255, 255, 255, 0.10);
 }
 
+/* C안(리치 디테일): 활성 세션에 좌측 accent 스트라이프(인라인) + 은은한 링 테두리 */
+.session-row--active {
+    border-top-width: 1px;
+    border-right-width: 1px;
+    border-bottom-width: 1px;
+    border-top-color: rgba(255, 255, 255, 0.15);
+    border-right-color: rgba(255, 255, 255, 0.15);
+    border-bottom-color: rgba(255, 255, 255, 0.15);
+}
+
+.session-unseen-badge {
+    width: 6px;
+    height: 6px;
+    border-radius: 3px;
+    background-color: rgb(230, 181, 90);
+    margin-right: 4px;
+}
+
+.session-rename-field {
+    flex-grow: 1;
+    margin: 0;
+}
+
 .session-dot {
     width: 8px;
     height: 8px;
@@ -133,6 +156,14 @@
     border-radius: 50%;
 }
 
+/* C안: 캐릭터 뒤 은은한 halo(오라) + 몸 주위를 도는 다색 링. 배경 투명, 테두리만 보임. */
+.stage-ring {
+    position: absolute;
+    border-radius: 50%;
+    border-width: 2px;
+    background-color: rgba(0, 0, 0, 0);
+}
+
 .stage-state-label {
     position: absolute;
     bottom: 0;
@@ -191,15 +222,14 @@
     align-items: center;
     background-color: rgba(255, 255, 255, 0.05);
     border-radius: 10px;
+    border-width: 1px;
     padding: 2px 8px 2px 6px;
     margin-right: 4px;
     margin-bottom: 4px;
 }
 
-.step-chip-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 3px;
+.step-chip-icon {
+    font-size: 10px;
     margin-right: 5px;
 }
 
@@ -260,8 +290,8 @@
     transition-duration: 120ms;
 }
 
-.sound-toggle-button {
-    width: 76px;
+.settings-button {
+    width: 60px;
     margin-right: 4px;
     transition-property: background-color;
     transition-duration: 120ms;
@@ -279,6 +309,40 @@
     border-radius: 3px;
     background-color: rgb(214, 209, 204);
     margin-right: 4px;
+}
+
+.chat-header-row {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 3px;
+}
+
+.chat-search-field {
+    width: 120px;
+    margin: 0 4px 0 0;
+}
+
+.chat-search-field-inner {
+    background-color: rgb(42, 39, 38);
+    color: rgb(255, 255, 255);
+    font-size: 10px;
+    padding: 2px 4px;
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+}
+
+.chat-export-button {
+    width: 60px;
+    height: 18px;
+    font-size: 10px;
+}
+
+.chat-no-results-label {
+    font-size: 10px;
+    color: rgb(120, 114, 109);
+    padding: 6px 0;
 }
 
 .chat-scroll {
@@ -302,8 +366,28 @@
     max-width: 85%;
     border-radius: 6px;
     padding: 3px 6px;
+    position: relative;
     transition-property: opacity;
     transition-duration: 150ms;
+}
+
+.bubble-copy-button {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    font-size: 10px;
+    background-color: rgba(0, 0, 0, 0.28);
+    color: rgb(255, 255, 255);
+    opacity: 0;
+    transition-property: opacity;
+    transition-duration: 120ms;
+}
+
+.chat-bubble:hover .bubble-copy-button {
+    opacity: 1;
 }
 
 .chat-bubble--user {
@@ -335,6 +419,26 @@
     padding: 3px 6px;
     margin-top: 2px;
     margin-bottom: 2px;
+    position: relative;
+}
+
+.code-copy-button {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    font-size: 10px;
+    background-color: rgba(255, 255, 255, 0.08);
+    color: rgb(209, 224, 217);
+    opacity: 0;
+    transition-property: opacity;
+    transition-duration: 120ms;
+}
+
+.chat-code-block:hover .code-copy-button {
+    opacity: 1;
 }
 
 .chat-code-text {

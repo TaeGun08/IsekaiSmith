@@ -23,7 +23,20 @@ public class CharacterStageElement : VisualElement
     private static readonly Color ErrorColor = new Color(0.85f, 0.35f, 0.35f);
     private static readonly Color EyeColor = new Color(0.15f, 0.15f, 0.18f);
 
+    // A signature multi-hue ring that slowly rotates around the body regardless of activity -
+    // unlike everything else on the stage, this doesn't communicate state, it's just a visual
+    // identity flourish (design direction "C: rich detail").
+    private static readonly Color[] RingPalette =
+    {
+        new Color(0.62f, 0.52f, 0.84f), // violet
+        new Color(0.85f, 0.47f, 0.34f), // coral
+        new Color(0.84f, 0.71f, 0.35f), // gold
+    };
+
     private const float BodySize = 56f;
+    private const float HaloOuterSize = BodySize + 46f;
+    private const float HaloInnerSize = BodySize + 20f;
+    private const float RingSize = BodySize + 10f;
     private const float EyeSize = 8f;
     private const float EyeSpacing = 10f;
     private const float EyeYOffset = -6f;
@@ -32,7 +45,10 @@ public class CharacterStageElement : VisualElement
     private const double SuccessFlashSeconds = 1.2;
     private const double ErrorFlashSeconds = 1.4;
 
+    private readonly VisualElement haloOuter;
+    private readonly VisualElement haloInner;
     private readonly VisualElement body;
+    private readonly VisualElement ring;
     private readonly VisualElement eyeLeft;
     private readonly VisualElement eyeRight;
     private readonly VisualElement[] orbitDots;
@@ -50,8 +66,25 @@ public class CharacterStageElement : VisualElement
     {
         AddToClassList("character-stage");
 
+        // Halo layers are added first so they paint behind the body (VisualElement children
+        // paint in the order they were added, like a painter's algorithm) - two overlapping,
+        // low-alpha circles of decreasing opacity fake a soft radial glow, since USS has no
+        // radial-gradient support to do this with a single element.
+        haloOuter = MakeCircle(HaloOuterSize);
+        Add(haloOuter);
+
+        haloInner = MakeCircle(HaloInnerSize);
+        Add(haloInner);
+
         body = MakeCircle(BodySize);
         Add(body);
+
+        // Painted after the body so its ring sits on top at the body's edge; background stays
+        // fully transparent (see "stage-ring" in USS) so only the border itself is visible.
+        ring = MakeCircle(RingSize);
+        ring.RemoveFromClassList("stage-circle");
+        ring.AddToClassList("stage-ring");
+        Add(ring);
 
         eyeLeft = MakeCircle(EyeSize);
         eyeLeft.style.backgroundColor = EyeColor;
@@ -180,6 +213,28 @@ public class CharacterStageElement : VisualElement
         body.style.top = center.y - BodySize / 2f + bobY;
         body.style.scale = new Scale(new Vector3(bodyScale, bodyScale, 1f));
 
+        // Soft breathing glow behind the body - slower/independent of the body's own busy
+        // pulse so it doesn't just look like a blurry copy of it.
+        float haloPulse = 0.5f + 0.5f * Mathf.Sin((float)t * 1.2f);
+        Color haloColor = bodyColor;
+        haloOuter.style.backgroundColor = new Color(haloColor.r, haloColor.g, haloColor.b, 0.05f + haloPulse * 0.04f);
+        haloOuter.style.left = center.x - HaloOuterSize / 2f + shakeX;
+        haloOuter.style.top = center.y - HaloOuterSize / 2f + bobY;
+        haloInner.style.backgroundColor = new Color(haloColor.r, haloColor.g, haloColor.b, 0.09f + haloPulse * 0.06f);
+        haloInner.style.left = center.x - HaloInnerSize / 2f + shakeX;
+        haloInner.style.top = center.y - HaloInnerSize / 2f + bobY;
+
+        // Signature ring: each of the 4 border sides samples RingPalette at a phase offset and
+        // slowly drifts through it, faking a rotating conic gradient (USS has no conic-gradient
+        // support) with only solid per-side border colors.
+        ring.style.left = center.x - RingSize / 2f + shakeX;
+        ring.style.top = center.y - RingSize / 2f + bobY;
+        float ringRotation = (float)t * 0.3f;
+        ring.style.borderTopColor = SampleRingPalette(ringRotation + 0f);
+        ring.style.borderRightColor = SampleRingPalette(ringRotation + 1f);
+        ring.style.borderBottomColor = SampleRingPalette(ringRotation + 2f);
+        ring.style.borderLeftColor = SampleRingPalette(ringRotation + 3f);
+
         UpdateBlink(t);
         float eyeOpen = isBlinking ? 0.15f : 1f;
         if (flashing)
@@ -201,6 +256,20 @@ public class CharacterStageElement : VisualElement
         eyeRight.style.top = eyeY;
 
         stateLabel.text = label;
+    }
+
+    private static Color SampleRingPalette(float phase)
+    {
+        int length = RingPalette.Length;
+        float wrapped = phase % length;
+        if (wrapped < 0f)
+        {
+            wrapped += length;
+        }
+        int index = Mathf.FloorToInt(wrapped);
+        int nextIndex = (index + 1) % length;
+        float frac = wrapped - index;
+        return Color.Lerp(RingPalette[index], RingPalette[nextIndex], frac);
     }
 
     private static void GetActivityStyle(CharacterActivity activity, out Color colorA, out Color colorB, out string label)

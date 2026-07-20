@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using MCPForUnity.Editor.Services;
 using UnityEditor;
 using UnityEngine;
@@ -50,6 +51,21 @@ public class ClaudeCompanionWindow : EditorWindow
         { "SlashCommand", "명령어 실행" },
     };
 
+    // Icon glyphs for the stepper chips (design direction "C: rich detail" - icons instead of
+    // plain color dots). Falls back to a generic wrench/plug for anything unlisted.
+    private static readonly Dictionary<string, string> ToolIcons = new Dictionary<string, string>
+    {
+        { "Read", "📖" }, { "Glob", "🔍" }, { "Grep", "🔎" }, { "WebFetch", "🌐" }, { "WebSearch", "🌐" },
+        { "NotebookRead", "📓" }, { "Edit", "✏️" }, { "MultiEdit", "✏️" }, { "Write", "📝" },
+        { "NotebookEdit", "📓" }, { "TodoWrite", "☑️" }, { "Bash", "⚡" }, { "BashOutput", "⚡" },
+        { "KillShell", "⛔" }, { "Task", "🧩" }, { "SlashCommand", "⚙️" },
+    };
+    private const string DefaultToolIcon = "🔧";
+    private const string McpToolIcon = "🔌";
+    private const string ThinkingIcon = "💭";
+    private const string SystemIcon = "⚙️";
+    private const string ErrorIcon = "⚠️";
+
     // Per-session identity color (sidebar stripe + a top accent bar on the active session's main
     // column) - purely cosmetic, assigned by tab index so switching/adding tabs stays visually
     // distinguishable. Not tied to busy/idle state, which stays semantic (see CharacterStageElement).
@@ -85,6 +101,7 @@ public class ClaudeCompanionWindow : EditorWindow
     [SerializeField] private int activeSessionIndex;
     [SerializeField] private bool turnStepperCollapsed;
     [SerializeField] private bool soundEnabled = true;
+    [SerializeField] private int soundVariant;
 
     // sessionRecords above only survives a domain reload - Unity discards an EditorWindow's
     // fields entirely once the window is actually closed (not just reloaded), so reopening it
@@ -161,17 +178,34 @@ public class ClaudeCompanionWindow : EditorWindow
 
     private readonly Dictionary<CompanionSession, VisualElement> sidebarDots = new Dictionary<CompanionSession, VisualElement>();
 
+    // Sessions whose turn finished (or errored) while they weren't the visible tab - drives a
+    // small badge in the sidebar (see BuildSessionRow) so the user notices without switching
+    // over speculatively. Cleared on SwitchToSession. Not persisted - a fresh reload starting
+    // with no badges is fine, this is just an attention cue.
+    private readonly HashSet<CompanionSession> unseenCompletions = new HashSet<CompanionSession>();
+
+    // Index of the session currently being renamed inline in the sidebar, or -1. See
+    // BeginRenameSession/CommitRename.
+    private int renamingSessionIndex = -1;
+
+    // Live filter over the active session's chat history - see RefreshChat. Not persisted,
+    // resets on session switch/reload same as scroll position would.
+    private string chatSearchQuery = "";
+
     private VisualElement sidebarContainer;
     private VisualElement mainColumn;
     private CharacterStageElement characterStage;
     private Button bridgeToggleButton;
     private VisualElement bridgeDot;
     private Label bridgeLabel;
-    private Button soundToggleButton;
+    private Button settingsButton;
     private ScrollView stepperScroll;
     private VisualElement stepperContent;
     private Button stepperToggleButton;
     private ScrollView chatScrollView;
+    private VisualElement chatHistoryContainer;
+    private VisualElement chatTrailingContainer;
+    private int renderedHistoryCount;
     private Label pendingCountLabel;
     private TextField inputField;
     private Button sendButton;
@@ -222,6 +256,8 @@ public class ClaudeCompanionWindow : EditorWindow
                     record.RestoredSessionId = newSession.RestoredSessionId;
                     SaveManifest();
                 };
+                newSession.Runner.OnTurnComplete += () => OnAnySessionTurnComplete(newSession);
+                newSession.Runner.OnError += _ => OnAnySessionTurnComplete(newSession);
                 sessions.Add(newSession);
             }
             catch (Exception ex)
@@ -416,14 +452,65 @@ public class ClaudeCompanionWindow : EditorWindow
         sidebarDots[s] = dot;
 
         string label = index < sessionRecords.Count ? sessionRecords[index].DisplayName : $"세션 {index + 1}";
-        Label nameLabel = new Label(label);
-        nameLabel.AddToClassList("session-label");
-        if (isActive)
+
+        if (index == renamingSessionIndex)
         {
-            nameLabel.AddToClassList("session-label--active");
+            TextField renameField = new TextField { value = label };
+            renameField.AddToClassList("session-rename-field");
+            row.Add(renameField);
+            renameField.RegisterCallback<KeyDownEvent>(evt =>
+            {
+                if (evt.keyCode == KeyCode.Return || evt.keyCode == KeyCode.KeypadEnter)
+                {
+                    evt.StopPropagation();
+                    CommitRename(index, renameField.value);
+                }
+                else if (evt.keyCode == KeyCode.Escape)
+                {
+                    evt.StopPropagation();
+                    renamingSessionIndex = -1;
+                    RebuildSidebar();
+                }
+            }, TrickleDown.TrickleDown);
+            renameField.RegisterCallback<FocusOutEvent>(_ => CommitRename(index, renameField.value));
+            renameField.schedule.Execute(() =>
+            {
+                renameField.Focus();
+                renameField.SelectAll();
+            });
         }
-        nameLabel.RegisterCallback<ClickEvent>(_ => SwitchToSession(index));
-        row.Add(nameLabel);
+        else
+        {
+            Label nameLabel = new Label(label);
+            nameLabel.AddToClassList("session-label");
+            if (isActive)
+            {
+                nameLabel.AddToClassList("session-label--active");
+            }
+            // Double-click (or more) renames instead of just switching - the single-click
+            // switch on the first click of a double-click is harmless since a rename target is
+            // almost always already the active tab.
+            nameLabel.RegisterCallback<ClickEvent>(evt =>
+            {
+                if (evt.clickCount >= 2)
+                {
+                    BeginRenameSession(index);
+                }
+                else
+                {
+                    SwitchToSession(index);
+                }
+            });
+            row.Add(nameLabel);
+
+            if (unseenCompletions.Contains(s))
+            {
+                VisualElement badge = new VisualElement();
+                badge.AddToClassList("session-unseen-badge");
+                badge.tooltip = "이 세션의 턴이 끝났습니다";
+                row.Add(badge);
+            }
+        }
 
         // Deleting kills the session's underlying claude process (if any) via
         // CompanionSession.Dispose - besides freeing that process, this is also the only way
@@ -444,9 +531,54 @@ public class ClaudeCompanionWindow : EditorWindow
             return;
         }
         activeSessionIndex = index;
+        unseenCompletions.Remove(sessions[index]);
         SaveManifest();
         RebuildSidebar();
         RebuildMainColumn();
+    }
+
+    private void BeginRenameSession(int index)
+    {
+        renamingSessionIndex = index;
+        RebuildSidebar();
+    }
+
+    // Shared by both the rename field's Enter key and its FocusOut - whichever fires first
+    // commits and flips renamingSessionIndex back to -1, so the other one (which follows
+    // immediately once RebuildSidebar tears the field down) is a no-op instead of a double
+    // commit/rebuild.
+    private void CommitRename(int index, string newName)
+    {
+        if (renamingSessionIndex != index)
+        {
+            return;
+        }
+        renamingSessionIndex = -1;
+        string trimmed = (newName ?? "").Trim();
+        if (!string.IsNullOrEmpty(trimmed) && index < sessionRecords.Count)
+        {
+            sessionRecords[index].DisplayName = trimmed;
+            SaveManifest();
+        }
+        RebuildSidebar();
+    }
+
+    private static void CopyToClipboard(string text)
+    {
+        EditorGUIUtility.systemCopyBuffer = text;
+    }
+
+    // Always-on (not tied to which tab is visible) - see the OnTurnComplete/OnError hookup in
+    // OnEnable/AddNewSession. Only actually flags a badge when the finishing session isn't the
+    // one on screen; the active session's own completion is already obvious from the chat/character.
+    private void OnAnySessionTurnComplete(CompanionSession session)
+    {
+        if (session == ActiveSession)
+        {
+            return;
+        }
+        unseenCompletions.Add(session);
+        RebuildSidebar();
     }
 
     private void RequestRemoveSession(int index)
@@ -482,6 +614,7 @@ public class ClaudeCompanionWindow : EditorWindow
         // The chat/activity log on disk (CompanionLog) is intentionally left alone - this
         // only removes the tab, the same "recoverable, never silently destroyed" philosophy
         // as ResetForNewConversation's archiving instead of deleting.
+        unseenCompletions.Remove(session);
         sessions.RemoveAt(index);
         if (index < sessionRecords.Count)
         {
@@ -517,6 +650,8 @@ public class ClaudeCompanionWindow : EditorWindow
                 record.RestoredSessionId = newSession.RestoredSessionId;
                 SaveManifest();
             };
+            newSession.Runner.OnTurnComplete += () => OnAnySessionTurnComplete(newSession);
+            newSession.Runner.OnError += _ => OnAnySessionTurnComplete(newSession);
             sessions.Add(newSession);
             activeSessionIndex = sessions.Count - 1;
         }
@@ -550,11 +685,14 @@ public class ClaudeCompanionWindow : EditorWindow
         bridgeToggleButton = null;
         bridgeDot = null;
         bridgeLabel = null;
-        soundToggleButton = null;
+        settingsButton = null;
         stepperScroll = null;
         stepperContent = null;
         stepperToggleButton = null;
         chatScrollView = null;
+        chatHistoryContainer = null;
+        chatTrailingContainer = null;
+        renderedHistoryCount = 0;
         pendingCountLabel = null;
         inputField = null;
         sendButton = null;
@@ -676,15 +814,18 @@ public class ClaudeCompanionWindow : EditorWindow
 
     private static VisualElement BuildStepChip(string entry)
     {
-        DescribeStep(entry, out Color color, out string label);
+        DescribeStep(entry, out Color color, out string icon, out string label);
 
         VisualElement chip = new VisualElement();
         chip.AddToClassList("step-chip");
+        chip.style.borderTopColor = color;
+        chip.style.borderRightColor = color;
+        chip.style.borderBottomColor = color;
+        chip.style.borderLeftColor = color;
 
-        VisualElement dot = new VisualElement();
-        dot.AddToClassList("step-chip-dot");
-        dot.style.backgroundColor = color;
-        chip.Add(dot);
+        Label iconLabel = new Label(icon);
+        iconLabel.AddToClassList("step-chip-icon");
+        chip.Add(iconLabel);
 
         Label text = new Label(label);
         text.AddToClassList("step-chip-label");
@@ -693,8 +834,8 @@ public class ClaudeCompanionWindow : EditorWindow
         return chip;
     }
 
-    // Maps one raw CompanionSession activity-log entry to a chip color + friendly label.
-    private static void DescribeStep(string entry, out Color color, out string label)
+    // Maps one raw CompanionSession activity-log entry to a chip color + icon + friendly label.
+    private static void DescribeStep(string entry, out Color color, out string icon, out string label)
     {
         const string toolUsePrefix = "tool_use: ";
         const string errorPrefix = "ERROR: ";
@@ -704,29 +845,34 @@ public class ClaudeCompanionWindow : EditorWindow
         {
             string toolName = entry.Substring(toolUsePrefix.Length);
             color = CharacterStageElement.GetIndicatorColor(CompanionSession.ClassifyTool(toolName));
+            icon = FriendlyToolIcon(toolName);
             label = FriendlyToolLabel(toolName);
             return;
         }
         if (entry == "tool_result received")
         {
             color = CharacterStageElement.GetIndicatorColor(CharacterActivity.Thinking);
+            icon = ThinkingIcon;
             label = "결과 확인";
             return;
         }
         if (entry.StartsWith(errorPrefix))
         {
             color = StepErrorColor;
+            icon = ErrorIcon;
             label = Truncate(entry.Substring(errorPrefix.Length), 40);
             return;
         }
         if (entry.StartsWith(systemPrefix))
         {
             color = CharacterStageElement.GetIndicatorColor(CharacterActivity.Thinking);
+            icon = SystemIcon;
             label = "시스템: " + Truncate(entry.Substring(systemPrefix.Length), 30);
             return;
         }
 
         color = CharacterStageElement.GetIndicatorColor(CharacterActivity.Thinking);
+        icon = ThinkingIcon;
         label = Truncate(entry, 40);
     }
 
@@ -747,6 +893,15 @@ public class ClaudeCompanionWindow : EditorWindow
         return toolName;
     }
 
+    private static string FriendlyToolIcon(string toolName)
+    {
+        if (ToolIcons.TryGetValue(toolName, out string icon))
+        {
+            return icon;
+        }
+        return toolName.StartsWith("mcp__") ? McpToolIcon : DefaultToolIcon;
+    }
+
     private static string Truncate(string text, int maxLength)
     {
         return text.Length <= maxLength ? text : text.Substring(0, maxLength - 1) + "…";
@@ -758,13 +913,7 @@ public class ClaudeCompanionWindow : EditorWindow
     private void OnActiveTurnComplete()
     {
         characterStage?.FlashSuccess();
-        if (soundEnabled)
-        {
-            // A plain system beep rather than an imported AudioClip - this is an Editor tool,
-            // not the game, so pulling in an audio asset (plus the import/mixer plumbing that
-            // implies) for a single notification ding would be a lot of weight for very little.
-            EditorApplication.Beep();
-        }
+        PlayNotificationSound();
     }
 
     private void OnActiveTurnError(string _)
@@ -772,19 +921,35 @@ public class ClaudeCompanionWindow : EditorWindow
         characterStage?.FlashError();
     }
 
-    private void ToggleSound()
+    // Exposed for ClaudeCompanionSettingsWindow (a separate small popup, same pattern as
+    // ClaudeCompanionSendDialog) to read/write and for its "테스트 재생" button.
+    public bool SoundEnabled
     {
-        soundEnabled = !soundEnabled;
-        UpdateSoundToggleVisual();
+        get => soundEnabled;
+        set => soundEnabled = value;
     }
 
-    private void UpdateSoundToggleVisual()
+    // 0 = 기본음 (single beep), 1 = 강조음 (double beep). A plain system beep rather than an
+    // imported AudioClip - this is an Editor tool, not the game, so pulling in an audio asset
+    // (plus the import/mixer plumbing that implies) for a notification ding would be a lot of
+    // weight for very little; a couple of Beep() timing patterns is enough variety.
+    public int SoundVariant
     {
-        if (soundToggleButton == null)
+        get => soundVariant;
+        set => soundVariant = value;
+    }
+
+    public void PlayNotificationSound()
+    {
+        if (!soundEnabled)
         {
             return;
         }
-        soundToggleButton.text = soundEnabled ? "🔔 알림음" : "🔕 알림음";
+        EditorApplication.Beep();
+        if (soundVariant == 1)
+        {
+            rootVisualElement.schedule.Execute(() => EditorApplication.Beep()).ExecuteLater(150);
+        }
     }
 
     private VisualElement BuildControlsRow()
@@ -812,9 +977,9 @@ public class ClaudeCompanionWindow : EditorWindow
         spacer.AddToClassList("spacer");
         row.Add(spacer);
 
-        soundToggleButton = new Button(ToggleSound);
-        soundToggleButton.AddToClassList("sound-toggle-button");
-        row.Add(soundToggleButton);
+        settingsButton = new Button(() => ClaudeCompanionSettingsWindow.Open(this)) { text = "⚙ 설정" };
+        settingsButton.AddToClassList("settings-button");
+        row.Add(settingsButton);
 
         // Fallback path for the chat input row's recurring visibility bugs under the old IMGUI
         // implementation: an independent popup window that shares none of this window's
@@ -825,7 +990,6 @@ public class ClaudeCompanionWindow : EditorWindow
         row.Add(fallbackButton);
 
         UpdateBridgeControlsVisual();
-        UpdateSoundToggleVisual();
         return row;
     }
 
@@ -923,13 +1087,46 @@ public class ClaudeCompanionWindow : EditorWindow
         VisualElement container = new VisualElement();
         container.style.flexGrow = 1;
 
+        VisualElement headerRow = new VisualElement();
+        headerRow.AddToClassList("chat-header-row");
+
         Label chatTitle = new Label("채팅");
         chatTitle.AddToClassList("sidebar-title");
-        container.Add(chatTitle);
+        headerRow.Add(chatTitle);
+
+        VisualElement headerSpacer = new VisualElement();
+        headerSpacer.AddToClassList("spacer");
+        headerRow.Add(headerSpacer);
+
+        TextField searchField = new TextField { value = chatSearchQuery };
+        searchField.AddToClassList("chat-search-field");
+        searchField.tooltip = "대화 검색";
+        VisualElement searchInner = searchField.Q(className: TextField.inputUssClassName);
+        searchInner?.AddToClassList("chat-search-field-inner");
+        searchField.RegisterValueChangedCallback(evt =>
+        {
+            chatSearchQuery = evt.newValue;
+            RefreshChat();
+        });
+        headerRow.Add(searchField);
+
+        Button exportButton = new Button(ExportActiveSessionChat) { text = "내보내기" };
+        exportButton.AddToClassList("chat-export-button");
+        headerRow.Add(exportButton);
+
+        container.Add(headerRow);
 
         chatScrollView = new ScrollView(ScrollViewMode.Vertical);
         chatScrollView.AddToClassList("chat-scroll");
         container.Add(chatScrollView);
+
+        // Split so RefreshChat can append-only to history instead of rebuilding it every time -
+        // see RefreshChat's perf note. Trailing (pending/typing) is small and always redrawn.
+        chatHistoryContainer = new VisualElement();
+        chatScrollView.Add(chatHistoryContainer);
+        chatTrailingContainer = new VisualElement();
+        chatScrollView.Add(chatTrailingContainer);
+        renderedHistoryCount = 0;
 
         pendingCountLabel = new Label();
         pendingCountLabel.AddToClassList("pending-count-label");
@@ -1010,9 +1207,16 @@ public class ClaudeCompanionWindow : EditorWindow
         });
     }
 
-    // Whenever a message is added (sent, queued, or a reply arrives), rebuild the bubble list
-    // and jump the scroll view to the bottom - bound to CompanionSession.Changed for whichever
+    // Whenever a message is added (sent, queued, or a reply arrives), sync the bubble list and
+    // jump the scroll view to the bottom - bound to CompanionSession.Changed for whichever
     // session is currently active (see RebuildMainColumn).
+    //
+    // Performance note (2026-07-16): this used to Clear()+rebuild every bubble in the whole
+    // history on every single call - Changed fires on every tool_use/assistant-text/turn-complete
+    // event, so a long conversation meant re-creating hundreds of VisualElements (each now with
+    // its own copy button too) many times a minute. chatHistoryContainer is append-only for the
+    // common case now; only a search query (or the history actually shrinking, e.g. a
+    // conversation reset) pays for a full rebuild.
     private void RefreshChat()
     {
         if (chatScrollView == null || ActiveSession == null)
@@ -1020,14 +1224,46 @@ public class ClaudeCompanionWindow : EditorWindow
             return;
         }
 
-        chatScrollView.Clear();
-        foreach (ChatMessage message in ActiveSession.ChatMessages)
+        bool hasQuery = !string.IsNullOrWhiteSpace(chatSearchQuery);
+        string query = chatSearchQuery?.Trim() ?? "";
+
+        if (hasQuery || renderedHistoryCount > ActiveSession.ChatMessages.Count)
         {
-            AddChatBubble(message, pending: false);
+            chatHistoryContainer.Clear();
+            renderedHistoryCount = 0;
+            int matchCount = 0;
+            foreach (ChatMessage message in ActiveSession.ChatMessages)
+            {
+                if (hasQuery && message.Text.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    continue;
+                }
+                matchCount++;
+                AddChatBubble(chatHistoryContainer, message, pending: false);
+            }
+            renderedHistoryCount = ActiveSession.ChatMessages.Count;
+            if (hasQuery && matchCount == 0)
+            {
+                Label noResults = new Label("일치하는 메시지가 없습니다.");
+                noResults.AddToClassList("chat-no-results-label");
+                chatHistoryContainer.Add(noResults);
+            }
         }
+        else
+        {
+            for (int i = renderedHistoryCount; i < ActiveSession.ChatMessages.Count; i++)
+            {
+                AddChatBubble(chatHistoryContainer, ActiveSession.ChatMessages[i], pending: false);
+            }
+            renderedHistoryCount = ActiveSession.ChatMessages.Count;
+        }
+
+        // Pending/typing are always small (0-3 items) and inherently "redraw every time" state,
+        // so clearing just this trailing container each call is cheap regardless of history size.
+        chatTrailingContainer.Clear();
         foreach (string pendingText in ActiveSession.PendingMessages)
         {
-            AddChatBubble(new ChatMessage("You", pendingText), pending: true);
+            AddChatBubble(chatTrailingContainer, new ChatMessage("You", pendingText), pending: true);
         }
 
         // Thinking (not just "busy") on purpose: while a tool is actually running
@@ -1037,7 +1273,7 @@ public class ClaudeCompanionWindow : EditorWindow
         // (user report, 2026-07-16). Thinking is specifically the "about to answer" state.
         if (ActiveSession.CurrentActivity == CharacterActivity.Thinking)
         {
-            chatScrollView.Add(BuildTypingIndicator());
+            chatTrailingContainer.Add(BuildTypingIndicator());
         }
         else
         {
@@ -1063,7 +1299,41 @@ public class ClaudeCompanionWindow : EditorWindow
         });
     }
 
-    private void AddChatBubble(ChatMessage message, bool pending)
+    private void ExportActiveSessionChat()
+    {
+        if (ActiveSession == null || ActiveSession.ChatMessages.Count == 0)
+        {
+            return;
+        }
+
+        string sessionName = activeSessionIndex < sessionRecords.Count
+            ? sessionRecords[activeSessionIndex].DisplayName
+            : $"세션 {activeSessionIndex + 1}";
+        string path = EditorUtility.SaveFilePanel("대화 내보내기", "", $"{sessionName}-대화", "md");
+        if (string.IsNullOrEmpty(path))
+        {
+            return;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        foreach (ChatMessage message in ActiveSession.ChatMessages)
+        {
+            sb.Append("**").Append(message.Role).Append("**\n\n");
+            sb.Append(message.Text).Append("\n\n");
+        }
+
+        try
+        {
+            File.WriteAllText(path, sb.ToString());
+            EditorUtility.RevealInFinder(path);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogException(ex);
+        }
+    }
+
+    private void AddChatBubble(VisualElement container, ChatMessage message, bool pending)
     {
         bool isUser = message.Role == "You";
 
@@ -1086,8 +1356,16 @@ public class ClaudeCompanionWindow : EditorWindow
 
         BuildBubbleContent(bubble, message.Text);
 
+        // Only shown on hover (see "bubble-copy-button" in USS) - copies the whole message,
+        // as opposed to each code block's own copy button below which copies just that snippet.
+        string fullText = message.Text;
+        Button copyButton = new Button(() => CopyToClipboard(fullText)) { text = "⧉" };
+        copyButton.AddToClassList("bubble-copy-button");
+        copyButton.tooltip = "메시지 복사";
+        bubble.Add(copyButton);
+
         row.Add(bubble);
-        chatScrollView.Add(row);
+        container.Add(row);
     }
 
     // A small "..." bubble shown at the bottom of the chat while CurrentActivity is Thinking
@@ -1144,6 +1422,15 @@ public class ClaudeCompanionWindow : EditorWindow
                 };
                 codeLabel.AddToClassList("chat-code-text");
                 codeBlock.Add(codeLabel);
+
+                // Copies just this code segment, not the whole message - requested explicitly
+                // (2026-07-16) so a code block can be grabbed without the surrounding prose.
+                string codeText = segment.Text;
+                Button codeCopyButton = new Button(() => CopyToClipboard(codeText)) { text = "⧉" };
+                codeCopyButton.AddToClassList("code-copy-button");
+                codeCopyButton.tooltip = "코드 복사";
+                codeBlock.Add(codeCopyButton);
+
                 bubble.Add(codeBlock);
             }
             else
