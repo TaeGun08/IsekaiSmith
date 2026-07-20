@@ -1030,7 +1030,12 @@ public class ClaudeCompanionWindow : EditorWindow
             AddChatBubble(new ChatMessage("You", pendingText), pending: true);
         }
 
-        if (ActiveSession.IsBusy)
+        // Thinking (not just "busy") on purpose: while a tool is actually running
+        // (Reading/Editing/Running), the character stage + stepper already say so in detail -
+        // showing this "..." bubble for that whole span too read as "a reply is coming any
+        // second" when a long tool call was actually still in progress, which was confusing
+        // (user report, 2026-07-16). Thinking is specifically the "about to answer" state.
+        if (ActiveSession.CurrentActivity == CharacterActivity.Thinking)
         {
             chatScrollView.Add(BuildTypingIndicator());
         }
@@ -1085,8 +1090,9 @@ public class ClaudeCompanionWindow : EditorWindow
         chatScrollView.Add(row);
     }
 
-    // A small "..." bubble shown at the bottom of the chat while ActiveSession.IsBusy - see
-    // RefreshChat/OnAnimationTick. Populates the typingDots field the tick loop animates;
+    // A small "..." bubble shown at the bottom of the chat while CurrentActivity is Thinking
+    // (not just IsBusy - see RefreshChat) - see RefreshChat/OnAnimationTick. Populates the
+    // typingDots field the tick loop animates;
     // callers must not reuse the returned element after the next RefreshChat clears the scroll
     // view (typingDots is reset alongside it).
     private VisualElement BuildTypingIndicator()
