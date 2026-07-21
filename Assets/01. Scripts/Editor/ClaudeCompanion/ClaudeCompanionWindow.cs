@@ -1414,12 +1414,18 @@ public class ClaudeCompanionWindow : EditorWindow
     {
         foreach (ChatMarkdown.Segment segment in ChatMarkdown.Split(text))
         {
+            if (segment.Kind == ChatMarkdown.SegmentKind.Image)
+            {
+                bubble.Add(BuildImageSegment(segment.Text));
+                continue;
+            }
+
             if (string.IsNullOrWhiteSpace(segment.Text))
             {
                 continue;
             }
 
-            if (segment.IsCode)
+            if (segment.Kind == ChatMarkdown.SegmentKind.Code)
             {
                 VisualElement codeBlock = new VisualElement();
                 codeBlock.AddToClassList("chat-code-block");
@@ -1449,6 +1455,87 @@ public class ClaudeCompanionWindow : EditorWindow
                 textLabel.AddToClassList("chat-bubble-text");
                 bubble.Add(textLabel);
             }
+        }
+    }
+
+    // [[image: path]] (see ChatMarkdown) - path may be Assets-relative or an absolute path
+    // (screenshots/generated files often land outside Assets). Renders the image inline with a
+    // hover "저장" button so the user doesn't have to go find the file on disk (2026-07-16 request).
+    private static VisualElement BuildImageSegment(string path)
+    {
+        VisualElement container = new VisualElement();
+        container.AddToClassList("chat-image-container");
+
+        string fullPath = ResolveImagePath(path);
+        Texture2D texture = LoadImageFromDisk(fullPath);
+        if (texture == null)
+        {
+            Label missing = new Label("(이미지를 표시할 수 없습니다: " + path + ")");
+            missing.AddToClassList("chat-image-missing");
+            container.Add(missing);
+            return container;
+        }
+
+        Image image = new Image { image = texture, scaleMode = ScaleMode.ScaleToFit };
+        image.AddToClassList("chat-image");
+        container.Add(image);
+
+        Button saveButton = new Button(() => SaveImageAs(fullPath)) { text = "💾 저장" };
+        saveButton.AddToClassList("image-save-button");
+        container.Add(saveButton);
+
+        return container;
+    }
+
+    private static string ResolveImagePath(string path)
+    {
+        if (Path.IsPathRooted(path))
+        {
+            return path;
+        }
+        return Path.Combine(Directory.GetParent(Application.dataPath).FullName, path);
+    }
+
+    private static Texture2D LoadImageFromDisk(string fullPath)
+    {
+        try
+        {
+            if (!File.Exists(fullPath))
+            {
+                return null;
+            }
+            byte[] bytes = File.ReadAllBytes(fullPath);
+            Texture2D texture = new Texture2D(2, 2);
+            texture.LoadImage(bytes);
+            return texture;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogException(ex);
+            return null;
+        }
+    }
+
+    private static void SaveImageAs(string fullSourcePath)
+    {
+        if (!File.Exists(fullSourcePath))
+        {
+            return;
+        }
+        string ext = Path.GetExtension(fullSourcePath).TrimStart('.');
+        string defaultName = Path.GetFileNameWithoutExtension(fullSourcePath);
+        string dest = EditorUtility.SaveFilePanel("이미지 저장", "", defaultName, ext);
+        if (string.IsNullOrEmpty(dest))
+        {
+            return;
+        }
+        try
+        {
+            File.Copy(fullSourcePath, dest, true);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogException(ex);
         }
     }
 
