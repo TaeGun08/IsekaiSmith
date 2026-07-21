@@ -357,8 +357,10 @@ public class ClaudeCompanionWindow : EditorWindow
         // Drives the character's idle/busy animation and the sidebar busy-dots. Unlike the old
         // EditorApplication.update-based RepaintInterval gate, this doesn't fight a competing
         // self-sustaining redraw loop - UI Toolkit panels only repaint when something dirties
-        // them, so this tick is the only thing driving redraws here, at a steady ~60fps.
-        root.schedule.Execute(OnAnimationTick).Every(16);
+        // them, so this tick is the only thing driving redraws here. ~30fps (was 16ms/60fps) -
+        // this is gentle easing/bob motion, not action animation, so the halved tick rate isn't
+        // visible but does halve this window's idle CPU cost (2026-07-16 optimization request).
+        root.schedule.Execute(OnAnimationTick).Every(33);
 
         // The MCP bridge package can silently reconnect on its own after a domain reload
         // (HttpBridgeReloadHandler); poll here so the button/label can't get stuck stale.

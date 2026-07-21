@@ -175,6 +175,40 @@
     border-radius: 50%;
 }
 
+.stage-glasses-lens {
+    position: absolute;
+    border-radius: 50%;
+    border-width: 1.5px;
+    border-color: rgba(30, 27, 25, 0.9);
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.stage-glasses-bridge {
+    position: absolute;
+    height: 1.5px;
+    background-color: rgba(30, 27, 25, 0.9);
+}
+
+.stage-thought-bubble {
+    position: absolute;
+    border-radius: 7px;
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.25);
+    background-color: rgba(255, 255, 255, 0.12);
+}
+
+.stage-thought-tail {
+    position: absolute;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.18);
+}
+
+.stage-thought-dot {
+    position: absolute;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.8);
+}
+
 .stage-state-label {
     position: absolute;
     bottom: 0;
