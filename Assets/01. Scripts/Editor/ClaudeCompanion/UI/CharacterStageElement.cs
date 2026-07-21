@@ -68,6 +68,13 @@ public class CharacterStageElement : VisualElement
     private double flashUntil;
     private bool flashIsError;
 
+    // Thinking gaps between tool calls during a real turn are often sub-second (round-trip to
+    // the next tool_use), so showing the thought bubble only exactly while
+    // activity==Thinking made it flicker in and out too fast to actually see (user report,
+    // 2026-07-16). This "lingers" it for a beat after the most recent Thinking tick instead.
+    private double lastThinkingTime = double.NegativeInfinity;
+    private const double ThoughtLingerSeconds = 0.8;
+
     public CharacterStageElement()
     {
         AddToClassList("character-stage");
@@ -353,7 +360,11 @@ public class CharacterStageElement : VisualElement
 
         // Thought bubble - shown only while genuinely Thinking (not while a concrete tool is
         // running, which already has its own orbit-dot/glasses tells).
-        bool showThought = !flashing && activity == CharacterActivity.Thinking;
+        if (activity == CharacterActivity.Thinking)
+        {
+            lastThinkingTime = t;
+        }
+        bool showThought = !flashing && (t - lastThinkingTime) < ThoughtLingerSeconds;
         DisplayStyle thoughtDisplay = showThought ? DisplayStyle.Flex : DisplayStyle.None;
         thoughtBubble.style.display = thoughtDisplay;
         thoughtTailBig.style.display = thoughtDisplay;
@@ -389,6 +400,12 @@ public class CharacterStageElement : VisualElement
             }
         }
 
+        // One fixed calm shape for every non-flash state, full stop - a Thinking-only variant
+        // was tried (small round "pondering" mouth) but CurrentActivity flips between Thinking
+        // and Reading/Editing/Running rapidly during a real turn (once per tool call), so the
+        // mouth kept resizing back and forth and read as the same fish-like flapping the
+        // original chatter animation did (user report, 2026-07-16). The thought bubble alone
+        // now carries the "thinking" expression; the mouth no longer reacts to activity at all.
         float mouthWidth;
         float mouthHeight;
         if (flashing && !flashIsError)
@@ -401,18 +418,8 @@ public class CharacterStageElement : VisualElement
             mouthWidth = 10f;
             mouthHeight = 3f;
         }
-        else if (activity == CharacterActivity.Thinking)
-        {
-            // A small round, static "pondering" mouth - the thought bubble above now carries
-            // the animated part of this expression.
-            mouthWidth = 8f;
-            mouthHeight = 8f;
-        }
         else
         {
-            // Calm and static for every other state (including busy) - a continuously
-            // oscillating mouth read as fish-like flapping (user report, 2026-07-16); glasses/
-            // the thought bubble/orbit dots carry "is working" now instead.
             mouthWidth = 12f;
             mouthHeight = 2.5f;
         }
