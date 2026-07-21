@@ -155,11 +155,54 @@
     /* The halo glow is deliberately larger than the body and can extend past the panel edges -
        without this it visibly "leaked" outside the rounded card (user report, 2026-07-16). */
     overflow: hidden;
+    transition-property: height;
+    transition-duration: 180ms;
+}
+
+/* "B" direction (2026-07-16): compact by default, taller + backdrop image when toggled - see
+   CharacterStageElement.Expanded. */
+.character-stage--expanded {
+    height: 240px;
+}
+
+.stage-room-backdrop {
+    position: absolute;
+    left: 0;
+    top: 0;
+    -unity-background-scale-mode: scale-and-crop;
+}
+
+.stage-expand-button {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 62px;
+    height: 18px;
+    font-size: 9px;
+    padding: 0;
+    background-color: rgba(0, 0, 0, 0.35);
+    color: rgb(230, 227, 224);
+}
+
+.stage-expand-button:hover {
+    background-color: rgba(0, 0, 0, 0.55);
 }
 
 .stage-circle {
     position: absolute;
     border-radius: 50%;
+}
+
+.stage-ground-shadow {
+    position: absolute;
+    border-radius: 50%;
+    background-color: rgba(0, 0, 0, 0.28);
+}
+
+.stage-body-shine {
+    position: absolute;
+    border-radius: 50%;
+    background-color: rgb(255, 255, 255);
 }
 
 /* C안: 캐릭터 뒤 은은한 halo(오라) + 몸 주위를 도는 다색 링. 배경 투명, 테두리만 보임. */

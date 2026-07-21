@@ -1,3 +1,4 @@
+using System;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -61,11 +62,28 @@ public class CharacterStageElement : VisualElement
     private static readonly Color PlantPotColor = new Color(0.55f, 0.30f, 0.20f);
     private static readonly Color PlantLeafColor = new Color(0.30f, 0.56f, 0.32f);
 
+    // Character sits a fixed distance above the desk line instead of at the stage's vertical
+    // center - so expanding the stage (see Expanded below) only adds empty room *above* the
+    // character's head for the backdrop image, instead of also shifting the character/desk
+    // downward. Chosen to reproduce the exact old (collapsed) look: at the original 132px
+    // stage height this offset lands the character exactly where the old height/2 formula did.
+    private const float CharacterGroundOffset = 50f;
+
+    private const string RoomBackdropAssetPath = "Assets/03. Art/Sprites/CompanionRoomBackdrop.png";
+    private const float ExpandedStageHeight = 240f;
+
+    private static Texture2D cachedRoomBackdrop;
+
     private readonly VisualElement desk;
     private readonly VisualElement monitorBody;
     private readonly VisualElement monitorScreen;
     private readonly VisualElement plantPot;
     private readonly VisualElement[] plantLeaves;
+    private readonly VisualElement roomBackdrop;
+    private readonly VisualElement groundShadow;
+    private readonly VisualElement bodyShine;
+    private readonly Button expandButton;
+    private bool isExpanded;
 
     private readonly VisualElement haloOuter;
     private readonly VisualElement haloInner;
@@ -103,6 +121,20 @@ public class CharacterStageElement : VisualElement
     {
         AddToClassList("character-stage");
 
+        // Backdrop paints behind absolutely everything - only visible/sized when Expanded (see
+        // below). A real (cropped, character-free) strip from the user's reference room image
+        // rather than a generated one - actual pixel art instead of an approximation of it.
+        roomBackdrop = new VisualElement();
+        roomBackdrop.AddToClassList("stage-room-backdrop");
+        roomBackdrop.style.display = DisplayStyle.None;
+        roomBackdrop.pickingMode = PickingMode.Ignore;
+        Texture2D backdropTexture = GetRoomBackdropTexture();
+        if (backdropTexture != null)
+        {
+            roomBackdrop.style.backgroundImage = new StyleBackground(backdropTexture);
+        }
+        Add(roomBackdrop);
+
         // Desk/monitor/plant are added first so the character (added further below) always
         // paints on top of them, sitting "in front of" its little desk setup.
         desk = new VisualElement();
@@ -139,6 +171,16 @@ public class CharacterStageElement : VisualElement
             Add(leaf);
         }
 
+        // A flattened, fixed-to-the-ground ellipse under the character - a classic 2D
+        // platformer trick to fake "the character is a solid 3D-ish object above the floor"
+        // instead of a flat circle floating on a flat background (user report, 2026-07-16).
+        // Shrinks slightly when the character bobs up (see Tick), like the shadow reacting to
+        // increasing "height".
+        groundShadow = new VisualElement();
+        groundShadow.AddToClassList("stage-ground-shadow");
+        groundShadow.pickingMode = PickingMode.Ignore;
+        Add(groundShadow);
+
         // Halo layers are added first so they paint behind the body (VisualElement children
         // paint in the order they were added, like a painter's algorithm, same as the desk/
         // monitor/plant above painting behind everything else) - two overlapping, low-alpha
@@ -152,6 +194,14 @@ public class CharacterStageElement : VisualElement
 
         body = MakeCircle(BodySize);
         Add(body);
+
+        // A small glossy highlight on the body's upper-left, offset from center - the classic
+        // "cute mascot" trick for making a flat-shaded circle read as a rounded 3D object
+        // instead of a flat disc (user report, 2026-07-16: "too flat a character").
+        bodyShine = MakeCircle(16f);
+        bodyShine.RemoveFromClassList("stage-circle");
+        bodyShine.AddToClassList("stage-body-shine");
+        Add(bodyShine);
 
         // Painted after the body so its ring sits on top at the body's edge; background stays
         // fully transparent (see "stage-ring" in USS) so only the border itself is visible.
@@ -233,6 +283,40 @@ public class CharacterStageElement : VisualElement
         stateLabel = new Label();
         stateLabel.AddToClassList("stage-state-label");
         Add(stateLabel);
+
+        // Overlay toggle, top-right corner - collapsed (default) keeps the compact bar so the
+        // room doesn't eat into chat space; expanded shows the backdrop + more breathing room
+        // above the character. Added last so it's always clickable on top of everything else.
+        expandButton = new Button(() => Expanded = !isExpanded) { text = "⤢ 펼치기" };
+        expandButton.AddToClassList("stage-expand-button");
+        Add(expandButton);
+    }
+
+    // The window owns persistence (a plain [SerializeField] bool, same pattern as
+    // turnStepperCollapsed) - this just applies the visual side and reports back via the event
+    // so the window can save it.
+    public event Action<bool> ExpandedChanged;
+
+    public bool Expanded
+    {
+        get => isExpanded;
+        set
+        {
+            isExpanded = value;
+            EnableInClassList("character-stage--expanded", isExpanded);
+            roomBackdrop.style.display = isExpanded ? DisplayStyle.Flex : DisplayStyle.None;
+            expandButton.text = isExpanded ? "⤡ 접기" : "⤢ 펼치기";
+            ExpandedChanged?.Invoke(isExpanded);
+        }
+    }
+
+    private static Texture2D GetRoomBackdropTexture()
+    {
+        if (cachedRoomBackdrop == null)
+        {
+            cachedRoomBackdrop = AssetDatabase.LoadAssetAtPath<Texture2D>(RoomBackdropAssetPath);
+        }
+        return cachedRoomBackdrop;
     }
 
     private static VisualElement MakeCircle(float size)
@@ -286,16 +370,25 @@ public class CharacterStageElement : VisualElement
         // report, 2026-07-16), since a full-height center left barely any gap once bob motion
         // was added on top.
         float characterAreaHeight = height - LabelReserve;
-        Vector2 center = new Vector2(width / 2f, characterAreaHeight / 2f);
+        float deskTop = characterAreaHeight - DeskHeight;
+        // Anchored a fixed distance above the desk rather than the stage's vertical center, so
+        // Expanded (see below) only adds empty room above the character's head instead of also
+        // dragging the character/desk down the middle of a much taller stage.
+        Vector2 center = new Vector2(width / 2f, deskTop - CharacterGroundOffset);
 
         // Desk/monitor/plant - purely static geometry (no bob/color dependency yet), so this
         // only actually changes when the stage is resized, but recomputing it every tick is
         // cheap enough not to bother caching.
-        float deskTop = characterAreaHeight - DeskHeight;
         float deskWidth = width * DeskWidthRatio;
         desk.style.width = deskWidth;
-        desk.style.left = center.x - deskWidth / 2f;
+        desk.style.left = width / 2f - deskWidth / 2f;
         desk.style.top = deskTop;
+
+        if (isExpanded)
+        {
+            roomBackdrop.style.width = width;
+            roomBackdrop.style.height = deskTop;
+        }
 
         monitorBody.style.left = center.x - MonitorOffsetX - MonitorBodyWidth / 2f;
         monitorBody.style.top = deskTop - MonitorBodyHeight;
@@ -383,6 +476,23 @@ public class CharacterStageElement : VisualElement
         float normalizedBob = bobAmplitude > 0f ? bobY / bobAmplitude : 0f;
         float squash = busy ? normalizedBob * 0.07f : normalizedBob * 0.03f;
         body.style.scale = new Scale(new Vector3(bodyScale * (1f - squash), bodyScale * (1f + squash), 1f));
+
+        // Glossy highlight, fixed offset from the body's own top-left regardless of bob (moves
+        // with the body, doesn't independently animate).
+        const float shineSize = 16f;
+        bodyShine.style.left = center.x - BodySize / 2f + 8f + shakeX;
+        bodyShine.style.top = center.y - BodySize / 2f + 6f + bobY;
+        bodyShine.style.opacity = 0.30f;
+
+        // Shadow stays on the ground line (doesn't bob with the body) and shrinks slightly
+        // when the character is higher up, like it's reacting to the character's "height".
+        const float shadowWidth = 46f;
+        const float shadowHeight = 11f;
+        float shadowShrink = 1f - Mathf.Max(0f, -normalizedBob) * 0.25f;
+        groundShadow.style.width = shadowWidth * shadowShrink;
+        groundShadow.style.height = shadowHeight;
+        groundShadow.style.left = center.x - (shadowWidth * shadowShrink) / 2f;
+        groundShadow.style.top = deskTop - shadowHeight / 2f - 2f;
 
         // Soft breathing glow behind the body - slower/independent of the body's own busy
         // pulse so it doesn't just look like a blurry copy of it.
@@ -573,7 +683,7 @@ public class CharacterStageElement : VisualElement
     {
         if (nextBlinkTime <= 0)
         {
-            nextBlinkTime = t + Random.Range(2f, 5f);
+            nextBlinkTime = t + UnityEngine.Random.Range(2f, 5f);
         }
 
         if (!isBlinking && t >= nextBlinkTime)
@@ -584,7 +694,7 @@ public class CharacterStageElement : VisualElement
         else if (isBlinking && t >= blinkEndTime)
         {
             isBlinking = false;
-            nextBlinkTime = t + Random.Range(2f, 5f);
+            nextBlinkTime = t + UnityEngine.Random.Range(2f, 5f);
         }
     }
 }

@@ -107,6 +107,7 @@ public class ClaudeCompanionWindow : EditorWindow
     [SerializeField] private bool turnStepperCollapsed;
     [SerializeField] private bool soundEnabled = true;
     [SerializeField] private int soundVariant;
+    [SerializeField] private bool characterRoomExpanded;
 
     // sessionRecords above only survives a domain reload - Unity discards an EditorWindow's
     // fields entirely once the window is actually closed (not just reloaded), so reopening it
@@ -720,6 +721,8 @@ public class ClaudeCompanionWindow : EditorWindow
         mainColumn.Add(accentBar);
 
         characterStage = new CharacterStageElement();
+        characterStage.Expanded = characterRoomExpanded;
+        characterStage.ExpandedChanged += expanded => characterRoomExpanded = expanded;
         mainColumn.Add(characterStage);
 
         mainColumn.Add(BuildControlsRow());
