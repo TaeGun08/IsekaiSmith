@@ -43,6 +43,30 @@ public class CharacterStageElement : VisualElement
     private const double SuccessFlashSeconds = 1.2;
     private const double ErrorFlashSeconds = 1.4;
 
+    // "Personal space" set dressing (2026-07-16 request) - a light flat-vector desk/monitor/
+    // plant instead of the reference photo's full pixel-art room (the stage is a ~130px-tall
+    // strip, nowhere near enough room for that level of detail, and a static illustration
+    // would've meant an imported texture asset + import pipeline for what amounts to a strip
+    // of background dressing). Same VisualElement/border-radius approach as the character
+    // itself, so it costs nothing extra beyond a few more style writes per tick.
+    private const float DeskHeight = 7f;
+    private const float DeskWidthRatio = 0.92f;
+    private const float MonitorOffsetX = 72f;
+    private const float MonitorBodyWidth = 30f;
+    private const float MonitorBodyHeight = 24f;
+    private const float MonitorScreenInset = 3f;
+    private const float PlantOffsetX = 68f;
+    private static readonly Color DeskColor = new Color(0.30f, 0.20f, 0.14f);
+    private static readonly Color MonitorBodyColor = new Color(0.16f, 0.15f, 0.15f);
+    private static readonly Color PlantPotColor = new Color(0.55f, 0.30f, 0.20f);
+    private static readonly Color PlantLeafColor = new Color(0.30f, 0.56f, 0.32f);
+
+    private readonly VisualElement desk;
+    private readonly VisualElement monitorBody;
+    private readonly VisualElement monitorScreen;
+    private readonly VisualElement plantPot;
+    private readonly VisualElement[] plantLeaves;
+
     private readonly VisualElement haloOuter;
     private readonly VisualElement haloInner;
     private readonly VisualElement body;
@@ -79,9 +103,46 @@ public class CharacterStageElement : VisualElement
     {
         AddToClassList("character-stage");
 
+        // Desk/monitor/plant are added first so the character (added further below) always
+        // paints on top of them, sitting "in front of" its little desk setup.
+        desk = new VisualElement();
+        desk.AddToClassList("stage-desk");
+        desk.style.backgroundColor = DeskColor;
+        desk.pickingMode = PickingMode.Ignore;
+        Add(desk);
+
+        monitorBody = new VisualElement();
+        monitorBody.AddToClassList("stage-monitor-body");
+        monitorBody.style.backgroundColor = MonitorBodyColor;
+        monitorBody.pickingMode = PickingMode.Ignore;
+        Add(monitorBody);
+
+        monitorScreen = new VisualElement();
+        monitorScreen.AddToClassList("stage-monitor-screen");
+        monitorScreen.pickingMode = PickingMode.Ignore;
+        Add(monitorScreen);
+
+        plantPot = new VisualElement();
+        plantPot.AddToClassList("stage-plant-pot");
+        plantPot.style.backgroundColor = PlantPotColor;
+        plantPot.pickingMode = PickingMode.Ignore;
+        Add(plantPot);
+
+        plantLeaves = new VisualElement[3];
+        for (int i = 0; i < plantLeaves.Length; i++)
+        {
+            VisualElement leaf = MakeCircle(9f);
+            leaf.RemoveFromClassList("stage-circle");
+            leaf.AddToClassList("stage-plant-leaf");
+            leaf.style.backgroundColor = PlantLeafColor;
+            plantLeaves[i] = leaf;
+            Add(leaf);
+        }
+
         // Halo layers are added first so they paint behind the body (VisualElement children
-        // paint in the order they were added, like a painter's algorithm) - two overlapping,
-        // low-alpha circles of decreasing opacity fake a soft radial glow, since USS has no
+        // paint in the order they were added, like a painter's algorithm, same as the desk/
+        // monitor/plant above painting behind everything else) - two overlapping, low-alpha
+        // circles of decreasing opacity fake a soft radial glow, since USS has no
         // radial-gradient support to do this with a single element.
         haloOuter = MakeCircle(HaloOuterSize);
         Add(haloOuter);
@@ -227,6 +288,33 @@ public class CharacterStageElement : VisualElement
         float characterAreaHeight = height - LabelReserve;
         Vector2 center = new Vector2(width / 2f, characterAreaHeight / 2f);
 
+        // Desk/monitor/plant - purely static geometry (no bob/color dependency yet), so this
+        // only actually changes when the stage is resized, but recomputing it every tick is
+        // cheap enough not to bother caching.
+        float deskTop = characterAreaHeight - DeskHeight;
+        float deskWidth = width * DeskWidthRatio;
+        desk.style.width = deskWidth;
+        desk.style.left = center.x - deskWidth / 2f;
+        desk.style.top = deskTop;
+
+        monitorBody.style.left = center.x - MonitorOffsetX - MonitorBodyWidth / 2f;
+        monitorBody.style.top = deskTop - MonitorBodyHeight;
+        monitorScreen.style.left = center.x - MonitorOffsetX - MonitorBodyWidth / 2f + MonitorScreenInset;
+        monitorScreen.style.top = deskTop - MonitorBodyHeight + MonitorScreenInset;
+
+        float potHeight = 10f;
+        float potWidth = 16f;
+        plantPot.style.left = center.x + PlantOffsetX - potWidth / 2f;
+        plantPot.style.top = deskTop - potHeight;
+        float leafBaseX = center.x + PlantOffsetX;
+        float leafBaseY = deskTop - potHeight;
+        Vector2[] leafOffsets = { new Vector2(-5f, -10f), new Vector2(5f, -10f), new Vector2(0f, -16f) };
+        for (int i = 0; i < plantLeaves.Length; i++)
+        {
+            plantLeaves[i].style.left = leafBaseX + leafOffsets[i].x - 4.5f;
+            plantLeaves[i].style.top = leafBaseY + leafOffsets[i].y;
+        }
+
         float bobAmplitude = busy ? 7f : 3f;
         float bobSpeed = busy ? 6f : 2f;
         float bobY = Mathf.Sin((float)t * bobSpeed) * bobAmplitude;
@@ -283,6 +371,11 @@ public class CharacterStageElement : VisualElement
         body.style.backgroundColor = bodyColor;
         body.style.left = center.x - BodySize / 2f + shakeX;
         body.style.top = center.y - BodySize / 2f + bobY;
+
+        // The monitor's own "screen" glows with whatever color the character currently is -
+        // ties the little desk setup into the same state signal instead of being pure static
+        // dressing, at no extra cost (reusing bodyColor).
+        monitorScreen.style.backgroundColor = bodyColor;
 
         // Squash & stretch tied to the bob itself (classic animation principle) instead of a
         // separate timer, so it can't drift out of sync: stretched (taller/narrower) near the
