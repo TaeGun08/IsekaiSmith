@@ -6,6 +6,15 @@
 
 ---
 
+## 2026-07-16 (17) 재실행 시 채팅 하단 스크롤 + 입력창 Ctrl+Z/휠 스크롤
+
+1) `ScrollChatToBottom()`: 단발성 지연 대신 즉시+50ms+200ms 3회 `scrollOffset =
+(0, float.MaxValue)` 시도로 변경 — 재실행 직후 긴 히스토리가 레이아웃 확정 전에
+측정되어 최상단에 멈추는 문제 대응. 2) 입력창을 `ScrollView`(`chat-input-scroll`)로
+감싸 마우스 휠 스크롤 지원, `TextField`는 높이 제한 없이 자연 성장. 3) `inputUndoStack`
++ `isApplyingInputUndo` 필드로 수동 undo 스택 구현, `OnInputKeyDown`에서 Ctrl/Cmd+Z 처리.
+컴파일 0건(read_console), 도메인 리로드는 다음 턴에 확정.
+
 ## 2026-07-16 (16) Send/Cancel 버튼 회색 계열로 변경 + 한국어
 
 Send/Cancel이 빨강·초록 위주라 비활성화 시 구분 안 됨(코랄이 반투명해지며 취소의 흐린

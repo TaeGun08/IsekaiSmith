@@ -217,6 +217,12 @@ public class ClaudeCompanionWindow : EditorWindow
     private Button sendButton;
     private Button cancelButton;
 
+    // Manual undo stack for the input field - UI Toolkit's TextField doesn't reliably support
+    // native Ctrl+Z in a multiline field in practice (2026-07-16 request), so previous values
+    // are captured on every change and restored on Ctrl+Z instead.
+    private readonly List<string> inputUndoStack = new List<string>();
+    private bool isApplyingInputUndo;
+
     // Non-null exactly while a "typing..." bubble is showing at the bottom of the chat - see
     // BuildTypingIndicator/RefreshChat. Animated from OnAnimationTick rather than a dedicated
     // scheduled callback so it shares the same 60fps tick as the character stage.
@@ -1143,9 +1149,15 @@ public class ClaudeCompanionWindow : EditorWindow
         pendingCountLabel.style.display = DisplayStyle.None;
         container.Add(pendingCountLabel);
 
-        // Auto-grows with wrapped content up to the "chat-input" USS max-height, same idea as
-        // the old IMGUI auto-growing box but handled natively by the multiline TextField
-        // instead of a manual CalcHeight/Clamp pass every frame.
+        // Wrapped in a ScrollView (instead of the TextField sitting directly in the layout)
+        // purely so a message longer than the max height gets mouse-wheel scrolling and a
+        // scrollbar instead of just clipping with no way to see the rest (2026-07-16 request) -
+        // the TextField itself grows to its full natural content height inside, ScrollView owns
+        // the min/max-height clamping (see "chat-input-scroll" in the USS).
+        VisualElement inputScroll = new ScrollView(ScrollViewMode.Vertical);
+        inputScroll.AddToClassList("chat-input-scroll");
+        container.Add(inputScroll);
+
         inputField = new TextField { multiline = true };
         inputField.AddToClassList("chat-input");
         VisualElement innerInput = inputField.Q(className: TextField.inputUssClassName);
@@ -1158,10 +1170,24 @@ public class ClaudeCompanionWindow : EditorWindow
         // registering any further away/weaker than this let a stray newline through after Send
         // in practice (report: message sent correctly, but a blank line was left behind/typed
         // next). TrySend also defensively re-clears next frame as a second safety net in case
-        // the native handling still slips something in.
+        // the native handling still slips something in. Same capture-phase registration also
+        // owns Ctrl+Z - see OnInputKeyDown/inputUndoStack for why a manual undo stack was
+        // needed instead of relying on the native field's own undo (2026-07-16 request: it
+        // wasn't undoing in this multiline field in practice).
         (innerInput ?? inputField).RegisterCallback<KeyDownEvent>(OnInputKeyDown, TrickleDown.TrickleDown);
-        inputField.RegisterValueChangedCallback(_ => UpdateSendControlsEnabled());
-        container.Add(inputField);
+        inputField.RegisterValueChangedCallback(evt =>
+        {
+            if (!isApplyingInputUndo)
+            {
+                inputUndoStack.Add(evt.previousValue);
+                if (inputUndoStack.Count > 200)
+                {
+                    inputUndoStack.RemoveAt(0);
+                }
+            }
+            UpdateSendControlsEnabled();
+        });
+        inputScroll.Add(inputField);
 
         VisualElement buttonsRow = new VisualElement();
         buttonsRow.AddToClassList("chat-buttons-row");
@@ -1189,6 +1215,21 @@ public class ClaudeCompanionWindow : EditorWindow
             evt.StopImmediatePropagation();
             evt.PreventDefault();
             TrySend();
+            return;
+        }
+
+        if (evt.keyCode == KeyCode.Z && (evt.ctrlKey || evt.commandKey))
+        {
+            evt.StopImmediatePropagation();
+            evt.PreventDefault();
+            if (inputUndoStack.Count > 0)
+            {
+                string previous = inputUndoStack[inputUndoStack.Count - 1];
+                inputUndoStack.RemoveAt(inputUndoStack.Count - 1);
+                isApplyingInputUndo = true;
+                inputField.value = previous;
+                isApplyingInputUndo = false;
+            }
         }
     }
 
@@ -1300,13 +1341,17 @@ public class ClaudeCompanionWindow : EditorWindow
 
     private void ScrollChatToBottom()
     {
-        // Deferred one tick: the newly added bubbles need a layout pass before
-        // contentContainer's height reflects them, otherwise this scrolls to the *previous*
-        // bottom instead of the new one.
-        chatScrollView.schedule.Execute(() =>
-        {
-            chatScrollView.scrollOffset = new Vector2(0f, chatScrollView.contentContainer.layout.height);
-        });
+        // float.MaxValue instead of reading contentContainer.layout.height: ScrollView clamps
+        // scrollOffset to its real max internally, and reading the height directly was racing
+        // layout on a freshly-opened window with a lot of restored history - one deferred frame
+        // wasn't always enough for every bubble's layout pass to finish, so the read height was
+        // sometimes still short and landed the scroll partway up instead of at the true bottom
+        // (user report, 2026-07-16: reopening after an Editor restart showed the chat scrolled
+        // to the top). Scheduling a couple of retries over the next few frames covers the same
+        // "layout still settling" window without needing to measure it ourselves.
+        chatScrollView.schedule.Execute(() => chatScrollView.scrollOffset = new Vector2(0f, float.MaxValue));
+        chatScrollView.schedule.Execute(() => chatScrollView.scrollOffset = new Vector2(0f, float.MaxValue)).ExecuteLater(50);
+        chatScrollView.schedule.Execute(() => chatScrollView.scrollOffset = new Vector2(0f, float.MaxValue)).ExecuteLater(200);
     }
 
     private void ExportActiveSessionChat()
