@@ -21,6 +21,8 @@ public class ClaudeCompanionWindow : EditorWindow
 
     private const string StyleSheetPath =
         "Assets/01. Scripts/Editor/ClaudeCompanion/UI/ClaudeCompanionStyles.uss";
+    private const string LightStyleSheetPath =
+        "Assets/01. Scripts/Editor/ClaudeCompanion/UI/ClaudeCompanionStyles.Light.uss";
 
     // The only colors still needed in C#: everything else is static USS. These are computed
     // per-frame/per-event (busy dots) or are semantic state colors that must win over any USS
@@ -108,6 +110,11 @@ public class ClaudeCompanionWindow : EditorWindow
     [SerializeField] private bool soundEnabled = true;
     [SerializeField] private int soundVariant;
     [SerializeField] private bool characterRoomExpanded;
+    // 0 = Dark (default), 1 = Light. See ApplyTheme/ClaudeCompanionStyles.Light.uss.
+    [SerializeField] private int theme;
+    // 0 = Korean (default), 1 = English. Mirrored into CompanionPreferences.ResponseLanguage
+    // (see its comment) so CompanionSession can read it without a window reference.
+    [SerializeField] private int language;
 
     // sessionRecords above only survives a domain reload - Unity discards an EditorWindow's
     // fields entirely once the window is actually closed (not just reloaded), so reopening it
@@ -213,6 +220,7 @@ public class ClaudeCompanionWindow : EditorWindow
     private VisualElement chatTrailingContainer;
     private int renderedHistoryCount;
     private Label pendingCountLabel;
+    private Label tokenUsageLabel;
     private TextField inputField;
     private Button sendButton;
     private Button cancelButton;
@@ -230,6 +238,10 @@ public class ClaudeCompanionWindow : EditorWindow
 
     private void OnEnable()
     {
+        // CompanionPreferences is a plain static field, so it doesn't survive a domain reload
+        // even though the [SerializeField] language backing it does - resync on every OnEnable.
+        ApplyLanguagePreference();
+
         if (sessionRecords.Count == 0)
         {
             // A real Close (not a domain reload) destroys this window instance, so the
@@ -341,6 +353,15 @@ public class ClaudeCompanionWindow : EditorWindow
         {
             root.styleSheets.Add(styleSheet);
         }
+        // Always loaded alongside the base sheet - gated purely by the "theme-light" class
+        // toggled in ApplyTheme, not by whether the sheet itself is present, so switching themes
+        // at runtime doesn't need to add/remove stylesheets.
+        StyleSheet lightStyleSheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(LightStyleSheetPath);
+        if (lightStyleSheet != null)
+        {
+            root.styleSheets.Add(lightStyleSheet);
+        }
+        ApplyTheme();
 
         VisualElement mainRow = new VisualElement();
         mainRow.AddToClassList("main-row");
@@ -708,6 +729,7 @@ public class ClaudeCompanionWindow : EditorWindow
         chatTrailingContainer = null;
         renderedHistoryCount = 0;
         pendingCountLabel = null;
+        tokenUsageLabel = null;
         inputField = null;
         sendButton = null;
         cancelButton = null;
@@ -955,6 +977,51 @@ public class ClaudeCompanionWindow : EditorWindow
         set => soundVariant = value;
     }
 
+    // Exposed for ClaudeCompanionSettingsWindow, same pattern as SoundEnabled/SoundVariant.
+    // 0 = Dark, 1 = Light.
+    public int Theme
+    {
+        get => theme;
+        set
+        {
+            theme = value;
+            ApplyTheme();
+        }
+    }
+
+    private void ApplyTheme()
+    {
+        if (rootVisualElement == null)
+        {
+            return;
+        }
+        if (theme == 1)
+        {
+            rootVisualElement.AddToClassList("theme-light");
+        }
+        else
+        {
+            rootVisualElement.RemoveFromClassList("theme-light");
+        }
+    }
+
+    // 0 = Korean, 1 = English - see CompanionPreferences for how CompanionSession picks this up.
+    public int Language
+    {
+        get => language;
+        set
+        {
+            language = value;
+            ApplyLanguagePreference();
+        }
+    }
+
+    private void ApplyLanguagePreference()
+    {
+        CompanionPreferences.ResponseLanguage =
+            language == 1 ? CompanionPreferences.Language.English : CompanionPreferences.Language.Korean;
+    }
+
     public void PlayNotificationSound()
     {
         if (!soundEnabled)
@@ -1113,6 +1180,11 @@ public class ClaudeCompanionWindow : EditorWindow
         VisualElement headerSpacer = new VisualElement();
         headerSpacer.AddToClassList("spacer");
         headerRow.Add(headerSpacer);
+
+        tokenUsageLabel = new Label();
+        tokenUsageLabel.AddToClassList("token-usage-label");
+        tokenUsageLabel.tooltip = "이 대화에서 사용한 총 토큰 수 (입력+출력+캐시)";
+        headerRow.Add(tokenUsageLabel);
 
         TextField searchField = new TextField { value = chatSearchQuery };
         searchField.AddToClassList("chat-search-field");
@@ -1335,8 +1407,26 @@ public class ClaudeCompanionWindow : EditorWindow
         pendingCountLabel.text = pendingCount > 0 ? $"메시지 {pendingCount}개 전송 대기 중" : "";
         pendingCountLabel.style.display = pendingCount > 0 ? DisplayStyle.Flex : DisplayStyle.None;
 
+        tokenUsageLabel.text = $"토큰 {FormatTokenCount(ActiveSession.TotalTokens)}";
+
         UpdateSendControlsEnabled();
         ScrollChatToBottom();
+    }
+
+    // 12,400 -> "12.4K", 1,230,000 -> "1.23M" - a running per-turn "result" total can get into
+    // six figures fast once cache-read tokens are counted in, so this stays readable at a
+    // glance instead of a long raw digit string next to the search field.
+    private static string FormatTokenCount(long tokens)
+    {
+        if (tokens >= 1_000_000)
+        {
+            return (tokens / 1_000_000d).ToString("0.##") + "M";
+        }
+        if (tokens >= 1_000)
+        {
+            return (tokens / 1_000d).ToString("0.#") + "K";
+        }
+        return tokens.ToString();
     }
 
     private void ScrollChatToBottom()

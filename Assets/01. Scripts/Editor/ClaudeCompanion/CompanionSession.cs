@@ -27,6 +27,11 @@ public class CompanionSession
     // so the stepper always shows "what just happened" instead of the entire session's history.
     public readonly List<string> CurrentTurnSteps = new List<string>();
 
+    // Running total across this conversation, from each turn's "result" event usage block -
+    // not persisted (resets on ResetForNewConversation/a fresh reload), same "cosmetic,
+    // fine to lose" treatment as CurrentActivity above.
+    public long TotalTokens { get; private set; }
+
     private static readonly HashSet<string> ReadingTools = new HashSet<string>
         { "Read", "Glob", "Grep", "WebFetch", "WebSearch", "NotebookRead" };
     private static readonly HashSet<string> EditingTools = new HashSet<string>
@@ -119,6 +124,11 @@ public class CompanionSession
             CurrentActivity = ClassifyActivityEntry(entry);
             Changed?.Invoke();
         };
+        Runner.OnUsage += usage =>
+        {
+            TotalTokens += usage.Total;
+            Changed?.Invoke();
+        };
         Runner.OnTurnComplete += AdvanceQueueOrNotify;
         Runner.OnError += error =>
         {
@@ -151,6 +161,7 @@ public class CompanionSession
         RestoredSessionId = null;
         CurrentActivity = CharacterActivity.Idle;
         CurrentTurnSteps.Clear();
+        TotalTokens = 0;
         Changed?.Invoke();
     }
 
@@ -172,9 +183,21 @@ public class CompanionSession
         ChatMessages.Add(new ChatMessage("You", text));
         Log.AppendChat("You", text);
         CurrentTurnSteps.Clear();
-        Runner.Send(text);
+        Runner.Send(BuildOutgoingText(text));
         CurrentActivity = CharacterActivity.Thinking;
         Changed?.Invoke();
+    }
+
+    // Prepends a language directive matching the Companion window's language setting, so a
+    // resumed turn defaults to that language unless the user's own message explicitly asks for
+    // a different one (2026-07-22 request). Only affects what's actually sent to the CLI - the
+    // displayed/logged message above stays exactly what the user typed.
+    private static string BuildOutgoingText(string text)
+    {
+        string directive = CompanionPreferences.ResponseLanguage == CompanionPreferences.Language.English
+            ? "(Respond in English unless this message explicitly asks for a different language.)"
+            : "(별도로 다른 언어를 요청하지 않았다면 한국어로 답변해줘.)";
+        return directive + "\n\n" + text;
     }
 
     // Shared by turn-complete and cancel: if something is queued, start it immediately

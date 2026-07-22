@@ -16,8 +16,8 @@ public class ClaudeCompanionSettingsWindow : EditorWindow
         ClaudeCompanionSettingsWindow window = CreateInstance<ClaudeCompanionSettingsWindow>();
         window.owner = owner;
         window.titleContent = new GUIContent("설정");
-        window.minSize = new Vector2(260, 150);
-        window.maxSize = new Vector2(260, 150);
+        window.minSize = new Vector2(260, 260);
+        window.maxSize = new Vector2(260, 260);
         window.ShowUtility();
     }
 
@@ -56,5 +56,28 @@ public class ClaudeCompanionSettingsWindow : EditorWindow
         Button testButton = new Button(() => owner.PlayNotificationSound()) { text = "테스트 재생" };
         testButton.style.marginTop = 12;
         root.Add(testButton);
+
+        Label themeTitle = new Label("테마");
+        themeTitle.style.unityFontStyleAndWeight = FontStyle.Bold;
+        themeTitle.style.marginTop = 16;
+        themeTitle.style.marginBottom = 6;
+        root.Add(themeTitle);
+
+        List<string> themeChoices = new List<string> { "다크", "라이트" };
+        DropdownField themeDropdown = new DropdownField("색상", themeChoices, owner.Theme);
+        root.Add(themeDropdown);
+        themeDropdown.RegisterValueChangedCallback(_ => owner.Theme = themeDropdown.index);
+
+        Label languageTitle = new Label("언어");
+        languageTitle.style.unityFontStyleAndWeight = FontStyle.Bold;
+        languageTitle.style.marginTop = 16;
+        languageTitle.style.marginBottom = 6;
+        root.Add(languageTitle);
+
+        List<string> languageChoices = new List<string> { "한국어", "English" };
+        DropdownField languageDropdown = new DropdownField("응답 언어", languageChoices, owner.Language);
+        languageDropdown.tooltip = "메시지에서 특정 언어를 요청하지 않으면 이 언어로 응답합니다.";
+        root.Add(languageDropdown);
+        languageDropdown.RegisterValueChangedCallback(_ => owner.Language = languageDropdown.index);
     }
 }

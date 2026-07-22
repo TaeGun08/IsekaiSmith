@@ -6,6 +6,17 @@
 
 ---
 
+## 2026-07-22 (18) 다크/라이트 테마 + 응답 언어 설정 + 토큰 사용량 표시
+
+1) `ClaudeCompanionStyles.Light.uss` 신규 — `.root.theme-light` 스코프로 주요 표면(배경/텍스트/
+버블/입력창 등) 오버라이드, 클래스 토글만으로 즉시 전환(`ApplyTheme`). 2) 설정창에 "테마"(다크/
+라이트), "언어"(한국어/English) 드롭다운 추가 — `Theme`/`Language` 프로퍼티, `[SerializeField]`로
+영속. 언어 설정은 `CompanionPreferences.ResponseLanguage`(정적, OnEnable마다 재동기화)로 미러링되고,
+`CompanionSession.SendNow`가 실제 CLI 전송 텍스트 앞에 언어 지시문을 붙임(표시/로그 텍스트는 원문
+유지). 3) `ClaudeSessionRunner`의 "result" 이벤트에서 `usage` 파싱 → `OnUsage` 이벤트 →
+`CompanionSession.TotalTokens` 누적 → 채팅 헤더에 `token-usage-label`로 "토큰 12.3K" 표시.
+컴파일 0건(read_console), 도메인 리로드는 다음 턴에 확정.
+
 ## 2026-07-16 (17) 재실행 시 채팅 하단 스크롤 + 입력창 Ctrl+Z/휠 스크롤
 
 1) `ScrollChatToBottom()`: 단발성 지연 대신 즉시+50ms+200ms 3회 `scrollOffset =

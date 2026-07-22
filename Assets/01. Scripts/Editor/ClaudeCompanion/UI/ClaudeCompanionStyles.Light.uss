@@ -1,0 +1,129 @@
+/* Light theme overrides (2026-07-22 request). Loaded alongside the base (dark) stylesheet at
+   all times and gated by the ".theme-light" class on root, toggled from ClaudeCompanionWindow's
+   Theme setting - selectors here are deliberately scoped under ".root.theme-light" (3 classes)
+   so they win over the base file's plain ".chat-area" etc (1 class) on specificity alone,
+   regardless of stylesheet load order. Only the surfaces that actually read as "dark" get an
+   override; semantic/state colors (busy/idle/running/stopped, bridge button, character stage
+   activity colors) are left as-is since those aren't part of the light/dark distinction. */
+
+.root.theme-light {
+    background-color: rgb(245, 243, 241);
+}
+
+.root.theme-light .sidebar-title,
+.root.theme-light .stepper-title {
+    color: rgb(40, 38, 36);
+}
+
+.root.theme-light .vertical-divider,
+.root.theme-light .horizontal-divider {
+    background-color: rgba(0, 0, 0, 0.08);
+}
+
+.root.theme-light .session-row:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.root.theme-light .session-row--active {
+    background-color: rgba(0, 0, 0, 0.06);
+}
+
+.root.theme-light .session-row--active:hover {
+    background-color: rgba(0, 0, 0, 0.09);
+}
+
+.root.theme-light .session-label {
+    color: rgb(96, 90, 84);
+}
+
+.root.theme-light .session-label--active {
+    color: rgb(30, 28, 27);
+}
+
+.root.theme-light .empty-state-label {
+    color: rgb(60, 56, 52);
+}
+
+.root.theme-light .character-stage {
+    background-color: rgb(255, 255, 255);
+    border-top-color: rgba(0, 0, 0, 0.06);
+}
+
+.root.theme-light .stage-state-label {
+    color: rgb(70, 65, 61);
+}
+
+.root.theme-light .stepper-section {
+    background-color: rgb(255, 255, 255);
+    border-top-color: rgba(0, 0, 0, 0.06);
+}
+
+.root.theme-light .stepper-placeholder {
+    color: rgb(140, 132, 124);
+}
+
+.root.theme-light .step-chip-label {
+    color: rgb(60, 56, 52);
+}
+
+.root.theme-light .bridge-label {
+    color: rgb(96, 90, 84);
+}
+
+.root.theme-light .chat-area {
+    background-color: rgb(255, 255, 255);
+    border-top-color: rgba(0, 0, 0, 0.06);
+}
+
+.root.theme-light .chat-search-field-inner {
+    background-color: rgb(238, 235, 232);
+    color: rgb(30, 28, 27);
+}
+
+.root.theme-light .chat-no-results-label,
+.root.theme-light .pending-count-label,
+.root.theme-light .token-usage-label {
+    color: rgb(140, 132, 124);
+}
+
+.root.theme-light .chat-bubble--claude {
+    background-color: rgb(232, 229, 226);
+}
+
+.root.theme-light .chat-bubble-role {
+    color: rgb(70, 90, 120);
+}
+
+.root.theme-light .chat-bubble-text {
+    color: rgb(30, 28, 27);
+}
+
+.root.theme-light .chat-code-block {
+    background-color: rgb(240, 238, 235);
+}
+
+.root.theme-light .chat-code-text {
+    color: rgb(50, 90, 70);
+}
+
+.root.theme-light .chat-image-container {
+    background-color: rgb(238, 235, 232);
+}
+
+.root.theme-light .chat-input-inner {
+    background-color: rgb(238, 235, 232);
+    color: rgb(30, 28, 27);
+}
+
+.root.theme-light .stage-thought-bubble {
+    border-color: rgba(0, 0, 0, 0.15);
+    background-color: rgba(0, 0, 0, 0.06);
+}
+
+.root.theme-light .stage-thought-tail {
+    background-color: rgba(0, 0, 0, 0.09);
+}
+
+.root.theme-light .stage-thought-dot {
+    background-color: rgba(60, 56, 52, 0.8);
+}

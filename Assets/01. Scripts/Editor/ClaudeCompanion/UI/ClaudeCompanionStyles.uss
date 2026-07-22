@@ -473,6 +473,13 @@
     border-bottom-width: 0;
 }
 
+.token-usage-label {
+    font-size: 10px;
+    color: rgb(150, 143, 137);
+    margin-right: 6px;
+    -unity-text-align: middle-right;
+}
+
 .chat-export-button {
     width: 60px;
     height: 18px;

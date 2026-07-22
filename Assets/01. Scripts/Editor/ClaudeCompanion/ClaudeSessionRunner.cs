@@ -7,6 +7,27 @@ using System.Text;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 
+// Token counts from one turn's "result" event (stream-json). Cache tokens are counted
+// separately from the CLI's own cost accounting, but for a simple "how much did this use"
+// display, all four buckets are real tokens spent - see TokenUsage.Total.
+public readonly struct TokenUsage
+{
+    public readonly long InputTokens;
+    public readonly long OutputTokens;
+    public readonly long CacheCreationTokens;
+    public readonly long CacheReadTokens;
+
+    public TokenUsage(long inputTokens, long outputTokens, long cacheCreationTokens, long cacheReadTokens)
+    {
+        InputTokens = inputTokens;
+        OutputTokens = outputTokens;
+        CacheCreationTokens = cacheCreationTokens;
+        CacheReadTokens = cacheReadTokens;
+    }
+
+    public long Total => InputTokens + OutputTokens + CacheCreationTokens + CacheReadTokens;
+}
+
 public class ClaudeSessionRunner
 {
     public event Action<string> OnSessionStarted;
@@ -14,6 +35,7 @@ public class ClaudeSessionRunner
     public event Action<string> OnToolActivity;
     public event Action OnTurnComplete;
     public event Action<string> OnError;
+    public event Action<TokenUsage> OnUsage;
 
     // If a turn produces no output at all for this long, the claude process is assumed
     // stuck. Without this, a hung process keeps LockReloadAssemblies held forever, which
@@ -291,6 +313,15 @@ private static string cachedClaudePath;
         }
         else if (type == "result")
         {
+            JToken usage = json["usage"];
+            if (usage != null)
+            {
+                OnUsage?.Invoke(new TokenUsage(
+                    usage.Value<long?>("input_tokens") ?? 0,
+                    usage.Value<long?>("output_tokens") ?? 0,
+                    usage.Value<long?>("cache_creation_input_tokens") ?? 0,
+                    usage.Value<long?>("cache_read_input_tokens") ?? 0));
+            }
             OnTurnComplete?.Invoke();
         }
         else if (type == "system")
