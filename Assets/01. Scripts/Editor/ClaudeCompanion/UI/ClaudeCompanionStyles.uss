@@ -242,16 +242,74 @@
 
 .stage-monitor-body {
     position: absolute;
-    width: 30px;
-    height: 24px;
+    width: 42px;
+    height: 32px;
     border-radius: 3px;
 }
 
 .stage-monitor-screen {
     position: absolute;
-    width: 24px;
-    height: 18px;
+    width: 34px;
+    height: 24px;
     border-radius: 1px;
+}
+
+.stage-monitor-stand {
+    position: absolute;
+    border-radius: 1px;
+}
+
+.stage-monitor-base {
+    position: absolute;
+    border-radius: 2px;
+}
+
+.stage-keyboard {
+    position: absolute;
+    border-radius: 1px;
+}
+
+.stage-mug {
+    position: absolute;
+    border-radius: 2px;
+}
+
+.stage-book {
+    position: absolute;
+    width: 14px;
+    height: 10px;
+    border-radius: 1px;
+    background-color: rgb(196, 92, 78);
+}
+
+.stage-loader-ring {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border-width: 2px;
+    border-color: rgb(255, 230, 210);
+    border-top-color: rgba(0, 0, 0, 0);
+    background-color: rgba(0, 0, 0, 0);
+}
+
+.stage-code-line {
+    position: absolute;
+    height: 2px;
+    border-radius: 1px;
+    background-color: rgba(255, 255, 255, 0.55);
+}
+
+.stage-sparkle {
+    position: absolute;
+    font-size: 12px;
+    color: rgb(255, 224, 130);
+    -unity-text-align: middle-center;
+}
+
+.stage-sweat-drop {
+    position: absolute;
+    background-color: rgb(120, 190, 230);
 }
 
 .stage-plant-pot {

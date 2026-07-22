@@ -52,15 +52,47 @@ public class CharacterStageElement : VisualElement
     // itself, so it costs nothing extra beyond a few more style writes per tick.
     private const float DeskHeight = 7f;
     private const float DeskWidthRatio = 0.92f;
-    private const float MonitorOffsetX = 72f;
-    private const float MonitorBodyWidth = 30f;
-    private const float MonitorBodyHeight = 24f;
-    private const float MonitorScreenInset = 3f;
+    private const float MonitorOffsetX = 74f;
+    // Bumped up from 30x24 - at the old size the monitor read as an unrecognizable dark blob
+    // rather than a PC (user report, 2026-07-23: "PC 모양이 너무 작아서 PC인지 티도 안나"). A
+    // stand+base under it (below) is what actually sells "screen sitting on the desk" though -
+    // the old version had the monitor's bottom edge flush with the desk with nothing connecting
+    // them.
+    private const float MonitorBodyWidth = 42f;
+    private const float MonitorBodyHeight = 32f;
+    private const float MonitorScreenInset = 4f;
+    private const float MonitorStandWidth = 6f;
+    private const float MonitorStandHeight = 6f;
+    private const float MonitorBaseWidth = 18f;
+    private const float MonitorBaseHeight = 3f;
+    private const float KeyboardWidth = 26f;
+    private const float KeyboardHeight = 5f;
+    private const float MugSize = 8f;
     private const float PlantOffsetX = 68f;
     private static readonly Color DeskColor = new Color(0.30f, 0.20f, 0.14f);
     private static readonly Color MonitorBodyColor = new Color(0.16f, 0.15f, 0.15f);
+    private static readonly Color MonitorStandColor = new Color(0.12f, 0.11f, 0.11f);
+    private static readonly Color KeyboardColor = new Color(0.20f, 0.19f, 0.18f);
+    private static readonly Color MugColor = new Color(0.75f, 0.42f, 0.30f);
     private static readonly Color PlantPotColor = new Color(0.55f, 0.30f, 0.20f);
     private static readonly Color PlantLeafColor = new Color(0.30f, 0.56f, 0.32f);
+
+    // In-place "what am I actually doing" acting (option A) - the 2026-07-23 mockup's C+A
+    // walking hybrid read as more confusing/ambiguous in practice than the original stationary
+    // character (user report: "캐릭터 애니메이션이 더 애매해졌어"), so locomotion was pulled back
+    // out entirely; the character stays put and acts out each activity in place instead. This is
+    // deliberately the *only* motion system now, layered on the existing bob/color/ring system.
+    private const float HandSize = 6f;
+    private const float BookWidth = 14f;
+    private const float BookHeight = 10f;
+    private const float LoaderSize = 14f;
+    private const int CodeLineCount = 3;
+    private const int SparkleCount = 3;
+    private const int SweatDropCount = 2;
+    // Gentle "alive while standing still" sway - gives Idle/Thinking some life without the
+    // spatial repositioning that made the walk version feel busy/unclear.
+    private const float SwayAmplitudeDegrees = 2.5f;
+    private const float SwaySpeed = 0.8f;
 
     // Character sits a fixed distance above the desk line instead of at the stage's vertical
     // center - so expanding the stage (see Expanded below) only adds empty room *above* the
@@ -77,6 +109,10 @@ public class CharacterStageElement : VisualElement
     private readonly VisualElement desk;
     private readonly VisualElement monitorBody;
     private readonly VisualElement monitorScreen;
+    private readonly VisualElement monitorStand;
+    private readonly VisualElement monitorBase;
+    private readonly VisualElement keyboard;
+    private readonly VisualElement mug;
     private readonly VisualElement plantPot;
     private readonly VisualElement[] plantLeaves;
     private readonly VisualElement roomBackdrop;
@@ -84,6 +120,15 @@ public class CharacterStageElement : VisualElement
     private readonly VisualElement bodyShine;
     private readonly Button expandButton;
     private bool isExpanded;
+
+    // In-place acting state (2026-07-23, option A).
+    private readonly VisualElement handLeft;
+    private readonly VisualElement handRight;
+    private readonly VisualElement book;
+    private readonly VisualElement loaderRing;
+    private readonly VisualElement[] codeLines;
+    private readonly VisualElement[] sparkles;
+    private readonly VisualElement[] sweatDrops;
 
     private readonly VisualElement haloOuter;
     private readonly VisualElement haloInner;
@@ -143,6 +188,21 @@ public class CharacterStageElement : VisualElement
         desk.pickingMode = PickingMode.Ignore;
         Add(desk);
 
+        // Stand + base under the monitor - without these the old monitor just floated flush
+        // against the desk with nothing visually connecting them, part of why it didn't read as
+        // a PC (2026-07-23 request).
+        monitorBase = new VisualElement();
+        monitorBase.AddToClassList("stage-monitor-base");
+        monitorBase.style.backgroundColor = MonitorStandColor;
+        monitorBase.pickingMode = PickingMode.Ignore;
+        Add(monitorBase);
+
+        monitorStand = new VisualElement();
+        monitorStand.AddToClassList("stage-monitor-stand");
+        monitorStand.style.backgroundColor = MonitorStandColor;
+        monitorStand.pickingMode = PickingMode.Ignore;
+        Add(monitorStand);
+
         monitorBody = new VisualElement();
         monitorBody.AddToClassList("stage-monitor-body");
         monitorBody.style.backgroundColor = MonitorBodyColor;
@@ -153,6 +213,36 @@ public class CharacterStageElement : VisualElement
         monitorScreen.AddToClassList("stage-monitor-screen");
         monitorScreen.pickingMode = PickingMode.Ignore;
         Add(monitorScreen);
+
+        // Code lines only shown while Editing - see Tick.
+        codeLines = new VisualElement[CodeLineCount];
+        for (int i = 0; i < codeLines.Length; i++)
+        {
+            VisualElement line = new VisualElement();
+            line.AddToClassList("stage-code-line");
+            line.style.display = DisplayStyle.None;
+            codeLines[i] = line;
+            Add(line);
+        }
+
+        // Spinning loader ring on the screen only while Running - see Tick.
+        loaderRing = new VisualElement();
+        loaderRing.AddToClassList("stage-loader-ring");
+        loaderRing.style.display = DisplayStyle.None;
+        loaderRing.pickingMode = PickingMode.Ignore;
+        Add(loaderRing);
+
+        keyboard = new VisualElement();
+        keyboard.AddToClassList("stage-keyboard");
+        keyboard.style.backgroundColor = KeyboardColor;
+        keyboard.pickingMode = PickingMode.Ignore;
+        Add(keyboard);
+
+        mug = new VisualElement();
+        mug.AddToClassList("stage-mug");
+        mug.style.backgroundColor = MugColor;
+        mug.pickingMode = PickingMode.Ignore;
+        Add(mug);
 
         plantPot = new VisualElement();
         plantPot.AddToClassList("stage-plant-pot");
@@ -242,6 +332,25 @@ public class CharacterStageElement : VisualElement
         glassesBridge.pickingMode = PickingMode.Ignore;
         Add(glassesBridge);
 
+        // In-place acting props (option A of the 2026-07-23 mockup) - hands bounce while
+        // Editing (typing), a book appears while Reading. All hidden by default, shown/moved in
+        // Tick only for their matching activity.
+        handLeft = MakeCircle(HandSize);
+        handLeft.style.backgroundColor = EditingColorB;
+        handLeft.style.display = DisplayStyle.None;
+        Add(handLeft);
+
+        handRight = MakeCircle(HandSize);
+        handRight.style.backgroundColor = EditingColorB;
+        handRight.style.display = DisplayStyle.None;
+        Add(handRight);
+
+        book = new VisualElement();
+        book.AddToClassList("stage-book");
+        book.style.display = DisplayStyle.None;
+        book.pickingMode = PickingMode.Ignore;
+        Add(book);
+
         // Thought bubble - shown only while Thinking (see Tick): a small cloud above the head
         // with two trailing dots and a gentle "..." pulse inside, instead of relying on mouth
         // motion to sell "thinking" (the mouth's own chatter animation read as fish-like
@@ -269,6 +378,32 @@ public class CharacterStageElement : VisualElement
             dot.AddToClassList("stage-thought-dot");
             thoughtDots[i] = dot;
             Add(dot);
+        }
+
+        // Success sparkles - a few "✦" glyphs that pop briefly around the head on FlashSuccess
+        // (see Tick), on top of the existing scale-pop reaction.
+        sparkles = new VisualElement[SparkleCount];
+        for (int i = 0; i < sparkles.Length; i++)
+        {
+            Label sparkle = new Label("✦");
+            sparkle.AddToClassList("stage-sparkle");
+            sparkle.style.display = DisplayStyle.None;
+            sparkle.pickingMode = PickingMode.Ignore;
+            sparkles[i] = sparkle;
+            Add(sparkle);
+        }
+
+        // Error sweat drops - a couple of small droplets that appear and fall briefly on
+        // FlashError, next to the existing shake reaction.
+        sweatDrops = new VisualElement[SweatDropCount];
+        for (int i = 0; i < sweatDrops.Length; i++)
+        {
+            VisualElement drop = MakeCircle(5f);
+            drop.RemoveFromClassList("stage-circle");
+            drop.AddToClassList("stage-sweat-drop");
+            drop.style.display = DisplayStyle.None;
+            sweatDrops[i] = drop;
+            Add(drop);
         }
 
         orbitDots = new VisualElement[OrbitDotCount];
@@ -390,10 +525,41 @@ public class CharacterStageElement : VisualElement
             roomBackdrop.style.height = deskTop;
         }
 
-        monitorBody.style.left = center.x - MonitorOffsetX - MonitorBodyWidth / 2f;
-        monitorBody.style.top = deskTop - MonitorBodyHeight;
-        monitorScreen.style.left = center.x - MonitorOffsetX - MonitorBodyWidth / 2f + MonitorScreenInset;
-        monitorScreen.style.top = deskTop - MonitorBodyHeight + MonitorScreenInset;
+        // Stand + base sit between the monitor and the desk surface so it visibly reads as
+        // "a screen propped up on the desk" instead of a dark rectangle flush against it
+        // (2026-07-23 request). monitorLeft/monitorTop etc. are cached here (room-fixed, not
+        // affected by the character's own walk offset below) for the code-line/loader-ring
+        // acting props further down.
+        float monitorCenterX = center.x - MonitorOffsetX;
+        float monitorBaseTop = deskTop - MonitorBaseHeight;
+        float monitorStandTop = monitorBaseTop - MonitorStandHeight;
+        float monitorTop = monitorStandTop - MonitorBodyHeight;
+        float monitorLeft = monitorCenterX - MonitorBodyWidth / 2f;
+        float screenLeft = monitorLeft + MonitorScreenInset;
+        float screenTop = monitorTop + MonitorScreenInset;
+        float screenWidth = MonitorBodyWidth - MonitorScreenInset * 2f;
+        float screenHeight = MonitorBodyHeight - MonitorScreenInset * 2f;
+
+        monitorBase.style.left = monitorCenterX - MonitorBaseWidth / 2f;
+        monitorBase.style.top = monitorBaseTop;
+        monitorBase.style.width = MonitorBaseWidth;
+        monitorBase.style.height = MonitorBaseHeight;
+
+        monitorStand.style.left = monitorCenterX - MonitorStandWidth / 2f;
+        monitorStand.style.top = monitorStandTop;
+        monitorStand.style.width = MonitorStandWidth;
+        monitorStand.style.height = MonitorStandHeight;
+
+        monitorBody.style.left = monitorLeft;
+        monitorBody.style.top = monitorTop;
+        monitorScreen.style.left = screenLeft;
+        monitorScreen.style.top = screenTop;
+
+        keyboard.style.left = monitorCenterX - KeyboardWidth / 2f;
+        keyboard.style.top = deskTop - KeyboardHeight;
+
+        mug.style.left = monitorLeft + MonitorBodyWidth + 8f;
+        mug.style.top = deskTop - MugSize;
 
         float potHeight = 10f;
         float potWidth = 16f;
@@ -465,10 +631,75 @@ public class CharacterStageElement : VisualElement
         body.style.left = center.x - BodySize / 2f + shakeX;
         body.style.top = center.y - BodySize / 2f + bobY;
 
+        // Success sparkles - a few "✦" glyphs popping around the head, on top of the existing
+        // scale-pop reaction (reuses the same flash progress).
+        bool showSparkles = flashing && !flashIsError;
+        for (int i = 0; i < sparkles.Length; i++)
+        {
+            VisualElement sparkle = sparkles[i];
+            sparkle.style.display = showSparkles ? DisplayStyle.Flex : DisplayStyle.None;
+            if (!showSparkles)
+            {
+                continue;
+            }
+            float sparkleProgress = Mathf.Clamp01((float)(t - flashStart) / (float)SuccessFlashSeconds);
+            float sparkleAngle = (i / (float)sparkles.Length) * Mathf.PI * 2f - Mathf.PI / 2f;
+            float sparkleRadius = BodySize / 2f + 6f + sparkleProgress * 14f;
+            sparkle.style.left = center.x + Mathf.Cos(sparkleAngle) * sparkleRadius - 6f;
+            sparkle.style.top = center.y + bobY + Mathf.Sin(sparkleAngle) * sparkleRadius * 0.7f - 6f;
+            sparkle.style.opacity = 1f - sparkleProgress;
+        }
+
+        // Error sweat drops - a couple of droplets that appear near the head and fall slightly
+        // over the error flash, next to the existing shake reaction.
+        bool showSweat = flashing && flashIsError;
+        for (int i = 0; i < sweatDrops.Length; i++)
+        {
+            VisualElement drop = sweatDrops[i];
+            drop.style.display = showSweat ? DisplayStyle.Flex : DisplayStyle.None;
+            if (!showSweat)
+            {
+                continue;
+            }
+            float dropProgress = Mathf.Clamp01((float)(t - flashStart) / (float)ErrorFlashSeconds);
+            float dropSide = i == 0 ? -1f : 1f;
+            drop.style.left = center.x + dropSide * (BodySize / 2f - 4f) - 2.5f;
+            drop.style.top = center.y + bobY - BodySize / 2f + 2f + dropProgress * 16f;
+            drop.style.opacity = 1f - dropProgress;
+        }
+
         // The monitor's own "screen" glows with whatever color the character currently is -
         // ties the little desk setup into the same state signal instead of being pure static
         // dressing, at no extra cost (reusing bodyColor).
         monitorScreen.style.backgroundColor = bodyColor;
+
+        // Editing: a few "code line" ticks scroll on the screen instead of a flat color fill -
+        // in-place acting (option A of the 2026-07-23 mockup), room-fixed like the monitor
+        // itself (not the character's walk offset).
+        bool showCodeLines = !flashing && activity == CharacterActivity.Editing;
+        for (int i = 0; i < codeLines.Length; i++)
+        {
+            VisualElement line = codeLines[i];
+            line.style.display = showCodeLines ? DisplayStyle.Flex : DisplayStyle.None;
+            if (!showCodeLines)
+            {
+                continue;
+            }
+            float linePhase = (float)(t * 3.0) + i * 0.7f;
+            line.style.width = screenWidth * (0.35f + 0.35f * (0.5f + 0.5f * Mathf.Sin(linePhase)));
+            line.style.left = screenLeft + 1.5f;
+            line.style.top = screenTop + 2f + i * (screenHeight / (codeLines.Length + 1));
+        }
+
+        // Running: a spinning loader ring on the screen instead of a flat color fill.
+        bool showLoader = !flashing && activity == CharacterActivity.Running;
+        loaderRing.style.display = showLoader ? DisplayStyle.Flex : DisplayStyle.None;
+        if (showLoader)
+        {
+            loaderRing.style.left = monitorCenterX - LoaderSize / 2f;
+            loaderRing.style.top = screenTop + screenHeight / 2f - LoaderSize / 2f;
+            loaderRing.style.rotate = new Rotate(new Angle((float)t * 260f, AngleUnit.Degree));
+        }
 
         // Squash & stretch tied to the bob itself (classic animation principle) instead of a
         // separate timer, so it can't drift out of sync: stretched (taller/narrower) near the
@@ -476,6 +707,15 @@ public class CharacterStageElement : VisualElement
         float normalizedBob = bobAmplitude > 0f ? bobY / bobAmplitude : 0f;
         float squash = busy ? normalizedBob * 0.07f : normalizedBob * 0.03f;
         body.style.scale = new Scale(new Vector3(bodyScale * (1f - squash), bodyScale * (1f + squash), 1f));
+
+        // Gentle standing-still sway (Idle/Thinking only - Editing/Running/Reading already have
+        // their own acting cues below, and flashing has its own shake/pop) so the character
+        // still reads as "alive" without needing to actually move around the stage (the walking
+        // version tried for this and read as more confusing than lively - user report,
+        // 2026-07-23: "캐릭터 애니메이션이 더 애매해졌어").
+        bool showSway = !flashing && (activity == CharacterActivity.Idle || activity == CharacterActivity.Thinking);
+        float swayDegrees = showSway ? Mathf.Sin((float)t * SwaySpeed) * SwayAmplitudeDegrees : 0f;
+        body.style.rotate = new Rotate(new Angle(swayDegrees, AngleUnit.Degree));
 
         // Glossy highlight, fixed offset from the body's own top-left regardless of bob (moves
         // with the body, doesn't independently animate).
@@ -561,6 +801,36 @@ public class CharacterStageElement : VisualElement
             glassesBridge.style.top = eyeCenterY - 0.75f;
         }
 
+        // In-place acting props (option A): hands bounce like typing while Editing, a small
+        // book appears while Reading - both hang just below the body, independent of the
+        // glasses costume above.
+        bool showHands = !flashing && activity == CharacterActivity.Editing;
+        handLeft.style.display = showHands ? DisplayStyle.Flex : DisplayStyle.None;
+        handRight.style.display = showHands ? DisplayStyle.Flex : DisplayStyle.None;
+        if (showHands)
+        {
+            float handBobLeft = Mathf.Sin((float)t * 14f) * 2.5f;
+            float handBobRight = Mathf.Sin((float)t * 14f + Mathf.PI) * 2.5f;
+            float handBaseY = center.y + bobY + MouthYOffset + 8f;
+            handLeft.style.left = center.x - 9f - HandSize / 2f + shakeX;
+            handLeft.style.top = handBaseY + handBobLeft;
+            handRight.style.left = center.x + 9f - HandSize / 2f + shakeX;
+            handRight.style.top = handBaseY + handBobRight;
+        }
+
+        bool showBook = !flashing && activity == CharacterActivity.Reading;
+        book.style.display = showBook ? DisplayStyle.Flex : DisplayStyle.None;
+        if (showBook)
+        {
+            // A slow width pulse reads as a page being turned every couple of seconds, instead
+            // of a static prop.
+            float pageFlip = 0.6f + 0.4f * Mathf.Abs(Mathf.Sin((float)t * 1.4f));
+            float bookWidth = BookWidth * pageFlip;
+            book.style.width = bookWidth;
+            book.style.left = center.x - bookWidth / 2f + shakeX;
+            book.style.top = center.y + bobY + MouthYOffset + 4f;
+        }
+
         // Thought bubble - shown only while genuinely Thinking (not while a concrete tool is
         // running, which already has its own orbit-dot/glasses tells).
         if (activity == CharacterActivity.Thinking)
@@ -587,7 +857,10 @@ public class CharacterStageElement : VisualElement
             thoughtTailSmall.style.top = headTopY - 4f;
 
             float bubbleLeft = headTopX + 8f - ThoughtBubbleWidth / 2f + shakeX;
-            float bubbleTop = headTopY - ThoughtBubbleHeight - 15f;
+            // Clamped so an upward bob doesn't push the bubble's top edge past the stage's own
+            // top boundary (the stage clips overflow - user report, 2026-07-23: "생각할 때
+            // 말풍선 모양이 잘리다 말았어").
+            float bubbleTop = Mathf.Max(2f, headTopY - ThoughtBubbleHeight - 15f);
             thoughtBubble.style.left = bubbleLeft;
             thoughtBubble.style.top = bubbleTop;
 

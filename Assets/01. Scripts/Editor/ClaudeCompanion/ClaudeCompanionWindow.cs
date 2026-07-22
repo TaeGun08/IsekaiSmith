@@ -29,11 +29,14 @@ public class ClaudeCompanionWindow : EditorWindow
     // hover rule, so they can't just live in the stylesheet - see UpdateBridgeControlsVisual
     // for why the Start/Stop button itself uses toggled USS classes instead (inline style beats
     // USS specificity, including :hover, so a button colored via C# can never show a hover tint).
-    // Standard context window for current Claude models used via the CLI - shown as the "max"
-    // side of the token-usage label (e.g. "6.5K / 200K") purely as a visual budget reference for
-    // how full this conversation's context is, not a value read back from the CLI itself (it
-    // doesn't report one on stream-json "result" events).
-    private const long ContextWindowTokens = 200_000;
+    // "Max" side of the token-usage label (e.g. "230K / 1M") - a visual budget reference only,
+    // not a value the CLI reports back anywhere (stream-json events don't carry a context-limit
+    // field). 200,000 (the plain Sonnet default) was the first guess here, but this window's own
+    // live session was independently measured at 230,827 while still responding normally
+    // (2026-07-23 user report "토큰량이 정확하게 안 떠") - i.e. that guess was already wrong, this
+    // conversation is clearly running under a larger (long-context, up to 1M token) window. Using
+    // 1,000,000 instead so the fraction can't read as "over 100% and still working" again.
+    private const long ContextWindowTokens = 1_000_000;
 
     private static readonly Color StoppedColor = new Color(0.35f, 0.75f, 0.45f);
     private static readonly Color BridgeDotOffColor = new Color(0.6f, 0.6f, 0.6f);
