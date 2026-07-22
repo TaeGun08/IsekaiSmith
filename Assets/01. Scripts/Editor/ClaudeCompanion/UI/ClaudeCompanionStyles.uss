@@ -678,10 +678,13 @@
     margin-top: 4px;
 }
 
+/* 2026-07-16: gray-family instead of red/green so enabled/disabled reads by brightness, not
+   hue - the old coral send-button lost saturation while disabled and became easy to mistake
+   for the (semantically-different) cancel-button's own muted red. */
 .send-button {
-    width: 60px;
+    width: 64px;
     height: 24px;
-    background-color: rgb(217, 119, 87);
+    background-color: rgb(90, 90, 96);
     color: rgb(255, 255, 255);
     -unity-font-style: bold;
     transition-property: background-color, scale;
@@ -689,27 +692,43 @@
 }
 
 .send-button:hover {
-    background-color: rgb(230, 138, 108);
+    background-color: rgb(108, 108, 114);
 }
 
 .send-button:active {
     scale: 0.96;
 }
 
+.send-button:disabled {
+    background-color: rgb(42, 40, 39);
+    color: rgba(255, 255, 255, 0.3);
+}
+
+/* Same gray family as send-button but a distinguishable warmer lean + a visible border while
+   actually cancelable, so "can I click this right now" reads clearly at a glance instead of
+   both buttons looking like an ambiguous flat gray blob. */
 .cancel-button {
-    width: 50px;
+    width: 54px;
     height: 24px;
     margin-left: 4px;
-    background-color: rgba(196, 82, 82, 0.18);
-    color: rgb(230, 190, 190);
+    background-color: rgb(96, 88, 84);
+    color: rgb(255, 255, 255);
+    border-width: 1px;
+    border-color: rgb(150, 138, 132);
     transition-property: background-color, scale;
     transition-duration: 120ms;
 }
 
 .cancel-button:hover {
-    background-color: rgba(196, 82, 82, 0.32);
+    background-color: rgb(114, 104, 98);
 }
 
 .cancel-button:active {
     scale: 0.96;
+}
+
+.cancel-button:disabled {
+    background-color: rgb(38, 36, 35);
+    color: rgba(255, 255, 255, 0.25);
+    border-color: rgba(0, 0, 0, 0);
 }

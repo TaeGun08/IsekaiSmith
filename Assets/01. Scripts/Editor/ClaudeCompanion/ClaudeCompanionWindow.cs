@@ -1166,7 +1166,7 @@ public class ClaudeCompanionWindow : EditorWindow
         VisualElement buttonsRow = new VisualElement();
         buttonsRow.AddToClassList("chat-buttons-row");
 
-        sendButton = new Button(TrySend) { text = "Send" };
+        sendButton = new Button(TrySend) { text = "보내기" };
         sendButton.AddToClassList("send-button");
         buttonsRow.Add(sendButton);
 
