@@ -29,6 +29,12 @@ public class ClaudeCompanionWindow : EditorWindow
     // hover rule, so they can't just live in the stylesheet - see UpdateBridgeControlsVisual
     // for why the Start/Stop button itself uses toggled USS classes instead (inline style beats
     // USS specificity, including :hover, so a button colored via C# can never show a hover tint).
+    // Standard context window for current Claude models used via the CLI - shown as the "max"
+    // side of the token-usage label (e.g. "6.5K / 200K") purely as a visual budget reference for
+    // how full this conversation's context is, not a value read back from the CLI itself (it
+    // doesn't report one on stream-json "result" events).
+    private const long ContextWindowTokens = 200_000;
+
     private static readonly Color StoppedColor = new Color(0.35f, 0.75f, 0.45f);
     private static readonly Color BridgeDotOffColor = new Color(0.6f, 0.6f, 0.6f);
     private static readonly Color StepErrorColor = new Color(0.92f, 0.26f, 0.26f);
@@ -1407,7 +1413,8 @@ public class ClaudeCompanionWindow : EditorWindow
         pendingCountLabel.text = pendingCount > 0 ? $"메시지 {pendingCount}개 전송 대기 중" : "";
         pendingCountLabel.style.display = pendingCount > 0 ? DisplayStyle.Flex : DisplayStyle.None;
 
-        tokenUsageLabel.text = $"토큰 {FormatTokenCount(ActiveSession.TotalTokens)}";
+        tokenUsageLabel.text =
+            $"토큰 {FormatTokenCount(ActiveSession.ContextTokens)} / {FormatTokenCount(ContextWindowTokens)}";
 
         UpdateSendControlsEnabled();
         ScrollChatToBottom();

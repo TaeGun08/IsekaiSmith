@@ -27,10 +27,16 @@ public class CompanionSession
     // so the stepper always shows "what just happened" instead of the entire session's history.
     public readonly List<string> CurrentTurnSteps = new List<string>();
 
-    // Running total across this conversation, from each turn's "result" event usage block -
-    // not persisted (resets on ResetForNewConversation/a fresh reload), same "cosmetic,
-    // fine to lose" treatment as CurrentActivity above.
-    public long TotalTokens { get; private set; }
+    // How many tokens the current conversation's context currently occupies - NOT a running
+    // sum of every API call's usage. Each Claude API call is stateless and resends the whole
+    // conversation so far as input, so a given call's usage already reflects the full context
+    // up to that point; adding successive calls' usage together would double/triple-count the
+    // same earlier content over and over (this is what made the first cut of this feature
+    // report wildly inflated numbers - 2026-07-22 user report "정확하게 표기가 안 되는 느낌").
+    // Overwritten (not accumulated) on every OnUsage event - see the ctor below. Not persisted
+    // (resets on ResetForNewConversation/a fresh reload), same "cosmetic, fine to lose"
+    // treatment as CurrentActivity above.
+    public long ContextTokens { get; private set; }
 
     private static readonly HashSet<string> ReadingTools = new HashSet<string>
         { "Read", "Glob", "Grep", "WebFetch", "WebSearch", "NotebookRead" };
@@ -126,7 +132,7 @@ public class CompanionSession
         };
         Runner.OnUsage += usage =>
         {
-            TotalTokens += usage.Total;
+            ContextTokens = usage.Total;
             Changed?.Invoke();
         };
         Runner.OnTurnComplete += AdvanceQueueOrNotify;
@@ -161,7 +167,7 @@ public class CompanionSession
         RestoredSessionId = null;
         CurrentActivity = CharacterActivity.Idle;
         CurrentTurnSteps.Clear();
-        TotalTokens = 0;
+        ContextTokens = 0;
         Changed?.Invoke();
     }
 

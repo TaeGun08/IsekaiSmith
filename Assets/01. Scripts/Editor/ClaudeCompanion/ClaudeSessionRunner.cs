@@ -286,7 +286,28 @@ private static string cachedClaudePath;
 
         if (type == "assistant" || type == "user")
         {
-            JArray content = json["message"]?["content"] as JArray;
+            JObject message = json["message"] as JObject;
+
+            // Each "assistant" line is one distinct model call in the agentic loop (initial
+            // reply, then one more per tool_use/tool_result round-trip), and the Anthropic
+            // message object it wraps carries that call's own "usage" - summing these as they
+            // arrive gives a live-updating total through the whole turn (tool calls included)
+            // instead of one jump at the very end. "result"'s own usage is the turn's aggregate
+            // total, so it's intentionally NOT also added here - that would double-count.
+            if (type == "assistant")
+            {
+                JToken usage = message?["usage"];
+                if (usage != null)
+                {
+                    OnUsage?.Invoke(new TokenUsage(
+                        usage.Value<long?>("input_tokens") ?? 0,
+                        usage.Value<long?>("output_tokens") ?? 0,
+                        usage.Value<long?>("cache_creation_input_tokens") ?? 0,
+                        usage.Value<long?>("cache_read_input_tokens") ?? 0));
+                }
+            }
+
+            JArray content = message?["content"] as JArray;
             if (content != null)
             {
                 foreach (JToken block in content)
@@ -313,15 +334,6 @@ private static string cachedClaudePath;
         }
         else if (type == "result")
         {
-            JToken usage = json["usage"];
-            if (usage != null)
-            {
-                OnUsage?.Invoke(new TokenUsage(
-                    usage.Value<long?>("input_tokens") ?? 0,
-                    usage.Value<long?>("output_tokens") ?? 0,
-                    usage.Value<long?>("cache_creation_input_tokens") ?? 0,
-                    usage.Value<long?>("cache_read_input_tokens") ?? 0));
-            }
             OnTurnComplete?.Invoke();
         }
         else if (type == "system")
