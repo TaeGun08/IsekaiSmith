@@ -7,27 +7,6 @@ using System.Text;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 
-// Token counts from one turn's "result" event (stream-json). Cache tokens are counted
-// separately from the CLI's own cost accounting, but for a simple "how much did this use"
-// display, all four buckets are real tokens spent - see TokenUsage.Total.
-public readonly struct TokenUsage
-{
-    public readonly long InputTokens;
-    public readonly long OutputTokens;
-    public readonly long CacheCreationTokens;
-    public readonly long CacheReadTokens;
-
-    public TokenUsage(long inputTokens, long outputTokens, long cacheCreationTokens, long cacheReadTokens)
-    {
-        InputTokens = inputTokens;
-        OutputTokens = outputTokens;
-        CacheCreationTokens = cacheCreationTokens;
-        CacheReadTokens = cacheReadTokens;
-    }
-
-    public long Total => InputTokens + OutputTokens + CacheCreationTokens + CacheReadTokens;
-}
-
 public class ClaudeSessionRunner
 {
     public event Action<string> OnSessionStarted;
@@ -35,7 +14,6 @@ public class ClaudeSessionRunner
     public event Action<string> OnToolActivity;
     public event Action OnTurnComplete;
     public event Action<string> OnError;
-    public event Action<TokenUsage> OnUsage;
 
     // If a turn produces no output at all for this long, the claude process is assumed
     // stuck. Without this, a hung process keeps LockReloadAssemblies held forever, which
@@ -287,25 +265,6 @@ private static string cachedClaudePath;
         if (type == "assistant" || type == "user")
         {
             JObject message = json["message"] as JObject;
-
-            // Each "assistant" line is one distinct model call in the agentic loop (initial
-            // reply, then one more per tool_use/tool_result round-trip), and the Anthropic
-            // message object it wraps carries that call's own "usage" - summing these as they
-            // arrive gives a live-updating total through the whole turn (tool calls included)
-            // instead of one jump at the very end. "result"'s own usage is the turn's aggregate
-            // total, so it's intentionally NOT also added here - that would double-count.
-            if (type == "assistant")
-            {
-                JToken usage = message?["usage"];
-                if (usage != null)
-                {
-                    OnUsage?.Invoke(new TokenUsage(
-                        usage.Value<long?>("input_tokens") ?? 0,
-                        usage.Value<long?>("output_tokens") ?? 0,
-                        usage.Value<long?>("cache_creation_input_tokens") ?? 0,
-                        usage.Value<long?>("cache_read_input_tokens") ?? 0));
-                }
-            }
 
             JArray content = message?["content"] as JArray;
             if (content != null)

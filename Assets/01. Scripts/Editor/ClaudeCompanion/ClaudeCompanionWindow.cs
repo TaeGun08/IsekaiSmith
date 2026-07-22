@@ -29,15 +29,6 @@ public class ClaudeCompanionWindow : EditorWindow
     // hover rule, so they can't just live in the stylesheet - see UpdateBridgeControlsVisual
     // for why the Start/Stop button itself uses toggled USS classes instead (inline style beats
     // USS specificity, including :hover, so a button colored via C# can never show a hover tint).
-    // "Max" side of the token-usage label (e.g. "230K / 1M") - a visual budget reference only,
-    // not a value the CLI reports back anywhere (stream-json events don't carry a context-limit
-    // field). 200,000 (the plain Sonnet default) was the first guess here, but this window's own
-    // live session was independently measured at 230,827 while still responding normally
-    // (2026-07-23 user report "토큰량이 정확하게 안 떠") - i.e. that guess was already wrong, this
-    // conversation is clearly running under a larger (long-context, up to 1M token) window. Using
-    // 1,000,000 instead so the fraction can't read as "over 100% and still working" again.
-    private const long ContextWindowTokens = 1_000_000;
-
     private static readonly Color StoppedColor = new Color(0.35f, 0.75f, 0.45f);
     private static readonly Color BridgeDotOffColor = new Color(0.6f, 0.6f, 0.6f);
     private static readonly Color StepErrorColor = new Color(0.92f, 0.26f, 0.26f);
@@ -111,12 +102,6 @@ public class ClaudeCompanionWindow : EditorWindow
         public string SessionKey;
         public string RestoredSessionId;
         public string DisplayName;
-        // Mirrors CompanionSession.ContextTokens so it survives a domain reload - previously
-        // NOT persisted anywhere, so every reload (i.e. after nearly every one of my own
-        // code-editing turns while developing this exact window) silently recreated a fresh
-        // CompanionSession with ContextTokens back at 0, which is exactly what read as "resets
-        // to 0 every time you finish a task" (user report, 2026-07-23).
-        public long ContextTokens;
     }
 
     [SerializeField] private List<SessionRecord> sessionRecords = new List<SessionRecord>();
@@ -235,7 +220,6 @@ public class ClaudeCompanionWindow : EditorWindow
     private VisualElement chatTrailingContainer;
     private int renderedHistoryCount;
     private Label pendingCountLabel;
-    private Label tokenUsageLabel;
     private TextField inputField;
     private Button sendButton;
     private Button cancelButton;
@@ -290,11 +274,10 @@ public class ClaudeCompanionWindow : EditorWindow
             try
             {
                 CompanionSession newSession = new CompanionSession(
-                    record.SessionKey, record.RestoredSessionId, projectRoot, record.ContextTokens);
+                    record.SessionKey, record.RestoredSessionId, projectRoot);
                 newSession.Changed += () =>
                 {
                     record.RestoredSessionId = newSession.RestoredSessionId;
-                    record.ContextTokens = newSession.ContextTokens;
                     SaveManifest();
                 };
                 newSession.Runner.OnTurnComplete += () => OnAnySessionTurnComplete(newSession);
@@ -700,7 +683,6 @@ public class ClaudeCompanionWindow : EditorWindow
             newSession.Changed += () =>
             {
                 record.RestoredSessionId = newSession.RestoredSessionId;
-                record.ContextTokens = newSession.ContextTokens;
                 SaveManifest();
             };
             newSession.Runner.OnTurnComplete += () => OnAnySessionTurnComplete(newSession);
@@ -747,7 +729,6 @@ public class ClaudeCompanionWindow : EditorWindow
         chatTrailingContainer = null;
         renderedHistoryCount = 0;
         pendingCountLabel = null;
-        tokenUsageLabel = null;
         inputField = null;
         sendButton = null;
         cancelButton = null;
@@ -1199,11 +1180,6 @@ public class ClaudeCompanionWindow : EditorWindow
         headerSpacer.AddToClassList("spacer");
         headerRow.Add(headerSpacer);
 
-        tokenUsageLabel = new Label();
-        tokenUsageLabel.AddToClassList("token-usage-label");
-        tokenUsageLabel.tooltip = "이 대화에서 사용한 총 토큰 수 (입력+출력+캐시)";
-        headerRow.Add(tokenUsageLabel);
-
         TextField searchField = new TextField { value = chatSearchQuery };
         searchField.AddToClassList("chat-search-field");
         searchField.tooltip = "대화 검색";
@@ -1441,27 +1417,8 @@ public class ClaudeCompanionWindow : EditorWindow
         pendingCountLabel.text = pendingCount > 0 ? $"메시지 {pendingCount}개 전송 대기 중" : "";
         pendingCountLabel.style.display = pendingCount > 0 ? DisplayStyle.Flex : DisplayStyle.None;
 
-        tokenUsageLabel.text =
-            $"토큰 {FormatTokenCount(ActiveSession.ContextTokens)} / {FormatTokenCount(ContextWindowTokens)}";
-
         UpdateSendControlsEnabled();
         ScrollChatToBottom();
-    }
-
-    // 12,400 -> "12.4K", 1,230,000 -> "1.23M" - a running per-turn "result" total can get into
-    // six figures fast once cache-read tokens are counted in, so this stays readable at a
-    // glance instead of a long raw digit string next to the search field.
-    private static string FormatTokenCount(long tokens)
-    {
-        if (tokens >= 1_000_000)
-        {
-            return (tokens / 1_000_000d).ToString("0.##") + "M";
-        }
-        if (tokens >= 1_000)
-        {
-            return (tokens / 1_000d).ToString("0.#") + "K";
-        }
-        return tokens.ToString();
     }
 
     private void ScrollChatToBottom()

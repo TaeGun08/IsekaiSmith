@@ -861,6 +861,12 @@ public class CharacterStageElement : VisualElement
             // top boundary (the stage clips overflow - user report, 2026-07-23: "생각할 때
             // 말풍선 모양이 잘리다 말았어").
             float bubbleTop = Mathf.Max(2f, headTopY - ThoughtBubbleHeight - 15f);
+            // width/height were never set here before (only left/top), so the bubble actually
+            // rendered at 0x0 - just the tail dots and "..." floated with no visible container
+            // around them, reading as "unfinished" rather than a thought bubble (user report,
+            // 2026-07-23: "말풍선인지도 모르겠어. 만들다 만 것 같아").
+            thoughtBubble.style.width = ThoughtBubbleWidth;
+            thoughtBubble.style.height = ThoughtBubbleHeight;
             thoughtBubble.style.left = bubbleLeft;
             thoughtBubble.style.top = bubbleTop;
 

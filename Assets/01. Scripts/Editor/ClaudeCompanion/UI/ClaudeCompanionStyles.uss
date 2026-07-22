@@ -326,16 +326,18 @@
 
 .stage-thought-bubble {
     position: absolute;
-    border-radius: 7px;
+    border-radius: 50%;
     border-width: 1px;
-    border-color: rgba(255, 255, 255, 0.25);
-    background-color: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.4);
+    background-color: rgba(255, 255, 255, 0.18);
 }
 
 .stage-thought-tail {
     position: absolute;
     border-radius: 50%;
-    background-color: rgba(255, 255, 255, 0.18);
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.35);
+    background-color: rgba(255, 255, 255, 0.16);
 }
 
 .stage-thought-dot {
@@ -529,13 +531,6 @@
     border-right-width: 0;
     border-top-width: 0;
     border-bottom-width: 0;
-}
-
-.token-usage-label {
-    font-size: 10px;
-    color: rgb(150, 143, 137);
-    margin-right: 6px;
-    -unity-text-align: middle-right;
 }
 
 .chat-export-button {
