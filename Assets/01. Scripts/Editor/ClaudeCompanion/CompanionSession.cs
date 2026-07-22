@@ -99,10 +99,11 @@ public class CompanionSession
     // RestoredSessionId) without this class needing to know anything about IMGUI.
     public event Action Changed;
 
-    public CompanionSession(string sessionKey, string restoredSessionId, string projectRoot)
+    public CompanionSession(string sessionKey, string restoredSessionId, string projectRoot, long initialContextTokens = 0)
     {
         SessionKey = sessionKey;
         RestoredSessionId = restoredSessionId;
+        ContextTokens = initialContextTokens;
         Log = new CompanionLog(sessionKey);
         Runner = new ClaudeSessionRunner(projectRoot);
 
@@ -168,6 +169,7 @@ public class CompanionSession
         CurrentActivity = CharacterActivity.Idle;
         CurrentTurnSteps.Clear();
         ContextTokens = 0;
+        lastSentLanguage = null;
         Changed?.Invoke();
     }
 
@@ -194,13 +196,27 @@ public class CompanionSession
         Changed?.Invoke();
     }
 
+    // Sentinel (not a real Language value) so the very first message of a conversation always
+    // sends the directive once, same as any later actual language change.
+    private CompanionPreferences.Language? lastSentLanguage;
+
     // Prepends a language directive matching the Companion window's language setting, so a
     // resumed turn defaults to that language unless the user's own message explicitly asks for
-    // a different one (2026-07-22 request). Only affects what's actually sent to the CLI - the
-    // displayed/logged message above stays exactly what the user typed.
-    private static string BuildOutgoingText(string text)
+    // a different one (2026-07-22 request). Only sent when it's new information - the first
+    // message of a conversation, or right after the user changes the language setting - not on
+    // every single message: a --resume'd conversation already remembers the instruction, so
+    // repeating it every turn was pure token waste (2026-07-23 request to cut unnecessary
+    // token spend). Only affects what's actually sent to the CLI - the displayed/logged message
+    // above stays exactly what the user typed.
+    private string BuildOutgoingText(string text)
     {
-        string directive = CompanionPreferences.ResponseLanguage == CompanionPreferences.Language.English
+        CompanionPreferences.Language current = CompanionPreferences.ResponseLanguage;
+        if (lastSentLanguage == current)
+        {
+            return text;
+        }
+        lastSentLanguage = current;
+        string directive = current == CompanionPreferences.Language.English
             ? "(Respond in English unless this message explicitly asks for a different language.)"
             : "(별도로 다른 언어를 요청하지 않았다면 한국어로 답변해줘.)";
         return directive + "\n\n" + text;

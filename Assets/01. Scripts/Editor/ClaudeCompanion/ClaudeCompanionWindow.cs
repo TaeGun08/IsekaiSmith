@@ -111,6 +111,12 @@ public class ClaudeCompanionWindow : EditorWindow
         public string SessionKey;
         public string RestoredSessionId;
         public string DisplayName;
+        // Mirrors CompanionSession.ContextTokens so it survives a domain reload - previously
+        // NOT persisted anywhere, so every reload (i.e. after nearly every one of my own
+        // code-editing turns while developing this exact window) silently recreated a fresh
+        // CompanionSession with ContextTokens back at 0, which is exactly what read as "resets
+        // to 0 every time you finish a task" (user report, 2026-07-23).
+        public long ContextTokens;
     }
 
     [SerializeField] private List<SessionRecord> sessionRecords = new List<SessionRecord>();
@@ -283,10 +289,12 @@ public class ClaudeCompanionWindow : EditorWindow
         {
             try
             {
-                CompanionSession newSession = new CompanionSession(record.SessionKey, record.RestoredSessionId, projectRoot);
+                CompanionSession newSession = new CompanionSession(
+                    record.SessionKey, record.RestoredSessionId, projectRoot, record.ContextTokens);
                 newSession.Changed += () =>
                 {
                     record.RestoredSessionId = newSession.RestoredSessionId;
+                    record.ContextTokens = newSession.ContextTokens;
                     SaveManifest();
                 };
                 newSession.Runner.OnTurnComplete += () => OnAnySessionTurnComplete(newSession);
@@ -692,6 +700,7 @@ public class ClaudeCompanionWindow : EditorWindow
             newSession.Changed += () =>
             {
                 record.RestoredSessionId = newSession.RestoredSessionId;
+                record.ContextTokens = newSession.ContextTokens;
                 SaveManifest();
             };
             newSession.Runner.OnTurnComplete += () => OnAnySessionTurnComplete(newSession);
@@ -1296,6 +1305,22 @@ public class ClaudeCompanionWindow : EditorWindow
             evt.StopImmediatePropagation();
             evt.PreventDefault();
             TrySend();
+            return;
+        }
+
+        // Shift+Enter inserts a newline instead of sending. Handled explicitly (splicing the
+        // string at the cursor) rather than just letting the event fall through to the native
+        // TextField - the native multiline handling didn't reliably insert a line break for
+        // Shift+Return in practice (2026-07-23 request).
+        if ((evt.keyCode == KeyCode.Return || evt.keyCode == KeyCode.KeypadEnter) && evt.shiftKey)
+        {
+            evt.StopImmediatePropagation();
+            evt.PreventDefault();
+            string current = inputField.value ?? "";
+            int cursor = Mathf.Clamp(inputField.cursorIndex, 0, current.Length);
+            inputField.value = current.Insert(cursor, "\n");
+            inputField.cursorIndex = cursor + 1;
+            inputField.selectIndex = cursor + 1;
             return;
         }
 
