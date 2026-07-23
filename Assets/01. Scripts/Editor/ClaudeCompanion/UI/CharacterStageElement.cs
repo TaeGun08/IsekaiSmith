@@ -11,19 +11,9 @@ using UnityEngine.UIElements;
 // idle instead of forcing a full-window redraw every frame the way the old IMGUI version did.
 public class CharacterStageElement : VisualElement
 {
-    // 2026-07-16: bumped saturation across the board (esp. Running, which read as a dusty
-    // brown before) - "dark theme is fine, but wants actual color presence" feedback.
-    private static readonly Color IdleBodyColor = new Color(0.55f, 0.62f, 0.72f);
-    private static readonly Color ThinkingColorA = new Color(0.58f, 0.44f, 0.88f);
-    private static readonly Color ThinkingColorB = new Color(0.72f, 0.62f, 0.96f);
-    private static readonly Color ReadingColorA = new Color(0.22f, 0.68f, 0.64f);
-    private static readonly Color ReadingColorB = new Color(0.38f, 0.85f, 0.80f);
-    private static readonly Color EditingColorA = new Color(1f, 0.62f, 0.25f);
-    private static readonly Color EditingColorB = new Color(1f, 0.85f, 0.4f);
-    private static readonly Color RunningColorA = new Color(0.95f, 0.36f, 0.20f);
-    private static readonly Color RunningColorB = new Color(1f, 0.54f, 0.30f);
-    private static readonly Color SuccessColor = new Color(0.28f, 0.80f, 0.46f);
-    private static readonly Color ErrorColor = new Color(0.92f, 0.26f, 0.26f);
+    // Activity-state palette + labels now live in AiCharacterConcept (see SetConcept below) so
+    // a different AI provider can look/read differently - this class only knows how to draw
+    // whichever concept it's currently given, defaulting to the original Claude palette.
     private static readonly Color EyeColor = new Color(0.15f, 0.15f, 0.18f);
 
     private const float BodySize = 56f;
@@ -160,6 +150,15 @@ public class CharacterStageElement : VisualElement
     // 2026-07-16). This "lingers" it for a beat after the most recent Thinking tick instead.
     private double lastThinkingTime = double.NegativeInfinity;
     private const double ThoughtLingerSeconds = 0.8;
+
+    private AiCharacterConcept concept = AiCharacterConcept.Claude;
+
+    // Called by the host window once per session bind (RebuildMainColumn) - swaps which AI's
+    // palette/labels this stage draws without recreating the element itself.
+    public void SetConcept(AiCharacterConcept newConcept)
+    {
+        concept = newConcept ?? AiCharacterConcept.Claude;
+    }
 
     public CharacterStageElement()
     {
@@ -329,12 +328,10 @@ public class CharacterStageElement : VisualElement
         // Editing (typing), a book appears while Reading. All hidden by default, shown/moved in
         // Tick only for their matching activity.
         handLeft = MakeCircle(HandSize);
-        handLeft.style.backgroundColor = EditingColorB;
         handLeft.style.display = DisplayStyle.None;
         Add(handLeft);
 
         handRight = MakeCircle(HandSize);
-        handRight.style.backgroundColor = EditingColorB;
         handRight.style.display = DisplayStyle.None;
         Add(handRight);
 
@@ -571,10 +568,10 @@ public class CharacterStageElement : VisualElement
         float bobSpeed = busy ? 6f : 2f;
         float bobY = Mathf.Sin((float)t * bobSpeed) * bobAmplitude;
 
-        GetActivityStyle(activity, out Color colorA, out Color colorB, out string label);
+        GetActivityStyle(concept, activity, out Color colorA, out Color colorB, out string label);
         if (flashing)
         {
-            colorA = colorB = flashIsError ? ErrorColor : SuccessColor;
+            colorA = colorB = flashIsError ? concept.ErrorColor : concept.SuccessColor;
             label = flashIsError ? "문제가 발생했어요" : "완료!";
         }
 
@@ -802,6 +799,8 @@ public class CharacterStageElement : VisualElement
         handRight.style.display = showHands ? DisplayStyle.Flex : DisplayStyle.None;
         if (showHands)
         {
+            handLeft.style.backgroundColor = concept.EditingColorB;
+            handRight.style.backgroundColor = concept.EditingColorB;
             float handBobLeft = Mathf.Sin((float)t * 14f) * 2.5f;
             float handBobRight = Mathf.Sin((float)t * 14f + Mathf.PI) * 2.5f;
             float handBaseY = center.y + bobY + MouthYOffset + 8f;
@@ -888,42 +887,45 @@ public class CharacterStageElement : VisualElement
         return 0.5f + 0.5f * Mathf.Sin(phase);
     }
 
-    private static void GetActivityStyle(CharacterActivity activity, out Color colorA, out Color colorB, out string label)
+    private static void GetActivityStyle(AiCharacterConcept concept, CharacterActivity activity, out Color colorA, out Color colorB, out string label)
     {
         switch (activity)
         {
             case CharacterActivity.Thinking:
-                colorA = ThinkingColorA;
-                colorB = ThinkingColorB;
-                label = "생각하는 중...";
+                colorA = concept.ThinkingColorA;
+                colorB = concept.ThinkingColorB;
+                label = concept.ThinkingLabel;
                 break;
             case CharacterActivity.Reading:
-                colorA = ReadingColorA;
-                colorB = ReadingColorB;
-                label = "파일 읽는 중...";
+                colorA = concept.ReadingColorA;
+                colorB = concept.ReadingColorB;
+                label = concept.ReadingLabel;
                 break;
             case CharacterActivity.Editing:
-                colorA = EditingColorA;
-                colorB = EditingColorB;
-                label = "코드 수정 중...";
+                colorA = concept.EditingColorA;
+                colorB = concept.EditingColorB;
+                label = concept.EditingLabel;
                 break;
             case CharacterActivity.Running:
-                colorA = RunningColorA;
-                colorB = RunningColorB;
-                label = "명령 실행 중...";
+                colorA = concept.RunningColorA;
+                colorB = concept.RunningColorB;
+                label = concept.RunningLabel;
                 break;
             default:
-                colorA = colorB = IdleBodyColor;
-                label = "대기 중";
+                colorA = colorB = concept.IdleBodyColor;
+                label = concept.IdleLabel;
                 break;
         }
     }
 
     // Shared with the sidebar's per-session busy dots (see ClaudeCompanionWindow.OnAnimationTick)
     // so a background tab's dot hints at what it's doing without needing to switch to it.
-    public static Color GetIndicatorColor(CharacterActivity activity)
+    // concept defaults to Claude for call sites that don't have a specific session's concept
+    // handy (e.g. a raw CharacterActivity with no session context).
+    public static Color GetIndicatorColor(CharacterActivity activity, AiCharacterConcept concept = null)
     {
-        GetActivityStyle(activity, out Color colorA, out Color colorB, out _);
+        concept = concept ?? AiCharacterConcept.Claude;
+        GetActivityStyle(concept, activity, out Color colorA, out Color colorB, out _);
         return activity == CharacterActivity.Idle ? colorA : colorB;
     }
 

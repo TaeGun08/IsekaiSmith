@@ -7,7 +7,11 @@ using System.Text;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 
-public class ClaudeSessionRunner
+// First concrete IAiSessionRunner - talks to the Claude Code CLI specifically (stream-json
+// output format, --resume session semantics). Other providers (GPT/Codex/Cursor/Gemini CLIs)
+// get their own implementations of the same interface; nothing outside this class knows about
+// the Claude-specific process args or JSON shape.
+public class ClaudeSessionRunner : IAiSessionRunner
 {
     public event Action<string> OnSessionStarted;
     public event Action<string> OnAssistantText;

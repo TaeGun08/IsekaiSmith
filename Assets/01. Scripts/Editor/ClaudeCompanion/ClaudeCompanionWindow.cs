@@ -406,7 +406,7 @@ public class ClaudeCompanionWindow : EditorWindow
 
         foreach (KeyValuePair<CompanionSession, VisualElement> kv in sidebarDots)
         {
-            kv.Value.style.backgroundColor = CharacterStageElement.GetIndicatorColor(kv.Key.CurrentActivity);
+            kv.Value.style.backgroundColor = CharacterStageElement.GetIndicatorColor(kv.Key.CurrentActivity, kv.Key.Concept);
         }
 
         if (typingDots != null)
@@ -482,7 +482,7 @@ public class ClaudeCompanionWindow : EditorWindow
 
         VisualElement dot = new VisualElement();
         dot.AddToClassList("session-dot");
-        dot.style.backgroundColor = CharacterStageElement.GetIndicatorColor(s.CurrentActivity);
+        dot.style.backgroundColor = CharacterStageElement.GetIndicatorColor(s.CurrentActivity, s.Concept);
         row.Add(dot);
         sidebarDots[s] = dot;
 
@@ -748,6 +748,7 @@ public class ClaudeCompanionWindow : EditorWindow
         mainColumn.Add(accentBar);
 
         characterStage = new CharacterStageElement();
+        characterStage.SetConcept(ActiveSession.Concept);
         characterStage.Expanded = characterRoomExpanded;
         characterStage.ExpandedChanged += expanded => characterRoomExpanded = expanded;
         mainColumn.Add(characterStage);
@@ -845,13 +846,13 @@ public class ClaudeCompanionWindow : EditorWindow
 
         foreach (string entry in ActiveSession.CurrentTurnSteps)
         {
-            stepperContent.Add(BuildStepChip(entry));
+            stepperContent.Add(BuildStepChip(entry, ActiveSession.Concept));
         }
     }
 
-    private static VisualElement BuildStepChip(string entry)
+    private static VisualElement BuildStepChip(string entry, AiCharacterConcept concept)
     {
-        DescribeStep(entry, out Color color, out string icon, out string label);
+        DescribeStep(entry, concept, out Color color, out string icon, out string label);
 
         VisualElement chip = new VisualElement();
         chip.AddToClassList("step-chip");
@@ -872,7 +873,7 @@ public class ClaudeCompanionWindow : EditorWindow
     }
 
     // Maps one raw CompanionSession activity-log entry to a chip color + icon + friendly label.
-    private static void DescribeStep(string entry, out Color color, out string icon, out string label)
+    private static void DescribeStep(string entry, AiCharacterConcept concept, out Color color, out string icon, out string label)
     {
         const string toolUsePrefix = "tool_use: ";
         const string errorPrefix = "ERROR: ";
@@ -881,14 +882,14 @@ public class ClaudeCompanionWindow : EditorWindow
         if (entry.StartsWith(toolUsePrefix))
         {
             string toolName = entry.Substring(toolUsePrefix.Length);
-            color = CharacterStageElement.GetIndicatorColor(CompanionSession.ClassifyTool(toolName));
+            color = CharacterStageElement.GetIndicatorColor(CompanionSession.ClassifyTool(toolName), concept);
             icon = FriendlyToolIcon(toolName);
             label = FriendlyToolLabel(toolName);
             return;
         }
         if (entry == "tool_result received")
         {
-            color = CharacterStageElement.GetIndicatorColor(CharacterActivity.Thinking);
+            color = CharacterStageElement.GetIndicatorColor(CharacterActivity.Thinking, concept);
             icon = ThinkingIcon;
             label = "결과 확인";
             return;
@@ -902,13 +903,13 @@ public class ClaudeCompanionWindow : EditorWindow
         }
         if (entry.StartsWith(systemPrefix))
         {
-            color = CharacterStageElement.GetIndicatorColor(CharacterActivity.Thinking);
+            color = CharacterStageElement.GetIndicatorColor(CharacterActivity.Thinking, concept);
             icon = SystemIcon;
             label = "시스템: " + Truncate(entry.Substring(systemPrefix.Length), 30);
             return;
         }
 
-        color = CharacterStageElement.GetIndicatorColor(CharacterActivity.Thinking);
+        color = CharacterStageElement.GetIndicatorColor(CharacterActivity.Thinking, concept);
         icon = ThinkingIcon;
         label = Truncate(entry, 40);
     }

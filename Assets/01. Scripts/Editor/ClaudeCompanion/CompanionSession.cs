@@ -13,8 +13,15 @@ public class CompanionSession
 
     public readonly List<ChatMessage> ChatMessages = new List<ChatMessage>();
     public readonly List<string> ActivityLog = new List<string>();
-    public readonly ClaudeSessionRunner Runner;
+    // Provider-agnostic - see IAiSessionRunner. Hardcoded to ClaudeSessionRunner in the ctor
+    // below for now; provider selection (GPT/Codex/Cursor/Gemini) plugs in there once it exists.
+    public readonly IAiSessionRunner Runner;
     public readonly CompanionLog Log;
+
+    // Which AI's visual identity the character stage draws for this session - see
+    // AiCharacterConcept. Defaults to Claude until provider selection (step 3) can assign a
+    // different one per session.
+    public AiCharacterConcept Concept { get; set; } = AiCharacterConcept.Claude;
 
     // Coarse "what is Claude doing right now" signal for the character stage - see
     // CharacterActivity. Derived from tool_use activity, not persisted (a fresh Idle on every
