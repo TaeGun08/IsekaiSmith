@@ -6,8 +6,6 @@ public class PlayerMining : MonoBehaviour
     [SerializeField] private GameObject oreItemPrefab;
 
     private CarryStack carryStack;
-    private OreNode currentNode;
-    private float tickTimer;
 
     private void Awake()
     {
@@ -17,39 +15,14 @@ public class PlayerMining : MonoBehaviour
     private void OnTriggerEnter(Collider other)
     {
         OreNode node = other.GetComponentInParent<OreNode>();
-        if (node != null)
-        {
-            currentNode = node;
-            tickTimer = 0f;
-        }
-    }
-
-    private void OnTriggerExit(Collider other)
-    {
-        OreNode node = other.GetComponentInParent<OreNode>();
-        if (node != null && node == currentNode)
-        {
-            currentNode = null;
-        }
-    }
-
-    private void Update()
-    {
-        if (currentNode == null || carryStack.IsFull || currentNode.IsDepleted)
+        if (node == null || carryStack.IsFull)
         {
             return;
         }
 
-        tickTimer += Time.deltaTime;
-        if (tickTimer < currentNode.MineTickInterval)
+        if (node.TryCollect())
         {
-            return;
-        }
-
-        tickTimer = 0f;
-        if (currentNode.TryMineTick())
-        {
-            carryStack.TryAdd(oreItemPrefab);
+            carryStack.TryAdd(oreItemPrefab, node.transform.position);
         }
     }
 }

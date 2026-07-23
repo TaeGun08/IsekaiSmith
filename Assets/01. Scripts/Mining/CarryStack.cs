@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -5,35 +6,38 @@ public class CarryStack : MonoBehaviour
 {
     [SerializeField] private Transform stackAnchor;
     [SerializeField] private int capacity = 8;
-    [SerializeField] private float itemHeight = 0.18f;
-    [SerializeField] private float zigzagOffset = 0.08f;
+    [SerializeField] private float itemHeight = 0.3f;
     [SerializeField] private float swayAmplitude = 6f;
     [SerializeField] private float swaySpeed = 6f;
+    [SerializeField] private float flightDuration = 0.4f;
+    [SerializeField] private float flightArcHeight = 1.5f;
 
     private readonly List<Transform> items = new List<Transform>();
     private Rigidbody body;
+    private int reservedCount;
 
-    public int Count => items.Count;
+    public int Count => reservedCount;
     public int Capacity => capacity;
-    public bool IsFull => items.Count >= capacity;
+    public bool IsFull => reservedCount >= capacity;
 
     private void Awake()
     {
         body = GetComponentInParent<Rigidbody>();
     }
 
-    public bool TryAdd(GameObject itemPrefab)
+    public bool TryAdd(GameObject itemPrefab, Vector3 worldStartPosition)
     {
         if (IsFull || itemPrefab == null || stackAnchor == null)
         {
             return false;
         }
 
-        int index = items.Count;
-        Transform item = Instantiate(itemPrefab, stackAnchor).transform;
-        item.localPosition = new Vector3((index % 2 == 0 ? 1f : -1f) * zigzagOffset, index * itemHeight, 0f);
-        item.localRotation = Quaternion.identity;
-        items.Add(item);
+        int index = reservedCount;
+        reservedCount++;
+
+        GameObject instance = Instantiate(itemPrefab, worldStartPosition, Quaternion.identity);
+        Vector3 targetLocalPosition = new Vector3(0f, index * itemHeight, 0f);
+        StartCoroutine(FlyToStack(instance.transform, worldStartPosition, targetLocalPosition));
         return true;
     }
 
@@ -47,6 +51,43 @@ public class CarryStack : MonoBehaviour
             }
         }
         items.Clear();
+        reservedCount = 0;
+    }
+
+    private IEnumerator FlyToStack(Transform item, Vector3 startWorldPosition, Vector3 targetLocalPosition)
+    {
+        float elapsed = 0f;
+
+        while (elapsed < flightDuration && item != null && stackAnchor != null)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / flightDuration);
+
+            Vector3 targetWorldPosition = stackAnchor.TransformPoint(targetLocalPosition);
+            Vector3 flatPosition = Vector3.Lerp(startWorldPosition, targetWorldPosition, t);
+            float arc = flightArcHeight * Mathf.Sin(t * Mathf.PI);
+
+            item.position = flatPosition + Vector3.up * arc;
+            item.Rotate(Vector3.up, 480f * Time.deltaTime, Space.World);
+
+            yield return null;
+        }
+
+        if (item == null)
+        {
+            yield break;
+        }
+
+        if (stackAnchor == null)
+        {
+            Destroy(item.gameObject);
+            yield break;
+        }
+
+        item.SetParent(stackAnchor, false);
+        item.localPosition = targetLocalPosition;
+        item.localRotation = Quaternion.identity;
+        items.Add(item);
     }
 
     private void Update()

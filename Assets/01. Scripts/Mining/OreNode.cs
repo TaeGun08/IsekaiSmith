@@ -3,62 +3,49 @@ using UnityEngine;
 
 public class OreNode : MonoBehaviour
 {
-    [SerializeField] private int maxOre = 8;
-    [SerializeField] private float mineTickInterval = 0.6f;
-    [SerializeField] private float respawnDelay = 6f;
+    [SerializeField] private float respawnDelay = 4f;
     [SerializeField] private Transform visual;
 
-    private int remainingOre;
-    private Coroutine respawnRoutine;
+    private Collider triggerCollider;
+    private bool isAvailable = true;
 
-    public float MineTickInterval => mineTickInterval;
-    public bool IsDepleted => remainingOre <= 0;
+    public bool IsAvailable => isAvailable;
 
     private void Awake()
     {
-        remainingOre = maxOre;
+        triggerCollider = GetComponent<Collider>();
     }
 
-    public bool TryMineTick()
+    public bool TryCollect()
     {
-        if (remainingOre <= 0)
+        if (!isAvailable)
         {
             return false;
         }
 
-        remainingOre--;
-
-        if (remainingOre <= 0)
-        {
-            Deplete();
-        }
-
+        isAvailable = false;
+        SetVisible(false);
+        StartCoroutine(RespawnAfterDelay());
         return true;
     }
 
-    private void Deplete()
+    private void SetVisible(bool visible)
     {
         if (visual != null)
         {
-            visual.gameObject.SetActive(false);
+            visual.gameObject.SetActive(visible);
         }
 
-        if (respawnRoutine != null)
+        if (triggerCollider != null)
         {
-            StopCoroutine(respawnRoutine);
+            triggerCollider.enabled = visible;
         }
-
-        respawnRoutine = StartCoroutine(RespawnAfterDelay());
     }
 
     private IEnumerator RespawnAfterDelay()
     {
         yield return new WaitForSeconds(respawnDelay);
-        remainingOre = maxOre;
-        if (visual != null)
-        {
-            visual.gameObject.SetActive(true);
-        }
-        respawnRoutine = null;
+        isAvailable = true;
+        SetVisible(true);
     }
 }
