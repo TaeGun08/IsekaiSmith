@@ -243,7 +243,7 @@ Transform:
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
   m_LocalRotation: {x: -0.49483126, y: 0.17531839, z: -0.102678195, w: -0.844904}
-  m_LocalPosition: {x: 6, y: 9, z: -6}
+  m_LocalPosition: {x: 3, y: 15, z: -7}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -306,8 +306,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CameraFollow
   target: {fileID: 320388210}
-  offset: {x: 6, y: 9, z: -6}
-  followSpeed: 8
+  offset: {x: 3, y: 15, z: -7}
+  followSpeed: 100
   lookAtHeight: 1
 --- !u!1 &334484949
 GameObject:
@@ -318,7 +318,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 334484951}
-  - component: {fileID: 334484950}
   m_Layer: 0
   m_Name: Quarry
   m_TagString: Untagged
@@ -326,22 +325,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &334484950
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 334484949}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9e2ef091eebc3ce41a570a25f3309a76, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::OreFieldSpawner
-  oreNodePrefab: {fileID: 5364408880257140917, guid: b2712a64052e9e24d94c16636013bb8d, type: 3}
-  columns: 3
-  rows: 3
-  spacing: 2.5
 --- !u!4 &334484951
 Transform:
   m_ObjectHideFlags: 0
