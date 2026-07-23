@@ -2,7 +2,7 @@
    cool-gray placeholder palette M1 ported 1:1 from the old IMGUI colors. Session identity
    (accent stripe/bar) and hover/focus/active microinteractions live here too - state colors
    (busy/idle/running/stopped) stay semantic and are NOT part of this pass, see
-   CharacterStageElement.cs / ClaudeCompanionWindow's Running/Stopped/Busy/Idle constants. */
+   CharacterStageElement.cs / AiCompanionWindow's Running/Stopped/Busy/Idle constants. */
 
 .root {
     flex-grow: 1;
@@ -561,6 +561,20 @@
 
 .chat-bubble-row--claude {
     justify-content: flex-start;
+}
+
+.chat-system-notice-row {
+    justify-content: center;
+    margin-bottom: 6px;
+}
+
+.chat-system-notice {
+    font-size: 10px;
+    color: rgb(180, 175, 170);
+    background-color: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    padding: 3px 10px;
+    -unity-text-align: middle-center;
 }
 
 .chat-bubble {

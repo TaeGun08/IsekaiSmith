@@ -6,7 +6,7 @@ using UnityEngine.UIElements;
 // Procedural vector "character" for the Companion window's status stage, built from plain
 // VisualElements (position: absolute + border-radius: 50% via the "stage-circle" USS class)
 // instead of a hand-tinted Texture2D circle. Nothing here calls MarkDirtyRepaint - the host
-// window drives Tick() on its own schedule (see ClaudeCompanionWindow.OnTick), and UI Toolkit
+// window drives Tick() on its own schedule (see AiCompanionWindow.OnTick), and UI Toolkit
 // only actually repaints a panel when a style/layout value changes, so this stays cheap while
 // idle instead of forcing a full-window redraw every frame the way the old IMGUI version did.
 public class CharacterStageElement : VisualElement
@@ -918,7 +918,7 @@ public class CharacterStageElement : VisualElement
         }
     }
 
-    // Shared with the sidebar's per-session busy dots (see ClaudeCompanionWindow.OnAnimationTick)
+    // Shared with the sidebar's per-session busy dots (see AiCompanionWindow.OnAnimationTick)
     // so a background tab's dot hints at what it's doing without needing to switch to it.
     // concept defaults to Claude for call sites that don't have a specific session's concept
     // handy (e.g. a raw CharacterActivity with no session context).

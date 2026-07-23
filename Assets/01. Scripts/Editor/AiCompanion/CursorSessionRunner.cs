@@ -1,17 +1,16 @@
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Text;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 
-// First concrete IAiSessionRunner - talks to the Claude Code CLI specifically (stream-json
-// output format, --resume session semantics). Other providers (GPT/Codex/Cursor/Gemini CLIs)
-// get their own implementations of the same interface; nothing outside this class knows about
-// the Claude-specific process args or JSON shape.
-public class ClaudeSessionRunner : IAiSessionRunner
+// Third concrete IAiSessionRunner - talks to the Cursor CLI (`cursor-agent -p --output-format
+// stream-json`). Cursor's stream-json event shape ("type":"assistant"/"user" with a nested
+// message.content[] array, plus a top-level "session_id" and a terminal "type":"result") is
+// effectively the same convention Claude Code's CLI uses, so the JSON parsing below is almost
+// identical to ClaudeSessionRunner's - only the process invocation differs.
+public class CursorSessionRunner : IAiSessionRunner
 {
     public event Action<string> OnSessionStarted;
     public event Action<string> OnAssistantText;
@@ -19,9 +18,9 @@ public class ClaudeSessionRunner : IAiSessionRunner
     public event Action OnTurnComplete;
     public event Action<string> OnError;
 
-    // If a turn produces no output at all for this long, the claude process is assumed
-    // stuck. Without this, a hung process keeps LockReloadAssemblies held forever, which
-    // freezes script compilation for the whole editor, not just this window.
+    // Same rationale as ClaudeSessionRunner: a stuck headless process would hold
+    // LockReloadAssemblies forever and freeze compilation for the whole editor. Cursor's -p
+    // mode has known reports of hanging with zero output on some versions, so this matters here.
     private static readonly TimeSpan IdleTimeout = TimeSpan.FromMinutes(10);
 
     public bool IsBusy { get; private set; }
@@ -34,7 +33,7 @@ public class ClaudeSessionRunner : IAiSessionRunner
     private bool reloadLocked;
     private DateTime lastActivityUtc;
 
-    public ClaudeSessionRunner(string workingDirectory)
+    public CursorSessionRunner(string workingDirectory)
     {
         this.workingDirectory = workingDirectory;
         EditorApplication.update += Pump;
@@ -45,11 +44,6 @@ public class ClaudeSessionRunner : IAiSessionRunner
         sessionId = null;
     }
 
-    /// <summary>
-    /// Reattaches a previously known session id (e.g. after a domain reload recreated
-    /// this runner) so the next Send() resumes the real Claude conversation instead of
-    /// silently starting a new one while the on-screen chat history looks unchanged.
-    /// </summary>
     public void RestoreSession(string knownSessionId)
     {
         sessionId = knownSessionId;
@@ -62,24 +56,20 @@ public class ClaudeSessionRunner : IAiSessionRunner
             return;
         }
 
-        // This process runs headless (-p, no stdin wired up), so there is no way to
-        // answer an interactive permission prompt. "acceptEdits" only auto-approves
-        // file edits and leaves every other tool call (Bash, UnityMCP tools like
-        // manage_ui/manage_gameobject) waiting on a prompt nothing can ever answer,
-        // which silently stalls mid-task. bypassPermissions is the only mode that
-        // actually works in this architecture.
+        // Headless (no stdin wired up) - "--force" is Cursor's equivalent of Claude's
+        // --permission-mode bypassPermissions / Codex's --dangerously-bypass-approvals-and-
+        // sandbox: without it, file-modification confirmation prompts would stall forever
+        // since nothing can answer them.
         StringBuilder args = new StringBuilder();
-        args.Append("-p ").Append(Quote(message));
-        args.Append(" --output-format stream-json --verbose");
         if (!string.IsNullOrEmpty(sessionId))
         {
-            args.Append(" --resume ").Append(Quote(sessionId));
+            args.Append("--resume ").Append(Quote(sessionId)).Append(' ');
         }
-        args.Append(" --permission-mode bypassPermissions");
+        args.Append("-p --force --output-format stream-json ").Append(Quote(message));
 
         ProcessStartInfo startInfo = new ProcessStartInfo
         {
-            FileName = ResolveClaudeExecutablePath(),
+            FileName = ResolveCursorExecutablePath(),
             Arguments = args.ToString(),
             WorkingDirectory = workingDirectory,
             UseShellExecute = false,
@@ -110,15 +100,22 @@ public class ClaudeSessionRunner : IAiSessionRunner
             outputQueue.Enqueue("__exited__");
         };
 
-        // Defer any pending domain reload (script recompile) until this turn finishes,
-        // so a compile elsewhere in the project doesn't kill an in-flight response.
         LockReload();
-
         IsBusy = true;
         lastActivityUtc = DateTime.UtcNow;
-        process.Start();
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
+
+        try
+        {
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+        }
+        catch (Exception ex)
+        {
+            IsBusy = false;
+            UnlockReload();
+            OnError?.Invoke("cursor-agent 실행에 실패했습니다: " + ex.Message);
+        }
     }
 
     public void Kill()
@@ -168,49 +165,31 @@ public class ClaudeSessionRunner : IAiSessionRunner
         return "\"" + value.Replace("\"", "\\\"") + "\"";
     }
 
-private static string cachedClaudePath;
+    private static string cachedCursorPath;
 
-    private static string ResolveClaudeExecutablePath()
+    // Unlike Claude/Codex, Cursor's official install is a curl|bash script, not an npm package
+    // (see AiProviderRegistry - Cursor's InstallPackage is deliberately left null so the "no
+    // installer wired up" dialog path is used instead of attempting a broken npm install).
+    public static bool IsInstalled()
     {
-        if (cachedClaudePath != null)
-        {
-            return cachedClaudePath;
-        }
-
-        string pathEnv = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
-        string[] extensions = { ".exe", ".cmd", ".bat" };
-
-        List<string> candidateDirs = new List<string>(pathEnv.Split(Path.PathSeparator));
-
-        // Fall back to well-known install locations in case this Editor process's PATH
-        // predates a claude install (Unity doesn't pick up PATH changes until restarted).
-        string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        candidateDirs.Add(Path.Combine(userProfile, ".local", "bin"));
-        string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        candidateDirs.Add(Path.Combine(appData, "npm"));
-
-        foreach (string dir in candidateDirs)
-        {
-            if (string.IsNullOrWhiteSpace(dir))
-            {
-                continue;
-            }
-
-            foreach (string ext in extensions)
-            {
-                string candidate = Path.Combine(dir.Trim(), "claude" + ext);
-                if (File.Exists(candidate))
-                {
-                    cachedClaudePath = candidate;
-                    return cachedClaudePath;
-                }
-            }
-        }
-
-        cachedClaudePath = "claude";
-        return cachedClaudePath;
+        return CliInstaller.FindExecutable("cursor-agent") != null;
     }
 
+    public static void ClearResolvedPathCache()
+    {
+        cachedCursorPath = null;
+    }
+
+    private static string ResolveCursorExecutablePath()
+    {
+        if (cachedCursorPath != null)
+        {
+            return cachedCursorPath;
+        }
+
+        cachedCursorPath = CliInstaller.FindExecutable("cursor-agent") ?? "cursor-agent";
+        return cachedCursorPath;
+    }
 
     private void Pump()
     {
@@ -227,7 +206,7 @@ private static string cachedClaudePath;
         }
         else if (IsBusy && DateTime.UtcNow - lastActivityUtc > IdleTimeout)
         {
-            OnError?.Invoke($"claude 프로세스가 {IdleTimeout.TotalMinutes}분 동안 응답이 없어 강제 종료합니다.");
+            OnError?.Invoke($"cursor-agent 프로세스가 {IdleTimeout.TotalMinutes}분 동안 응답이 없어 강제 종료합니다.");
             Kill();
         }
     }
@@ -269,7 +248,6 @@ private static string cachedClaudePath;
         if (type == "assistant" || type == "user")
         {
             JObject message = json["message"] as JObject;
-
             JArray content = message?["content"] as JArray;
             if (content != null)
             {
@@ -295,13 +273,13 @@ private static string cachedClaudePath;
                 }
             }
         }
+        else if (type == "tool_call")
+        {
+            OnToolActivity?.Invoke($"tool_use: {json.Value<string>("subtype") ?? "call"}");
+        }
         else if (type == "result")
         {
             OnTurnComplete?.Invoke();
-        }
-        else if (type == "system")
-        {
-            OnToolActivity?.Invoke($"system: {json.Value<string>("subtype")}");
         }
     }
 }

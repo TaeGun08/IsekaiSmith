@@ -6,6 +6,142 @@
 
 ---
 
+## 2026-07-23 (34) 멀티 AI 프로바이더 확장 작업 일시 중지
+
+사용자 확인: Codex 로그인 문제 해결 후 Claude 전환/동작이 잘 되는 것을 확인, "AI 추가 작업은
+여기서 중지" 지시. 로드맵 4단계(실제 프로바이더 연결)는 여기서 멈춤 — 더 진행하라는 지시 있을
+때까지 Cursor 실기 테스트, Antigravity 백엔드 연결은 착수하지 않음.
+
+**중지 시점 상태:**
+- Claude: 실동작 확인됨 (기본 프로바이더)
+- Codex: `CodexSessionRunner` 구현 완료, 로그인 문제(401) 해결 후 실기 테스트로 정상 동작 확인
+- Cursor: `CursorSessionRunner` 구현 완료, 실기 미검증 (보류)
+- Antigravity: 자리만 마련(`NotImplementedSessionRunner`), 백엔드 미연결 — 알려진 headless
+  stdout 버그로 보류 중
+- 미결정 안건: 유실됐던 토큰 사용량 표시 기능 복구 여부 (사용자 지시 대기)
+
+다음에 이어갈 경우 이 항목부터 재개.
+
+## 2026-07-23 (33) 프로바이더 전환 시 대화 내용 인계 + 연동 확인 신호
+
+사용자 요청: "다른 AI로 넘어가더라도 현재 세션의 내용을 이어서 작업할 수 있도록" + "연동이
+됐다면 연동됐다는 신호 또는 채팅이 있었으면". `CompanionSession.SwitchProvider`(이미 존재하던
+기능 - 언제 추가됐는지는 불명확하나 이번 대화에서 처음 발견함, 활동 로그에 텍스트 한 줄만
+남기고 실제 대화 내용은 새 러너에게 전혀 전달 안 하고 있었음)를 확장:
+
+- `BuildHandoffContext()`: 크로스 CLI `--resume`은 불가능(세션/스레드 id는 그걸 발급한 CLI
+  안에서만 의미 있음)하므로, 대신 지금까지의 전체 채팅 기록(system notice 제외)을 안내문 +
+  트랜스크립트로 묶어 새 러너의 **첫 턴으로 자동 전송**. 빈 세션에서 전환하면 null 반환(전송
+  안 함, 억지로 프롬프트 안 만듦).
+- `ChatMessage`에 `IsSystemNotice` 플래그 추가(+ `SystemNotice(text)` 팩토리) — 좌우 말풍선이
+  아니라 가운데 정렬된 옅은 필(pill) 배지로 렌더링(`AiCompanionWindow.AddChatBubble` 분기,
+  `.chat-system-notice(-row)` USS 다크/라이트 둘 다 추가). `CompanionLog.LoadChatHistory`도
+  role=="System"이면 리로드 시 플래그 복원(안 그러면 재시작 후 일반 말풍선으로 보임).
+- 전환 즉시 "🔄 A → B로 전환 — 이전 대화 내용을 전달합니다" 알림, **실제 연결 확인은 별도**:
+  `SubscribeOneShotConnectionSignal`이 새 러너의 `OnSessionStarted`(성공 → "✅ 연동되었습니다")
+  또는 `OnError`(실패 → "⚠️ 연동 실패: ...")를 1회성으로 구독 — "시도했다"가 아니라 "실제로
+  확인됐다"일 때만 성공 신호가 뜨도록. CLI 미설치/NotImplementedSessionRunner면 즉시 실패
+  신호가 뜸(둘 다 Send()에서 동기적으로 OnError 발생).
+- `lastSentLanguage`도 전환 시 리셋(새 CLI 프로세스는 이전 언어 지시문을 기억 못 하므로).
+
+컴파일: read_console에 CS 에러 0건 (남은 2건은 이전부터 있던 Unity 자체 TextField/IME 버그,
+이번 변경과 무관 — 스택트레이스가 전부 UnityEngine.UIElements 내부). **미검증**: 실제 프로세스
+2개를 붙여 전환→핸드오프→응답까지 실제 눈으로 보는 건 다음 턴 확인 필요.
+
+## 2026-07-23 (32) 팩트체크: 제미나이 CLI는 실제로 이미 서비스 종료됨
+
+사용자 질문("제미나이 cli가 사라지고 안티그래비티가 나온거 아니야?")에 재검색해서 확인 —
+맞음. Google I/O 2026-05-19에서 개발 툴을 안티그래비티 브랜드로 통합 발표, 개인/무료 유저용
+레거시 제미나이 CLI는 **2026-06-18부로 실제 서비스 종료**(엔터프라이즈 라이선스만 예외).
+(30)번 항목에서 "안정성 비교"만 하고 이 사실을 놓쳤던 것 정정. `AiCharacterConcept.cs`의
+Antigravity 개념 주석을 이 사실 기준으로 다시 씀. 기존 판단(백엔드 미구현 유지)은 안티그래비티
+자체의 헤드리스 서브프로세스 버그가 원인이라 이 팩트체크와는 별개 — 코드 동작 변화 없음.
+
+## 2026-07-23 (31) GPT 슬롯 제거 + Gemini→Antigravity 이름 교체
+
+사용자 결정: "지피티는 코덱스가 있으니 없어도 될 것 같고 gemini cli는 안티그래비티로 대체
+되었으니 안티그래비티로 넘어가는 게 좋지 않을까?". 안티그래비티 CLI를 먼저 리서치했는데
+Gemini보다 오히려 더 불안정 — 대화ID를 헤드리스(`-p`) 출력에서 아예 못 받아오는 이슈(#7,
+Gemini와 동일한 문제)에 더해, **정확히 이 앱이 호출하는 방식(non-TTY 서브프로세스)에서
+stdout이 통째로 비거나(#76) 무한 행행(#318)하는 별도 버그**까지 있어서 실제 백엔드 연결은
+보류(사용자에게 리스크 설명 후 "그래도 이름은 바꾸자"는 결정으로 좁혀짐).
+
+- `AiProviderId.Gpt` 완전 제거(1번 값은 재사용 안 함 — 혹시 그 사이 저장된 sessions.json이
+  있어도 다른 프로바이더로 오인 매핑되지 않도록). `AiProviderRegistry.All`에서 GPT 항목 삭제,
+  `AiCharacterConcept.Gpt` 팔레트도 삭제.
+- `AiProviderId.Gemini`(4번 값 유지) → `Antigravity`로 이름만 교체.
+  `AiCharacterConcept.Gemini`→`Antigravity`(같은 블루/시안 팔레트 유지, DisplayName만 변경).
+  `AiProviderRegistry`의 해당 항목도 `DisplayName="Antigravity"`로 변경하되
+  **`CreateRunner`는 여전히 `NotImplementedSessionRunner`** — 위 리서치 이유로 실제 백엔드는
+  아직 안 붙임.
+- 오래된 주석("GPT/Codex/Cursor/Gemini") 4곳 텍스트도 "Codex/Cursor/Antigravity"로 정리.
+
+컴파일 read_console 에러 0건. 결과적으로 현재 registry: Claude(구현됨) / Codex(구현됨,
+미검증) / Cursor(구현됨, 미검증) / Antigravity(미구현, 의도적 보류).
+
+## 2026-07-23 (30) Cursor CLI 3번째 프로바이더 연결 + Gemini/GPT 보류 결정
+
+사용자 요청: "코덱스 말고도 다른 AI도 같이 설치해줬으면 좋겠는데". 남은 3개(Gpt/Cursor/Gemini)
+전부 리서치한 결과:
+- **Cursor**: `cursor-agent -p --force --output-format stream-json "<prompt>"` /
+  `--resume <id>`, 이벤트 형식이 top-level `session_id` + `type: assistant/user`(message.content[]
+  블록) + `type: result` — Claude CLI와 사실상 동일한 관례라 `ClaudeSessionRunner` 파싱 로직을
+  거의 그대로 재사용해 `CursorSessionRunner.cs` 신규 구현. **단, 공식 설치가 npm이 아니라
+  curl|bash 스크립트**라 기존 `CliInstaller`(npm 전용)로 자동 설치가 안 됨 — `AiProviderDefinition.
+  InstallPackage`를 null로 두고, `OfferInstall()`에 InstallPackage 없는 경우 분기 추가(자동 설치
+  버튼 대신 "공식 방법으로 직접 설치해주세요" 안내만).
+- **Gemini**: 리서치 중 확인된 미해결 이슈 2건 때문에 이번엔 보류함 — (1) `--resume` 플래그와
+  헤드리스 prompt 전달(stdin/positional)이 같이 안 먹는 버그(GitHub #14180), (2) 헤드리스 JSON
+  출력에 세션 재개용 session id가 안정적으로 안 나온다는 요청/이슈(#14435). Claude/Codex/Cursor는
+  전부 "받은 세션ID로 --resume"이 검증 가능한 패턴인데, Gemini는 현재 이 앱의 핵심 전제(세션
+  이어가기)가 CLI 쪽에서 자체적으로 깨져있는 상태라 판단 — 구현하면 "대화가 매번 리셋되는"
+  체감 버그가 될 가능성이 높아 사용자 확인 없이 진행 안 함.
+- **Gpt**: OpenAI가 Codex CLI와 별개의 "GPT 전용 CLI"를 공식 제공하지 않음 (Codex CLI 자체가
+  OpenAI 모델을 쓰는 에이전트 CLI) — 이 레지스트리 항목이 뭘 가리켜야 하는지 사용자 확인 필요,
+  일단 `NotImplementedSessionRunner` 그대로 둠.
+
+`AiProviderRegistry`의 Cursor 항목 `IsImplemented=true`로 교체. 컴파일 read_console 에러 0건
+(도메인 리로드는 다음 턴 확인, 평소 패턴). **미검증**: 실제 `cursor-agent` CLI 실행 결과는
+리서치 기반 추정이라 사용자의 실제 실행으로 최종 확인 필요 (Codex와 동일한 한계).
+
+## 2026-07-23 (29) 멀티 프로바이더 4단계 — Codex CLI 실제 연결
+
+로드맵 4단계(2번째 실제 프로바이더). WebSearch로 OpenAI Codex CLI의 무인 모드 스펙 확인 후
+(`codex exec "<prompt>" --json --dangerously-bypass-approvals-and-sandbox`, 재개는
+`codex exec resume <thread_id> "<prompt>" ...`, JSONL 이벤트: thread.started/item.completed/
+turn.completed/turn.failed/error) `CodexSessionRunner.cs` 신규 — `ClaudeSessionRunner`와
+동일한 프로세스 펌프 구조(스레드 안전 큐 + `EditorApplication.update` 펌프 + idle timeout +
+`LockReloadAssemblies`), CLI 프로토콜/JSON 파싱만 Codex 스펙에 맞게 별도 구현. `item.completed`의
+`item.type`(agent_message/command_execution/mcp_tool_call/web_search/file_change/error)을
+Claude와 같은 `"tool_use: X"`/`"tool_result received"` 문자열 규약으로 매핑해서
+`CompanionSession.ClassifyActivityEntry`가 그대로 재사용됨(수정 불필요). `AiProviderRegistry`의
+Codex 항목을 `NotImplementedSessionRunner`→`CodexSessionRunner`로 교체,
+`IsImplemented=true`, `IsInstalled`/`InstallPackage`("@openai/codex") 연결.
+`AiCompanionWindow.OfferInstall`에 Codex 설치 성공 시 `CodexSessionRunner.ClearResolvedPathCache()`
+분기 추가.
+
+**미검증**: 이 컴퓨터에 실제 `codex` CLI가 설치되어 있는지, 설치돼 있어도 JSON 이벤트 필드명이
+리서치로 확인한 것과 실제 CLI 버전이 정확히 일치하는지는 실제 실행 없이는 확인 불가 (Claude
+CLI처럼 이 대화 자신이 그 프로세스라 항상 실전 검증되는 것과 다름). 컴파일은 read_console
+에러 0건(도메인 리로드 완료는 다음 턴 확인 필요, 평소 LockReloadAssemblies 패턴). 사용자가
+Codex CLI로 실제 새 세션을 하나 만들어 메시지를 보내보는 것이 최종 검증.
+
+## 2026-07-23 (28) 컴파일 확인 + CLI 자동 설치 기능 소급 기록
+
+`refresh_unity`(compile) + `read_console` 에러 0건 확인 — (27)까지의 변경 전부 정상 반영.
+이 참에 그동안 로그에 못 남긴 미기록 기능 하나 소급 기록: **CLI 미설치 시 자동 설치 제안**
+(사용자 요청: "만약 해당 AI설치가 안되어 있다면 해당 AI 설치를 해주거나 해줬으면 해"). `CliInstaller`
+(신규 static 클래스) — `FindExecutable(name)`(PATH + `~/.local/bin` + `%AppData%/npm` 스캔,
+방금 설치된 CLI가 이 Editor 프로세스의 상속된 PATH엔 아직 안 잡히는 경우 대비)와
+`InstallNpmPackageAsync(package, onComplete)`(`npm install -g` 백그라운드 실행, 완료 콜백은
+`EditorApplication.delayCall`로 메인 스레드 복귀). `AiProviderDefinition`에 `IsInstalled`/
+`InstallPackage` 필드 추가(Claude만 실제 연결, 나머지 4개는 `NotImplementedSessionRunner`라
+PATH 체크 대상 자체가 없어서 null). `AiCompanionWindow.OfferInstall()`이 다이얼로그로 설치
+여부를 묻고, 성공 시 `ClaudeSessionRunner.ClearResolvedPathCache()`로 캐시된 "없음" 판정을
+초기화. 3곳(세션 생성/전송/피커)에서 `IsInstalled != null && !IsInstalled()`일 때 호출.
+아직 git 미커밋 상태(작업 트리에만 존재). 다음 로드맵 단계(2번째 실제 프로바이더 연결) 전에
+커밋 여부 확인 필요.
+
 ## 2026-07-23 (27) 입력창 Shift+Enter 줄바꿈 명시적 처리
 
 네이티브 멀티라인 TextField에 맡겨뒀던 Shift+Enter 줄바꿈이 실제로 안 먹는 문제 →

@@ -2,18 +2,18 @@ using UnityEditor;
 using UnityEngine;
 
 // Standalone fallback for sending a chat message when the inline input row in
-// ClaudeCompanionWindow is unreadable/broken. Deliberately has its own minimal OnGUI with no
+// AiCompanionWindow is unreadable/broken. Deliberately has its own minimal OnGUI with no
 // shared layout math, height caching, or scroll views, so a bug in the main window's chat
 // area can't take this down with it.
-public class ClaudeCompanionSendDialog : EditorWindow
+public class AiCompanionSendDialog : EditorWindow
 {
-    private ClaudeCompanionWindow owner;
+    private AiCompanionWindow owner;
     private string text = "";
     private bool focusPending;
 
-    public static void Open(ClaudeCompanionWindow owner)
+    public static void Open(AiCompanionWindow owner)
     {
-        ClaudeCompanionSendDialog window = CreateInstance<ClaudeCompanionSendDialog>();
+        AiCompanionSendDialog window = CreateInstance<AiCompanionSendDialog>();
         window.owner = owner;
         window.titleContent = new GUIContent("대체 입력창");
         window.minSize = new Vector2(360, 130);

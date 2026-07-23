@@ -4,7 +4,7 @@ using System.IO;
 using UnityEngine;
 
 // One log file per Companion session/tab, keyed by a locally generated id that stays stable
-// across domain reloads (unlike the underlying Claude CLI session id, which changes on
+// across domain reloads (unlike the underlying AI CLI's own session id, which changes on
 // reset) - this is what lets multiple concurrent sessions keep separate histories instead of
 // interleaving into one file.
 public class CompanionLog
@@ -18,6 +18,9 @@ public class CompanionLog
     public CompanionLog(string sessionKey)
     {
         this.sessionKey = sessionKey;
+        // Folder name kept as "ClaudeCompanion" (see the matching note on AiCompanionWindow.
+        // ManifestPath) so this still finds everyone's existing on-disk chat logs after the
+        // 2026-07-23 rebrand instead of orphaning them under a path nothing looks at anymore.
         logDirectory = Path.Combine(Directory.GetParent(Application.dataPath).FullName, "Library", "ClaudeCompanion");
         logPath = Path.Combine(logDirectory, $"session-log-{sessionKey}.txt");
         MigrateLegacyLogIfNeeded();
@@ -80,7 +83,9 @@ public class CompanionLog
             string[] parts = line.Split('\t');
             if (parts.Length >= 4 && parts[1] == "CHAT")
             {
-                result.Add(new ChatMessage(parts[2], Unescape(parts[3])));
+                // "System" is only ever written by CompanionSession.AddSystemNotice - restoring
+                // the flag here keeps a reloaded notice looking like a notice, not a bubble.
+                result.Add(new ChatMessage(parts[2], Unescape(parts[3]), parts[2] == "System"));
             }
         }
         return result;

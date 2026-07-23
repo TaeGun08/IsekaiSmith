@@ -2,17 +2,16 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
-using MCPForUnity.Editor.Services;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-public class ClaudeCompanionWindow : EditorWindow
+public class AiCompanionWindow : EditorWindow
 {
-    [MenuItem("Window/Claude Companion")]
+    [MenuItem("Window/AI Companion")]
     public static void ShowWindow()
     {
-        ClaudeCompanionWindow window = GetWindow<ClaudeCompanionWindow>("Claude Companion");
+        AiCompanionWindow window = GetWindow<AiCompanionWindow>("AI Companion");
         // Was 760 tall pre-M4/M7; the turn-progress stepper and chat search/export header
         // added roughly 115px of fixed-height content since, so the old minimum left the chat
         // scroll area barely any room (see the min-height:0 fix on "chat-scroll"/"chat-area").
@@ -20,9 +19,9 @@ public class ClaudeCompanionWindow : EditorWindow
     }
 
     private const string StyleSheetPath =
-        "Assets/01. Scripts/Editor/ClaudeCompanion/UI/ClaudeCompanionStyles.uss";
+        "Assets/01. Scripts/Editor/AiCompanion/UI/AiCompanionStyles.uss";
     private const string LightStyleSheetPath =
-        "Assets/01. Scripts/Editor/ClaudeCompanion/UI/ClaudeCompanionStyles.Light.uss";
+        "Assets/01. Scripts/Editor/AiCompanion/UI/AiCompanionStyles.Light.uss";
 
     // The only colors still needed in C#: everything else is static USS. These are computed
     // per-frame/per-event (busy dots) or are semantic state colors that must win over any USS
@@ -102,6 +101,9 @@ public class ClaudeCompanionWindow : EditorWindow
         public string SessionKey;
         public string RestoredSessionId;
         public string DisplayName;
+        // Defaults to Claude (enum value 0) for manifests written before provider selection
+        // existed - JsonUtility leaves a field missing from the JSON at its C# default.
+        public AiProviderId ProviderId;
     }
 
     [SerializeField] private List<SessionRecord> sessionRecords = new List<SessionRecord>();
@@ -110,7 +112,7 @@ public class ClaudeCompanionWindow : EditorWindow
     [SerializeField] private bool soundEnabled = true;
     [SerializeField] private int soundVariant;
     [SerializeField] private bool characterRoomExpanded;
-    // 0 = Dark (default), 1 = Light. See ApplyTheme/ClaudeCompanionStyles.Light.uss.
+    // 0 = Dark (default), 1 = Light. See ApplyTheme/AiCompanionStyles.Light.uss.
     [SerializeField] private int theme;
     // 0 = Korean (default), 1 = English. Mirrored into CompanionPreferences.ResponseLanguage
     // (see its comment) so CompanionSession can read it without a window reference.
@@ -130,6 +132,10 @@ public class ClaudeCompanionWindow : EditorWindow
         public int ActiveIndex;
     }
 
+    // Folder name deliberately left as "ClaudeCompanion" (not renamed alongside the class/
+    // window in the 2026-07-23 rebrand) - this is where the on-disk session manifest already
+    // lives for anyone using this tool today; changing it would silently orphan their existing
+    // sessions.json on next load instead of just being a cosmetic rename.
     private static string ManifestPath =>
         Path.Combine(Directory.GetParent(Application.dataPath).FullName, "Library", "ClaudeCompanion", "sessions.json");
 
@@ -175,7 +181,7 @@ public class ClaudeCompanionWindow : EditorWindow
 
     // Pre-multi-session fields. Unity's serializer matches by field name, so renaming/removing
     // these would silently orphan whatever session was live when this refactor landed (wrong
-    // log file, and the next Send() would start a brand new Claude conversation instead of
+    // log file, and the next Send() would start a brand new AI conversation instead of
     // resuming). Kept only so OnEnable can fold them into sessionRecords once; unused after.
     [SerializeField] private string restoredSessionId;
     [SerializeField] private string companionSessionKey;
@@ -274,14 +280,14 @@ public class ClaudeCompanionWindow : EditorWindow
             try
             {
                 CompanionSession newSession = new CompanionSession(
-                    record.SessionKey, record.RestoredSessionId, projectRoot);
+                    record.SessionKey, record.RestoredSessionId, projectRoot, record.ProviderId);
                 newSession.Changed += () =>
                 {
                     record.RestoredSessionId = newSession.RestoredSessionId;
                     SaveManifest();
                 };
-                newSession.Runner.OnTurnComplete += () => OnAnySessionTurnComplete(newSession);
-                newSession.Runner.OnError += _ => OnAnySessionTurnComplete(newSession);
+                newSession.OnTurnComplete += () => OnAnySessionTurnComplete(newSession);
+                newSession.OnError += _ => OnAnySessionTurnComplete(newSession);
                 sessions.Add(newSession);
             }
             catch (Exception ex)
@@ -295,15 +301,7 @@ public class ClaudeCompanionWindow : EditorWindow
         activeSessionIndex = Mathf.Clamp(activeSessionIndex, 0, Mathf.Max(0, sessions.Count - 1));
         SaveManifest();
 
-        try
-        {
-            bridgeRunning = MCPServiceLocator.Bridge.IsRunning;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogException(ex);
-            bridgeRunning = false;
-        }
+        bridgeRunning = UnityMcpBridgeAccessor.IsBridgeRunning;
 
         foreach (CompanionSession s in sessions)
         {
@@ -422,15 +420,7 @@ public class ClaudeCompanionWindow : EditorWindow
     private void RefreshBridgeStatus()
     {
         bool wasRunning = bridgeRunning;
-        try
-        {
-            bridgeRunning = MCPServiceLocator.Bridge.IsRunning;
-        }
-        catch (Exception)
-        {
-            // Services may be mid-teardown/setup right around a reload; keep the last known
-            // value rather than logging every poll.
-        }
+        bridgeRunning = UnityMcpBridgeAccessor.IsBridgeRunning;
 
         if (bridgeRunning != wasRunning)
         {
@@ -462,9 +452,25 @@ public class ClaudeCompanionWindow : EditorWindow
         spacer.AddToClassList("spacer");
         sidebarContainer.Add(spacer);
 
-        Button addButton = new Button(AddNewSession) { text = "+ 새 세션" };
+        Button addButton = new Button(ShowAddSessionMenu) { text = "+ 새 세션" };
         addButton.AddToClassList("new-session-button");
         sidebarContainer.Add(addButton);
+    }
+
+    // Step 3 of the multi-provider plan (2026-07-23): which AI a new session talks to is picked
+    // here, at creation time (also changeable afterward from the controls row - see
+    // CompanionSession.SwitchProvider). Not-yet-implemented providers stay selectable rather
+    // than disabled - NotImplementedSessionRunner gives a friendly in-chat error on Send, same
+    // as switching to one mid-session, so there's no dead end to avoid here either.
+    private void ShowAddSessionMenu()
+    {
+        GenericMenu menu = new GenericMenu();
+        foreach (AiProviderDefinition provider in AiProviderRegistry.All)
+        {
+            string label = provider.IsImplemented ? provider.DisplayName : provider.DisplayName + " (준비 중)";
+            menu.AddItem(new GUIContent(label), false, () => AddNewSession(provider.Id));
+        }
+        menu.ShowAsContext();
     }
 
     private VisualElement BuildSessionRow(int index)
@@ -667,26 +673,27 @@ public class ClaudeCompanionWindow : EditorWindow
         RebuildMainColumn();
     }
 
-    private void AddNewSession()
+    private void AddNewSession(AiProviderId providerId)
     {
         string projectRoot = Directory.GetParent(Application.dataPath).FullName;
         SessionRecord record = new SessionRecord
         {
             SessionKey = Guid.NewGuid().ToString("N"),
-            DisplayName = $"세션 {sessionRecords.Count + 1}"
+            DisplayName = $"세션 {sessionRecords.Count + 1}",
+            ProviderId = providerId
         };
         sessionRecords.Add(record);
 
         try
         {
-            CompanionSession newSession = new CompanionSession(record.SessionKey, null, projectRoot);
+            CompanionSession newSession = new CompanionSession(record.SessionKey, null, projectRoot, providerId);
             newSession.Changed += () =>
             {
                 record.RestoredSessionId = newSession.RestoredSessionId;
                 SaveManifest();
             };
-            newSession.Runner.OnTurnComplete += () => OnAnySessionTurnComplete(newSession);
-            newSession.Runner.OnError += _ => OnAnySessionTurnComplete(newSession);
+            newSession.OnTurnComplete += () => OnAnySessionTurnComplete(newSession);
+            newSession.OnError += _ => OnAnySessionTurnComplete(newSession);
             sessions.Add(newSession);
             activeSessionIndex = sessions.Count - 1;
         }
@@ -698,6 +705,12 @@ public class ClaudeCompanionWindow : EditorWindow
         SaveManifest();
         RebuildSidebar();
         RebuildMainColumn();
+
+        AiProviderDefinition provider = AiProviderRegistry.Get(providerId);
+        if (provider.IsInstalled != null && !provider.IsInstalled())
+        {
+            OfferInstall(provider);
+        }
     }
 
     private void RebuildMainColumn()
@@ -710,8 +723,8 @@ public class ClaudeCompanionWindow : EditorWindow
         if (boundSession != null)
         {
             boundSession.Changed -= OnSessionChanged;
-            boundSession.Runner.OnTurnComplete -= OnActiveTurnComplete;
-            boundSession.Runner.OnError -= OnActiveTurnError;
+            boundSession.OnTurnComplete -= OnActiveTurnComplete;
+            boundSession.OnError -= OnActiveTurnError;
             boundSession = null;
         }
 
@@ -765,14 +778,18 @@ public class ClaudeCompanionWindow : EditorWindow
 
         boundSession = ActiveSession;
         boundSession.Changed += OnSessionChanged;
-        boundSession.Runner.OnTurnComplete += OnActiveTurnComplete;
-        boundSession.Runner.OnError += OnActiveTurnError;
+        boundSession.OnTurnComplete += OnActiveTurnComplete;
+        boundSession.OnError += OnActiveTurnError;
 
         OnSessionChanged();
     }
 
     private void OnSessionChanged()
     {
+        // Keeps the character's palette in sync with ActiveSession.Concept after SwitchProvider
+        // - SetConcept only ever ran once at tab-build time before, so a provider switch would
+        // otherwise leave the character showing the old AI's colors.
+        characterStage?.SetConcept(ActiveSession?.Concept);
         RefreshChat();
         RefreshStepper();
     }
@@ -959,8 +976,8 @@ public class ClaudeCompanionWindow : EditorWindow
         characterStage?.FlashError();
     }
 
-    // Exposed for ClaudeCompanionSettingsWindow (a separate small popup, same pattern as
-    // ClaudeCompanionSendDialog) to read/write and for its "테스트 재생" button.
+    // Exposed for AiCompanionSettingsWindow (a separate small popup, same pattern as
+    // AiCompanionSendDialog) to read/write and for its "테스트 재생" button.
     public bool SoundEnabled
     {
         get => soundEnabled;
@@ -977,7 +994,7 @@ public class ClaudeCompanionWindow : EditorWindow
         set => soundVariant = value;
     }
 
-    // Exposed for ClaudeCompanionSettingsWindow, same pattern as SoundEnabled/SoundVariant.
+    // Exposed for AiCompanionSettingsWindow, same pattern as SoundEnabled/SoundVariant.
     // 0 = Dark, 1 = Light.
     public int Theme
     {
@@ -1040,27 +1057,81 @@ public class ClaudeCompanionWindow : EditorWindow
         VisualElement row = new VisualElement();
         row.AddToClassList("controls-row");
 
-        bridgeToggleButton = new Button(OnBridgeToggleClicked);
-        bridgeToggleButton.AddToClassList("bridge-toggle-button");
-        row.Add(bridgeToggleButton);
+        // MCPForUnity is an optional companion package (Unity-side tool calls only) - when it
+        // isn't installed there's nothing to start/stop, so show a plain note instead of a
+        // dead toggle (2026-07-23: this tool must still fully work, chat included, without it).
+        if (UnityMcpBridgeAccessor.IsAvailable)
+        {
+            bridgeToggleButton = new Button(OnBridgeToggleClicked);
+            bridgeToggleButton.AddToClassList("bridge-toggle-button");
+            row.Add(bridgeToggleButton);
 
-        bridgeDot = new VisualElement();
-        bridgeDot.AddToClassList("bridge-dot");
-        row.Add(bridgeDot);
+            bridgeDot = new VisualElement();
+            bridgeDot.AddToClassList("bridge-dot");
+            row.Add(bridgeDot);
 
-        // The bridge is one shared connection for the whole editor, not per-session - Stop
-        // disconnects every session's MCP tool calls, not just the one currently in view.
-        // Surfaced via tooltip rather than a badge so it doesn't compete for space.
-        bridgeLabel = new Label();
-        bridgeLabel.AddToClassList("bridge-label");
-        bridgeLabel.tooltip = "모든 세션이 이 브릿지를 공유합니다. Stop을 누르면 다른 세션의 MCP 연결도 함께 끊깁니다.";
-        row.Add(bridgeLabel);
+            // The bridge is one shared connection for the whole editor, not per-session - Stop
+            // disconnects every session's MCP tool calls, not just the one currently in view.
+            // Surfaced via tooltip rather than a badge so it doesn't compete for space.
+            bridgeLabel = new Label();
+            bridgeLabel.AddToClassList("bridge-label");
+            bridgeLabel.tooltip = "모든 세션이 이 브릿지를 공유합니다. Stop을 누르면 다른 세션의 MCP 연결도 함께 끊깁니다.";
+            row.Add(bridgeLabel);
+        }
+        else
+        {
+            Label noBridgeLabel = new Label("MCP 연결 없음 (채팅은 그대로 사용 가능)");
+            noBridgeLabel.AddToClassList("bridge-label");
+            noBridgeLabel.tooltip = "MCPForUnity 패키지가 설치되어 있지 않습니다. Unity 도구 호출 없이 채팅만 사용할 수 있습니다.";
+            row.Add(noBridgeLabel);
+        }
+
+        // Live provider switch for the active session (2026-07-23 request: "지금 세션에서도
+        // 변경이 가능하도록") - not-yet-implemented providers stay selectable (not disabled)
+        // since NotImplementedSessionRunner already gives a friendly in-chat error on Send,
+        // same as picking one at session creation.
+        List<string> providerChoices = new List<string>();
+        int currentProviderIndex = 0;
+        for (int i = 0; i < AiProviderRegistry.All.Count; i++)
+        {
+            AiProviderDefinition p = AiProviderRegistry.All[i];
+            providerChoices.Add(p.IsImplemented ? p.DisplayName : p.DisplayName + " (준비 중)");
+            if (ActiveSession != null && p.Id == ActiveSession.ProviderId)
+            {
+                currentProviderIndex = i;
+            }
+        }
+        DropdownField providerDropdown = new DropdownField();
+        providerDropdown.choices = providerChoices;
+        providerDropdown.index = currentProviderIndex;
+        providerDropdown.AddToClassList("provider-dropdown");
+        providerDropdown.tooltip = "이 세션이 사용할 AI를 선택합니다.";
+        providerDropdown.SetEnabled(ActiveSession != null);
+        providerDropdown.RegisterValueChangedCallback(evt =>
+        {
+            int index = providerChoices.IndexOf(evt.newValue);
+            if (index < 0 || ActiveSession == null)
+            {
+                return;
+            }
+            AiProviderDefinition selected = AiProviderRegistry.All[index];
+            if (selected.Id == ActiveSession.ProviderId)
+            {
+                return;
+            }
+            ActiveSession.SwitchProvider(selected.Id);
+            if (selected.IsInstalled != null && !selected.IsInstalled())
+            {
+                OfferInstall(selected);
+            }
+        });
+        row.Add(providerDropdown);
 
         VisualElement spacer = new VisualElement();
         spacer.AddToClassList("spacer");
         row.Add(spacer);
 
-        settingsButton = new Button(() => ClaudeCompanionSettingsWindow.Open(this)) { text = "⚙ 설정" };
+        settingsButton = new Button(() => AiCompanionSettingsWindow.Open(this)) { text = "⚙ 설정" };
         settingsButton.AddToClassList("settings-button");
         row.Add(settingsButton);
 
@@ -1068,7 +1139,7 @@ public class ClaudeCompanionWindow : EditorWindow
         // implementation: an independent popup window that shares none of this window's
         // layout. Kept for now even though UI Toolkit removes the root cause of that bug class
         // - safe to retire once the new input field has proven stable for a while.
-        Button fallbackButton = new Button(() => ClaudeCompanionSendDialog.Open(this)) { text = "대체 입력창" };
+        Button fallbackButton = new Button(() => AiCompanionSendDialog.Open(this)) { text = "대체 입력창" };
         fallbackButton.AddToClassList("fallback-input-button");
         row.Add(fallbackButton);
 
@@ -1104,17 +1175,17 @@ public class ClaudeCompanionWindow : EditorWindow
 
     private async void StartSession()
     {
-        if (!MCPServiceLocator.Server.IsLocalHttpServerRunning())
+        if (!UnityMcpBridgeAccessor.IsLocalHttpServerRunning())
         {
-            MCPServiceLocator.Server.StartLocalHttpServer();
+            UnityMcpBridgeAccessor.StartLocalHttpServer();
         }
 
-        if (!MCPServiceLocator.Bridge.IsRunning)
+        if (!UnityMcpBridgeAccessor.IsBridgeRunning)
         {
-            await MCPServiceLocator.Bridge.StartAsync();
+            await UnityMcpBridgeAccessor.StartBridgeAsync();
         }
 
-        bridgeRunning = MCPServiceLocator.Bridge.IsRunning;
+        bridgeRunning = UnityMcpBridgeAccessor.IsBridgeRunning;
 
         // Only wipe the conversation for a genuinely fresh start. If a session id is
         // already known (e.g. the user is just reconnecting a bridge that dropped and
@@ -1130,8 +1201,8 @@ public class ClaudeCompanionWindow : EditorWindow
 
     private async void StopSession()
     {
-        // MCPServiceLocator.Bridge/the local HTTP server are singletons shared by every
-        // session in this window, not per-session - stopping them here would silently cut
+        // The MCP bridge/local HTTP server are singletons shared by every session in this
+        // window, not per-session - stopping them here would silently cut
         // off any other session that's still mid-turn. Warn before doing that instead of
         // doing it quietly.
         int otherBusyCount = 0;
@@ -1157,9 +1228,9 @@ public class ClaudeCompanionWindow : EditorWindow
         }
 
         ActiveSession?.Runner.Kill();
-        await MCPServiceLocator.Bridge.StopAsync();
-        MCPServiceLocator.Server.StopLocalHttpServer();
-        bridgeRunning = MCPServiceLocator.Bridge.IsRunning;
+        await UnityMcpBridgeAccessor.StopBridgeAsync();
+        UnityMcpBridgeAccessor.StopLocalHttpServer();
+        bridgeRunning = UnityMcpBridgeAccessor.IsBridgeRunning;
 
         UpdateBridgeControlsVisual();
         UpdateSendControlsEnabled();
@@ -1473,6 +1544,17 @@ public class ClaudeCompanionWindow : EditorWindow
 
     private void AddChatBubble(VisualElement container, ChatMessage message, bool pending)
     {
+        if (message.IsSystemNotice)
+        {
+            VisualElement noticeRow = new VisualElement();
+            noticeRow.AddToClassList("chat-system-notice-row");
+            Label noticeLabel = new Label(message.Text);
+            noticeLabel.AddToClassList("chat-system-notice");
+            noticeRow.Add(noticeLabel);
+            container.Add(noticeRow);
+            return;
+        }
+
         bool isUser = message.Role == "You";
 
         VisualElement row = new VisualElement();
@@ -1537,7 +1619,7 @@ public class ClaudeCompanionWindow : EditorWindow
 
     // Renders fenced code blocks in their own plain (non-rich-text) box and everything else as
     // rich text with bold/inline-code/bullets converted - see ChatMarkdown for what's actually
-    // supported. Anything Claude sends that isn't one of those just prints as-is.
+    // supported. Anything the AI sends that isn't one of those just prints as-is.
     private static void BuildBubbleContent(VisualElement bubble, string text)
     {
         foreach (ChatMarkdown.Segment segment in ChatMarkdown.Split(text))
@@ -1677,13 +1759,17 @@ public class ClaudeCompanionWindow : EditorWindow
         cancelButton.SetEnabled(ActiveSession != null && ActiveSession.IsBusy);
     }
 
-    // Shared by both the inline chat row and ClaudeCompanionSendDialog (the fallback input
+    // Shared by both the inline chat row and AiCompanionSendDialog (the fallback input
     // window) so a message can be sent identically regardless of which UI triggered it. Always
     // targets whichever session is active at send time. Deliberately allows submitting while
     // ActiveSession.IsBusy - CompanionSession.Submit queues it instead of sending immediately.
     private bool CanSendMessage(string text)
     {
-        return bridgeRunning && ActiveSession != null && !string.IsNullOrWhiteSpace(text);
+        // Deliberately not gated on bridgeRunning - the MCP bridge only affects whether the AI
+        // can call Unity-side tools (manage_gameobject etc.), not whether it can chat at all.
+        // Previously any message was blocked until the bridge was started, even a plain
+        // question with no tool calls needed (2026-07-23 request: usable with MCP disconnected).
+        return ActiveSession != null && !string.IsNullOrWhiteSpace(text);
     }
 
     public void SubmitMessage(string text)
@@ -1692,6 +1778,66 @@ public class ClaudeCompanionWindow : EditorWindow
         {
             return;
         }
+
+        // Safety net for a session restored from an old manifest, or one whose provider's CLI
+        // got uninstalled since it was picked - the same install offer the provider dropdown
+        // shows proactively, so this can't be reached without ever being offered a fix.
+        AiProviderDefinition provider = AiProviderRegistry.Get(ActiveSession.ProviderId);
+        if (provider.IsInstalled != null && !provider.IsInstalled())
+        {
+            OfferInstall(provider);
+            return;
+        }
+
         ActiveSession.Submit(text);
+    }
+
+    // Offers to npm-install a provider's missing CLI - step 3.5 of the multi-provider plan
+    // (2026-07-23 request: "만약 해당 AI설치가 안되어 있다면 해당 AI 설치를 해주거나 해줬으면
+    // 해"). Only meaningful for providers with a real IsInstalled/InstallPackage wired up
+    // (Claude, Codex today); NotImplementedSessionRunner-backed providers don't launch anything a PATH
+    // check could verify, so they're not offered an install here at all.
+    private void OfferInstall(AiProviderDefinition provider)
+    {
+        // Providers without an npm package (e.g. Cursor, whose official install is a
+        // curl|bash script) can't be auto-installed - just let the user know it's missing
+        // instead of offering a button that would run a broken "npm install -g " command.
+        if (string.IsNullOrEmpty(provider.InstallPackage))
+        {
+            EditorUtility.DisplayDialog(
+                $"{provider.DisplayName} CLI 없음",
+                $"{provider.DisplayName} CLI가 이 컴퓨터에 설치되어 있지 않은 것 같습니다.\n\n이 프로바이더는 자동 설치를 지원하지 않아서, 공식 설치 방법으로 직접 설치한 뒤 다시 시도해주세요.",
+                "확인");
+            return;
+        }
+
+        bool install = EditorUtility.DisplayDialog(
+            $"{provider.DisplayName} CLI 없음",
+            $"{provider.DisplayName} CLI가 이 컴퓨터에 설치되어 있지 않은 것 같습니다.\n\n지금 설치할까요? (npm install -g {provider.InstallPackage})",
+            "설치",
+            "나중에");
+        if (!install)
+        {
+            return;
+        }
+
+        Debug.Log($"[{provider.DisplayName}] 설치를 시작합니다: npm install -g {provider.InstallPackage}");
+        CliInstaller.InstallNpmPackageAsync(provider.InstallPackage, success =>
+        {
+            if (success && provider.Id == AiProviderId.Claude)
+            {
+                ClaudeSessionRunner.ClearResolvedPathCache();
+            }
+            else if (success && provider.Id == AiProviderId.Codex)
+            {
+                CodexSessionRunner.ClearResolvedPathCache();
+            }
+            EditorUtility.DisplayDialog(
+                success ? $"{provider.DisplayName} 설치 완료" : $"{provider.DisplayName} 설치 실패",
+                success
+                    ? "설치가 끝났습니다. 이제 메시지를 보내보세요."
+                    : "설치 중 문제가 발생했습니다. Unity 콘솔 로그를 확인해주세요.",
+                "확인");
+        });
     }
 }

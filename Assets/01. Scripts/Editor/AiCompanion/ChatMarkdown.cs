@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Text.RegularExpressions;
 
 // Deliberately not a full CommonMark implementation - Unity's IMGUI rich text only understands
-// a handful of inline tags (<b>, <i>, <color>), so this only covers what Claude's CLI output
+// a handful of inline tags (<b>, <i>, <color>), so this only covers what an AI CLI's output
 // actually uses in practice: fenced code blocks, **bold**, `inline code`, "- "/"* " bullets, and
 // (2026-07-16) an [[image: path]] marker so a generated/saved file can render inline in the
 // chat instead of only living on disk.
@@ -72,7 +72,7 @@ public static class ChatMarkdown
     public static string ToRichText(string text)
     {
         // Escape Unity's own rich-text delimiters before inserting real tags below, so stray
-        // '<'/'>' in Claude's output (HTML snippets, generics like List<string>) can't be
+        // '<'/'>' in the AI's output (HTML snippets, generics like List<string>) can't be
         // misparsed as formatting or break the tags this method adds.
         text = text.Replace("<", "＜").Replace(">", "＞");
         text = Bold.Replace(text, "<b>$1</b>");

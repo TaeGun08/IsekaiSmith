@@ -4,16 +4,16 @@ using UnityEngine;
 using UnityEngine.UIElements;
 
 // Small standalone settings popup, same "independent utility window" pattern as
-// ClaudeCompanionSendDialog - keeps the main controls row from accumulating one toggle button
+// AiCompanionSendDialog - keeps the main controls row from accumulating one toggle button
 // per preference as more settings show up (2026-07-16 request: sound needed to be choosable,
 // and there should be one place for settings like it going forward, not scattered buttons).
-public class ClaudeCompanionSettingsWindow : EditorWindow
+public class AiCompanionSettingsWindow : EditorWindow
 {
-    private ClaudeCompanionWindow owner;
+    private AiCompanionWindow owner;
 
-    public static void Open(ClaudeCompanionWindow owner)
+    public static void Open(AiCompanionWindow owner)
     {
-        ClaudeCompanionSettingsWindow window = CreateInstance<ClaudeCompanionSettingsWindow>();
+        AiCompanionSettingsWindow window = CreateInstance<AiCompanionSettingsWindow>();
         window.owner = owner;
         window.titleContent = new GUIContent("설정");
         window.minSize = new Vector2(260, 260);

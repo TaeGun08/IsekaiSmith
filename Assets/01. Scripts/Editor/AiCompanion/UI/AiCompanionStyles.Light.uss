@@ -1,5 +1,5 @@
 /* Light theme overrides (2026-07-22 request). Loaded alongside the base (dark) stylesheet at
-   all times and gated by the ".theme-light" class on root, toggled from ClaudeCompanionWindow's
+   all times and gated by the ".theme-light" class on root, toggled from AiCompanionWindow's
    Theme setting - selectors here are deliberately scoped under ".root.theme-light" (3 classes)
    so they win over the base file's plain ".chat-area" etc (1 class) on specificity alone,
    regardless of stylesheet load order. Only the surfaces that actually read as "dark" get an
@@ -87,6 +87,11 @@
 
 .root.theme-light .chat-bubble--claude {
     background-color: rgb(232, 229, 226);
+}
+
+.root.theme-light .chat-system-notice {
+    color: rgb(110, 105, 100);
+    background-color: rgba(0, 0, 0, 0.05);
 }
 
 .root.theme-light .chat-bubble-role {
