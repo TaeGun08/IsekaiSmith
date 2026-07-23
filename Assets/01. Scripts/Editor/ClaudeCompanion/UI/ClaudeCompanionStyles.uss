@@ -213,11 +213,6 @@
     background-color: rgba(0, 0, 0, 0);
 }
 
-.stage-mouth {
-    position: absolute;
-    border-radius: 50%;
-}
-
 .stage-glasses-lens {
     position: absolute;
     border-radius: 50%;

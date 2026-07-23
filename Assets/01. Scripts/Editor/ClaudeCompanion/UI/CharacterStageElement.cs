@@ -136,7 +136,6 @@ public class CharacterStageElement : VisualElement
     private readonly VisualElement ring;
     private readonly VisualElement eyeLeft;
     private readonly VisualElement eyeRight;
-    private readonly VisualElement mouth;
     private readonly VisualElement glassesLeft;
     private readonly VisualElement glassesRight;
     private readonly VisualElement glassesBridge;
@@ -307,12 +306,6 @@ public class CharacterStageElement : VisualElement
         eyeRight = MakeCircle(EyeSize);
         eyeRight.style.backgroundColor = EyeColor;
         Add(eyeRight);
-
-        mouth = new VisualElement();
-        mouth.AddToClassList("stage-mouth");
-        mouth.style.backgroundColor = EyeColor;
-        mouth.pickingMode = PickingMode.Ignore;
-        Add(mouth);
 
         // "Developer glasses" - shown only while Editing/Running (see Tick) - round frames on
         // top of the eyes plus a short bridge between them. Purely a costume layer; the eyes
@@ -769,8 +762,8 @@ public class CharacterStageElement : VisualElement
             eyeOpen = flashIsError ? 0.5f : 1.3f;
         }
         float eyeHeight = EyeSize * eyeOpen;
-        // Nominal (non-blink) eye center - used to place the mouth/glasses so they don't jitter
-        // with the blink cycle.
+        // Nominal (non-blink) eye center - used to place the glasses so they don't jitter with
+        // the blink cycle.
         float eyeCenterY = center.y + bobY + EyeYOffset;
         float eyeY = eyeCenterY - eyeHeight / 2f;
 
@@ -882,35 +875,11 @@ public class CharacterStageElement : VisualElement
             }
         }
 
-        // One fixed calm shape for every non-flash state, full stop - a Thinking-only variant
-        // was tried (small round "pondering" mouth) but CurrentActivity flips between Thinking
-        // and Reading/Editing/Running rapidly during a real turn (once per tool call), so the
-        // mouth kept resizing back and forth and read as the same fish-like flapping the
-        // original chatter animation did (user report, 2026-07-16). The thought bubble alone
-        // now carries the "thinking" expression; the mouth no longer reacts to activity at all.
-        float mouthWidth;
-        float mouthHeight;
-        if (flashing && !flashIsError)
-        {
-            mouthWidth = 22f;
-            mouthHeight = 10f;
-        }
-        else if (flashing)
-        {
-            mouthWidth = 10f;
-            mouthHeight = 3f;
-        }
-        else
-        {
-            mouthWidth = 12f;
-            mouthHeight = 2.5f;
-        }
-
-        mouth.style.width = mouthWidth;
-        mouth.style.height = mouthHeight;
-        mouth.style.left = center.x - mouthWidth / 2f + shakeX;
-        mouth.style.top = center.y + bobY + MouthYOffset - mouthHeight / 2f;
-
+        // No mouth element at all - a static line, then a Thinking-only pondering shape, then a
+        // success/error pop were each tried in turn and every one of them still read as
+        // "flapping" once the character sat through a real multi-turn conversation (user
+        // reports 2026-07-16 and 2026-07-23, most recently "뻐끔뻐끔하는데") - so the mouth is
+        // gone; the eyes (eyeOpen below) and thought bubble carry the expression instead.
         stateLabel.text = label;
     }
 
