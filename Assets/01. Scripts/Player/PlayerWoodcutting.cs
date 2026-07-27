@@ -66,5 +66,13 @@ public class PlayerWoodcutting : MonoBehaviour
                 carryStack.TryAdd(woodItemPrefab, currentTree.transform.position, CarryLayer.Wood);
             }
         }
+
+        // Disabling the tree's collider on fell doesn't raise OnTriggerExit, so drop the
+        // reference here - otherwise this stale tree keeps getting chopped once it respawns
+        // somewhere else, no matter how far away the player has since walked.
+        if (!currentTree.IsAvailable)
+        {
+            currentTree = null;
+        }
     }
 }

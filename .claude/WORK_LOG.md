@@ -1156,3 +1156,15 @@ Unity 콘솔(`read_console`) 확인 결과 에러/경고 0건 — 컴파일 정�
 ### 다음에 할 일 (TODO)
 - [ ] 컴파일 에러 0건 확인
 - [ ] 유저 재테스트: 광석 5타 채광 + 진동 연출 + 2~3개 보상, 곡괭이 스윙 속도/방향, 통나무 적재 간격
+
+---
+
+## 2026-07-27 (계속 21)
+
+### 원거리 재생성 나무 자동 상호작용 버그 수정
+- 원인: `WoodNode.Fell()`/`OreNode.Break()`에서 `triggerCollider.enabled = false`로 콜라이더를 끄는데, Unity는 콜라이더를 코드로 비활성화해도 `OnTriggerExit`을 발생시키지 않음. 그래서 `PlayerWoodcutting.currentTree`/`PlayerMining.currentNode`가 쓰러진/파괴된 대상을 계속 붙들고 있다가, 그 대상이 새 위치에서 `isAvailable=true`가 되는 순간 거리와 무관하게 다시 타격 로직이 돌아감.
+- `PlayerWoodcutting.cs`/`PlayerMining.cs`: `TryChop`/`TryMine` 처리 직후 대상이 `IsAvailable=false`가 됐으면 즉시 `currentTree`/`currentNode = null`로 참조 해제하도록 수정.
+
+### 다음에 할 일 (TODO)
+- [ ] 컴파일 에러 0건 확인
+- [ ] 유저 재테스트: 나무를 쓰러뜨린 뒤 멀리 이동했다가, 그 나무가 재생성됐을 때 자동으로 상호작용되지 않는지 확인

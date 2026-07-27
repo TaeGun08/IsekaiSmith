@@ -66,5 +66,13 @@ public class PlayerMining : MonoBehaviour
                 carryStack.TryAdd(oreItemPrefab, currentNode.transform.position, CarryLayer.Ore);
             }
         }
+
+        // Disabling the node's collider on break doesn't raise OnTriggerExit, so drop the
+        // reference here - otherwise this stale node keeps getting mined once it respawns,
+        // no matter how far away the player has since walked.
+        if (!currentNode.IsAvailable)
+        {
+            currentNode = null;
+        }
     }
 }
