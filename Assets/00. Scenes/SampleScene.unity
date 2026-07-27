@@ -170,9 +170,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TreeFieldSpawner
   treePrefab: {fileID: 4105527601435610812, guid: 4177e0a6b593e9648b53d4523c26e41d, type: 3}
   treeCount: 12
-  areaWidth: 20
-  areaDepth: 20
-  minSpacing: 4.3
+  areaWidth: 18
+  areaDepth: 18
+  minSpacing: 4
   maxAttemptsPerTree: 50
 --- !u!1 &330585543
 GameObject:
