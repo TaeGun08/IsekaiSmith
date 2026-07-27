@@ -911,3 +911,48 @@ Unity 콘솔(`read_console`) 확인 결과 에러/경고 0건 — 컴파일 정�
 ### 다음에 할 일 (TODO)
 - [ ] 유저 플레이 테스트: 벌목장에서 나무 12그루 랜덤 생성되는지, 도끼질 5회로 쓰러지는지 확인
 - [ ] 이후 도끼/곡괭이 강화 시스템 방향 유저 지시 대기
+
+---
+
+## 2026-07-27 (계속 5)
+
+### 통나무 획득량 2~3개 랜덤화
+- `WoodNode.cs`: 고정 `woodReward` → `minWoodReward=2`/`maxWoodReward=3` 필드로 분리, `Fell()` 시 `Random.Range(min, max+1)`로 지급. 인스펙터에서 자유 조정 가능.
+- grep 재검색으로 `woodReward` 잔여 참조 없음 확인. `Tree.prefab`의 기존 `woodReward: 5` 직렬화 값은 무해하게 무시되고 새 필드는 스크립트 기본값(2~3) 사용.
+- 도끼질 상호작용 자체(트리거 범위 안에서 `chopInterval`마다 자동 타격, 5타에 벌목)는 기존 `PlayerWoodcutting.cs`/`WoodNode.cs` 구조를 그대로 활용 — 신규 로직 불필요.
+
+### 다음에 할 일 (TODO)
+- [ ] 다음 턴에 컴파일 에러/경고 0건 재확인
+- [ ] 유저 플레이 테스트: 나무 5타로 쓰러지는지, 통나무 2~3개 랜덤 지급되는지 확인
+
+---
+
+## 2026-07-27 (계속 6)
+
+### 도끼/곡괭이 + 스윙 애니메이션
+- `ToolMetal.mat`(회색, Metallic 0.7/Smoothness 0.5) 신규 생성.
+- `Axe.prefab`, `Pickaxe.prefab` 신규 제작 (손잡이=Cylinder+TreeTrunk.mat, 헤드=Cube+ToolMetal.mat, 프리미티브 조합, Tree/OreNode와 동일한 제작 방식).
+- `Player.prefab`에 `ToolAnchor`(0.4,0.95,0.05) 추가, 그 아래 Axe/Pickaxe 중첩 프리팹 인스턴스 배치(항상 둘 다 장착 상태로 보임).
+- `ToolSwing.cs` 신규 작성: 스켈레톤/Animator 없이 코드로 도구 트랜스폼을 짧게 회전시키는 절차적 스윙(CarryStack의 흔들림 방식과 동일 철학). `PlayAxeSwing()`/`PlayPickaxeSwing()` 제공.
+- `PlayerWoodcutting.cs`: `TryChop` 성공마다(매 타격) `PlayAxeSwing()` 호출하도록 연결, `[RequireComponent(typeof(ToolSwing))]` 추가.
+- `PlayerMining.cs`: `TryCollect` 성공 시 `PlayPickaxeSwing()` 호출, 동일하게 RequireComponent 추가.
+- **중단 지점**: `Player.prefab` 루트에 `ToolSwing` 컴포넌트를 아직 못 붙임 — 이번 턴에 막 작성한 스크립트라 컴파일 반영 전(LockReloadAssemblies, 항상 있는 패턴). `modify_contents`로 컴포넌트 추가 시도했으나 "Type not found" 에러 확인.
+
+### 다음에 할 일 (TODO)
+- [ ] 컴파일 에러/경고 0건 재확인
+- [ ] `Player.prefab` 루트에 `ToolSwing` 컴포넌트 추가
+- [ ] `ToolSwing`의 `axeTool` = `Player/ToolAnchor/Axe`, `pickaxeTool` = `Player/ToolAnchor/Pickaxe`로 연결
+- [ ] 유저 플레이 테스트: 도끼질/곡괭이질 시 도구가 실제로 휘둘러지는지 확인
+
+---
+
+## 2026-07-27 (계속 7)
+
+### 도구를 상호작용 시에만 활성화 + Player 프리팹 연결 완료
+- `ToolSwing.cs`: Awake에서 axe/pickaxe를 기본 비활성화, 스윙 시작 시 활성화 → 스윙 끝나면 다시 비활성화. 도끼/곡괭이가 각각 벌목/채광 중일 때만 보이도록 변경. 코루틴도 도구별로 분리(axeSwingRoutine/pickaxeSwingRoutine)해서 서로 다른 도구 스윙이 겹쳐도 한쪽이 켜진 채로 끼는 문제 방지.
+- `Player.prefab`에 `ToolSwing` 컴포넌트 추가 시 `modify_contents` 호출 한 번에 컴포넌트가 2개 중복 생성되는 현상 발견 → YAML 직접 편집으로 중복 제거, 남은 하나에 `axeTool`/`pickaxeTool`을 `ToolAnchor/Axe`, `ToolAnchor/Pickaxe`의 stripped Transform fileID로 직접 연결.
+- `refresh_unity`로 재적용 후 콘솔 에러/경고 0건, 프리팹 계층 정상(ToolSwing 1개만 존재) 확인 완료.
+
+### 다음에 할 일 (TODO)
+- [ ] 유저 플레이 테스트: 평소엔 도끼/곡괭이 안 보이다가 벌목/채광 순간에만 나타나는지 확인
+- [ ] 이후 방향(도끼/곡괭이 강화 등) 유저 지시 대기

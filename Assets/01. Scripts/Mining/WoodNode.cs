@@ -4,7 +4,8 @@ using UnityEngine;
 public class WoodNode : MonoBehaviour
 {
     [SerializeField] private int hitsToFell = 5;
-    [SerializeField] private int woodReward = 5;
+    [SerializeField] private int minWoodReward = 2;
+    [SerializeField] private int maxWoodReward = 3;
     [SerializeField] private float chopAbandonTimeout = 5f;
     [SerializeField] private float respawnDelay = 6f;
     [SerializeField] private Transform visual;
@@ -47,7 +48,7 @@ public class WoodNode : MonoBehaviour
             return true;
         }
 
-        woodAmount = woodReward;
+        woodAmount = Random.Range(minWoodReward, maxWoodReward + 1);
         Fell();
         return true;
     }
