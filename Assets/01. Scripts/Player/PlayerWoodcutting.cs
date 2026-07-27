@@ -7,7 +7,7 @@ public class PlayerWoodcutting : MonoBehaviour
     [SerializeField] private float chopInterval = 0.6f;
 
     private CarryStack carryStack;
-    private Tree currentTree;
+    private WoodNode currentTree;
     private float tickTimer;
 
     private void Awake()
@@ -17,7 +17,7 @@ public class PlayerWoodcutting : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        Tree tree = other.GetComponentInParent<Tree>();
+        WoodNode tree = other.GetComponentInParent<WoodNode>();
         if (tree != null)
         {
             currentTree = tree;
@@ -27,7 +27,7 @@ public class PlayerWoodcutting : MonoBehaviour
 
     private void OnTriggerExit(Collider other)
     {
-        Tree tree = other.GetComponentInParent<Tree>();
+        WoodNode tree = other.GetComponentInParent<WoodNode>();
         if (tree != null && tree == currentTree)
         {
             currentTree = null;

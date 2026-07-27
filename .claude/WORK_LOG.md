@@ -852,3 +852,62 @@ Unity 콘솔(`read_console`) 확인 결과 에러/경고 0건 — 컴파일 정�
 - [ ] 컴파일 끝나면 씬의 임시 "Tree" 오브젝트 삭제
 - [ ] "LumberCamp" 빈 오브젝트를 Quarry와 겹치지 않는 위치(예: (-7,0,4))에 만들고 `TreeFieldSpawner` 추가, `Tree.prefab` 연결
 - [ ] 씬 저장 후 유저에게 테스트 요청
+
+---
+
+## 2026-07-27 (계속)
+
+### 배치 간격/나무 상호작용 수정
+- 원인 파악: 지난 턴에 벌목장 스포너가 실제로 생성되지 않고 프리팹 추출용 임시 오브젝트 "Tree_Build"(나무 1그루, 원점)만 남아있었음. 그래서 "나무 하나만 생성/채석장과 붙어보임" 현상 발생.
+- Tree_Build 삭제, Quarry를 (6,0,4)→(9,0,5)로 이동.
+- "LumberCamp" 빈 오브젝트를 (-9,0,-5)에 생성 (채석장과 대각선으로 충분히 이격). 씬 저장 완료.
+- `Tree.cs`: 랜덤 3~5회 벌목 → 고정 `hitsToFell=5`로 변경. `woodPerHit`(타격마다 나무 획득) 제거, 쓰러질 때만 `woodReward=5` 지급하도록 변경. (추후 도끼/곡괭이 강화 시 이 필드들을 조정하면 됨)
+- **중단 지점**: `LumberCamp`에 `TreeFieldSpawner` 컴포넌트를 아직 못 붙임 — 이 세션이 LockReloadAssemblies를 쥐고 있어 방금 작성한 스크립트가 아직 컴파일 반영 전. 턴이 끝나야 풀림.
+
+### 다음에 할 일 (TODO)
+- [ ] `LumberCamp`(instanceID는 재조회 필요, name="LumberCamp")에 `TreeFieldSpawner` 컴포넌트 추가
+- [ ] `treePrefab` = `Assets/02. Prefabs/Tree.prefab` 연결, treeCount/areaWidth/areaDepth/minSpacing 값 지정 (예: 12 / 10 / 10 / 2.5)
+- [ ] 씬 저장 후 콘솔 에러 확인, 유저에게 플레이 테스트 요청
+
+---
+
+## 2026-07-27 (계속 2)
+
+### 컴파일 에러 수정
+- `Tree.cs` RespawnAfterDelay()에 리팩토링 전 코드(`requiredHits = Random.Range(minHitsToFell, maxHitsToFell + 1);`)가 지워지지 않고 남아 CS0103 에러 3건 발생. 삭제 완료.
+- grep으로 `minHitsToFell/maxHitsToFell/requiredHits/fellBonusWood/woodPerHit` 전체 재검색 — 이제 `Tree.prefab`의 직렬화 잔여 필드(무해, Unity가 무시)만 남고 코드 참조는 없음.
+- 이번 턴에도 LockReloadAssemblies로 실제 컴파일 결과 확인은 다음 턴에서 재확인 필요.
+
+### 다음에 할 일 (TODO, 변동 없음)
+- [ ] 콘솔 에러 0건인지 재확인 (다음 턴)
+- [ ] `LumberCamp`에 `TreeFieldSpawner` 컴포넌트 추가 + `Tree.prefab` 연결(treeCount 12 / areaWidth,Depth 10 / minSpacing 2.5)
+- [ ] 씬 저장 후 유저에게 플레이 테스트 요청
+
+---
+
+## 2026-07-27 (계속 3)
+
+### "Tree" 이름 충돌 경고 수정
+- 원인: `UnityEngine.Tree`(지형 시스템 내장 컴포넌트)와 이름이 겹쳐서 "same name as built-in Unity component" 경고 발생, AddComponent/GetComponent 정상 동작 안 함.
+- `Tree.cs`/`Tree.cs.meta` → `WoodNode.cs`/`WoodNode.cs.meta`로 `git mv` (guid 보존, Tree.prefab의 스크립트 참조는 guid 기반이라 자동 재연결됨).
+- 클래스명 `Tree` → `WoodNode`로 변경, `PlayerWoodcutting.cs`의 참조 3곳(`currentTree` 필드 타입, OnTriggerEnter/Exit의 `GetComponentInParent<Tree>()`) 전부 `WoodNode`로 교체.
+- grep으로 `.cs` 전체 재검색 — 잔여 `Tree` 참조 없음 확인.
+- 이번에도 실제 컴파일 결과는 다음 턴에 콘솔에서 재확인 필요 (LockReloadAssemblies).
+
+### 다음에 할 일 (TODO)
+- [ ] 콘솔 경고/에러 0건인지 재확인 (특히 "same name as built-in" 경고 사라졌는지)
+- [ ] `LumberCamp`에 `TreeFieldSpawner` 컴포넌트 추가 + `Tree.prefab`(WoodNode 컴포넌트로 재연결된) 연결
+- [ ] 씬 저장 후 유저에게 플레이 테스트 요청
+
+---
+
+## 2026-07-27 (계속 4)
+
+### 벌목장 스포너 연결 완료
+- 컴파일 정상 완료 확인 (콘솔 에러/경고 0건, "same name as built-in" 경고도 사라짐).
+- `LumberCamp`에 `TreeFieldSpawner` 컴포넌트 추가, `Tree.prefab` 연결 (treeCount 12 / areaWidth,Depth 10 / minSpacing 2.5 / maxAttemptsPerTree 30). 씬 저장 완료.
+- 채석장(9,0,5) / 벌목장(-9,0,-5) 대각선 이격, 플레이어(0,0,0) 기준 양쪽 도보 거리 비슷.
+
+### 다음에 할 일 (TODO)
+- [ ] 유저 플레이 테스트: 벌목장에서 나무 12그루 랜덤 생성되는지, 도끼질 5회로 쓰러지는지 확인
+- [ ] 이후 도끼/곡괭이 강화 시스템 방향 유저 지시 대기
