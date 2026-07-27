@@ -231,7 +231,7 @@ MonoBehaviour:
   oreCapacity: 8
   woodCapacity: 8
   itemHeight: 0.5
-  woodItemHeight: 0.4
+  woodItemHeight: 0.48
   woodBackOffset: 0.35
   swayAmplitude: 6
   swaySpeed: 6
@@ -264,7 +264,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ToolSwing
   axeTool: {fileID: 7580839775720259005}
   pickaxeTool: {fileID: 2661894219772440085}
-  swingDuration: 0.25
+  axeSwingDuration: 0.45
+  pickaxeSwingDuration: 0.25
   swingAngle: 70
 --- !u!114 &234502144642324763
 MonoBehaviour:
@@ -429,7 +430,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5091987114996831352, guid: 603020cb84837584fa1a5d40528a30a2, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 1
+      value: 0.7071068
       objectReference: {fileID: 0}
     - target: {fileID: 5091987114996831352, guid: 603020cb84837584fa1a5d40528a30a2, type: 3}
       propertyPath: m_LocalRotation.x
@@ -437,7 +438,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5091987114996831352, guid: 603020cb84837584fa1a5d40528a30a2, type: 3}
       propertyPath: m_LocalRotation.y
-      value: 0
+      value: 0.7071068
       objectReference: {fileID: 0}
     - target: {fileID: 5091987114996831352, guid: 603020cb84837584fa1a5d40528a30a2, type: 3}
       propertyPath: m_LocalRotation.z
@@ -449,7 +450,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5091987114996831352, guid: 603020cb84837584fa1a5d40528a30a2, type: 3}
       propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
+      value: 90
       objectReference: {fileID: 0}
     - target: {fileID: 5091987114996831352, guid: 603020cb84837584fa1a5d40528a30a2, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z

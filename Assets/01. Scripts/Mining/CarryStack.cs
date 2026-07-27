@@ -14,12 +14,16 @@ public class CarryStack : MonoBehaviour
     [SerializeField] private int oreCapacity = 8;
     [SerializeField] private int woodCapacity = 8;
     [SerializeField] private float itemHeight = 0.5f;
-    [SerializeField] private float woodItemHeight = 0.4f;
+    [SerializeField] private float woodItemHeight = 0.48f;
     [SerializeField] private float woodBackOffset = 0.35f;
     [SerializeField] private float swayAmplitude = 6f;
     [SerializeField] private float swaySpeed = 6f;
     [SerializeField] private float flightDuration = 0.4f;
     [SerializeField] private float flightArcHeight = 1.5f;
+    [SerializeField] private float woodDropDuration = 0.3f;
+    [SerializeField] private float woodDropArcHeight = 0.4f;
+    [SerializeField] private float woodDropScatterRadius = 0.6f;
+    [SerializeField] private float woodPickupDelay = 0.5f;
 
     private readonly List<Transform> oreItems = new List<Transform>();
     private readonly List<Transform> woodItems = new List<Transform>();
@@ -96,6 +100,40 @@ public class CarryStack : MonoBehaviour
 
     private IEnumerator FlyToStack(Transform item, Vector3 startWorldPosition, Vector3 targetLocalPosition, CarryLayer layer)
     {
+        Vector3 flightStart = startWorldPosition;
+
+        if (layer == CarryLayer.Wood)
+        {
+            Vector2 scatter = Random.insideUnitCircle * woodDropScatterRadius;
+            Vector3 groundPosition = startWorldPosition + new Vector3(scatter.x, 0f, scatter.y);
+
+            float dropElapsed = 0f;
+            while (dropElapsed < woodDropDuration && item != null)
+            {
+                dropElapsed += Time.deltaTime;
+                float dropT = Mathf.Clamp01(dropElapsed / woodDropDuration);
+                Vector3 dropPosition = Vector3.Lerp(startWorldPosition, groundPosition, dropT);
+                dropPosition.y += woodDropArcHeight * Mathf.Sin(dropT * Mathf.PI);
+                item.position = dropPosition;
+                yield return null;
+            }
+
+            if (item == null)
+            {
+                yield break;
+            }
+
+            item.position = groundPosition;
+            flightStart = groundPosition;
+
+            yield return new WaitForSeconds(woodPickupDelay);
+
+            if (item == null)
+            {
+                yield break;
+            }
+        }
+
         float elapsed = 0f;
 
         while (elapsed < flightDuration && item != null && stackAnchor != null)
@@ -104,7 +142,7 @@ public class CarryStack : MonoBehaviour
             float t = Mathf.Clamp01(elapsed / flightDuration);
 
             Vector3 targetWorldPosition = stackAnchor.TransformPoint(targetLocalPosition);
-            Vector3 flatPosition = Vector3.Lerp(startWorldPosition, targetWorldPosition, t);
+            Vector3 flatPosition = Vector3.Lerp(flightStart, targetWorldPosition, t);
             float arc = flightArcHeight * Mathf.Sin(t * Mathf.PI);
 
             item.position = flatPosition + Vector3.up * arc;
