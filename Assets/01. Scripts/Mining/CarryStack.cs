@@ -59,8 +59,9 @@ public class CarryStack : MonoBehaviour
             zOffset = -woodBackOffset;
         }
 
-        GameObject instance = Instantiate(itemPrefab, worldStartPosition, Quaternion.identity);
         Vector3 targetLocalPosition = new Vector3(0f, index * itemHeight, zOffset);
+
+        GameObject instance = Instantiate(itemPrefab, worldStartPosition, Quaternion.identity);
         StartCoroutine(FlyToStack(instance.transform, worldStartPosition, targetLocalPosition, layer));
         return true;
     }

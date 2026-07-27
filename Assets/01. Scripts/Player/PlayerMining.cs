@@ -18,7 +18,7 @@ public class PlayerMining : MonoBehaviour
     private void OnTriggerEnter(Collider other)
     {
         OreNode node = other.GetComponentInParent<OreNode>();
-        if (node == null || carryStack.IsFull(CarryLayer.Ore))
+        if (node == null)
         {
             return;
         }

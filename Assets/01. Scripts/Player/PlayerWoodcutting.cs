@@ -39,7 +39,7 @@ public class PlayerWoodcutting : MonoBehaviour
 
     private void Update()
     {
-        if (currentTree == null || !currentTree.IsAvailable || carryStack.IsFull(CarryLayer.Wood))
+        if (currentTree == null || !currentTree.IsAvailable)
         {
             return;
         }
