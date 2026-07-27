@@ -838,3 +838,17 @@ Unity 콘솔(`read_console`) 확인 결과 에러/경고 0건 — 컴파일 정�
 ### 다음에 할 일 (TODO)
 - [ ] 위 변경사항 커밋
 - [ ] 사용자에게 다음 작업 방향 확인 필요 (구체적 다음 기능 지시 없음)
+
+---
+
+## 2026-07-27
+
+### 채석장 배치 + 벌목장(랜덤 배치) 작업 중
+- **채석장**: 씬의 빈 "Quarry" 오브젝트(6,0,4)에 `ResourceFieldSpawner` 추가, `OreNode.prefab` 3x3(간격 2.5) 연결. 완료, 저장됨.
+- **벌목장**: `TreeTrunk.mat`/`TreeFoliage.mat` 생성, `Tree.prefab` 신규 제작(트렁크+폴리지 비주얼, SphereCollider 트리거 radius 1). `TreeFieldSpawner.cs` 신규 작성(랜덤 rejection-sampling으로 minSpacing 이하 겹침 방지) — 완료.
+- **중단 지점**: 이 세션 자신이 `LockReloadAssemblies`를 걸고 있어 컴파일이 멈춤 (평소 패턴, [[project_claude_companion_parallel_sessions]] 참고). 씬에 임시 빌드용 오브젝트 "Tree"(Tree_Build였던 것, 프리팹 추출 후 남음)가 남아있음 — **삭제 필요**.
+
+### 다음에 할 일 (TODO)
+- [ ] 컴파일 끝나면 씬의 임시 "Tree" 오브젝트 삭제
+- [ ] "LumberCamp" 빈 오브젝트를 Quarry와 겹치지 않는 위치(예: (-7,0,4))에 만들고 `TreeFieldSpawner` 추가, `Tree.prefab` 연결
+- [ ] 씬 저장 후 유저에게 테스트 요청
