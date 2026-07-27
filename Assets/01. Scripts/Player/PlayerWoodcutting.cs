@@ -21,7 +21,7 @@ public class PlayerWoodcutting : MonoBehaviour
     private void OnTriggerEnter(Collider other)
     {
         WoodNode tree = other.GetComponentInParent<WoodNode>();
-        if (tree != null)
+        if (tree != null && tree != currentTree)
         {
             currentTree = tree;
             tickTimer = 0f;
