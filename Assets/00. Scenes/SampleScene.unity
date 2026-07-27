@@ -1142,6 +1142,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 234502144642324763, guid: 07cd5abe97cccf342bad73f04d8395b4, type: 3}
+      propertyPath: woodItemPrefab
+      value: 
+      objectReference: {fileID: 4740245910479757265, guid: 022c142a5d3fbe0478d1fdbe3d194f93, type: 3}
     - target: {fileID: 1236137428938157136, guid: 07cd5abe97cccf342bad73f04d8395b4, type: 3}
       propertyPath: m_Name
       value: Player

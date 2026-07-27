@@ -956,3 +956,34 @@ Unity 콘솔(`read_console`) 확인 결과 에러/경고 0건 — 컴파일 정�
 ### 다음에 할 일 (TODO)
 - [ ] 유저 플레이 테스트: 평소엔 도끼/곡괭이 안 보이다가 벌목/채광 순간에만 나타나는지 확인
 - [ ] 이후 방향(도끼/곡괭이 강화 등) 유저 지시 대기
+
+---
+
+## 2026-07-27 (계속 8)
+
+### 나무 상호작용 안 되는 문제 원인 파악
+- `Player.prefab`을 직접 열어보니 컴포넌트 목록에 `PlayerWoodcutting`이 아예 없었음 (`Transform, Rigidbody, CapsuleCollider, CarryStack, PlayerMining, ToolSwing`만 존재). 스크립트는 있지만 한 번도 Player에 붙은 적이 없었던 것 — 그래서 나무 트리거를 밟아도 아무 반응이 없었음.
+- 통나무 시각화용 프리팹(`woodItemPrefab`에 연결할 것)도 아직 없어서 같이 만들어야 함.
+
+### 진행 중 (중단됨)
+- 씬에 `WoodLog_Build`(Cylinder, TreeTrunk.mat 적용됨) 생성함 — 아직 프리팹으로 추출 안 됨, 콜라이더도 안 지워짐.
+- 이번 턴에도 LockReloadAssemblies로 Unity 전체가 compiling busy 상태에 걸려 후속 작업(콜라이더 제거, 프리팹 추출, `PlayerWoodcutting` 컴포넌트 추가+연결) 진행 못 함.
+
+### 다음에 할 일 (TODO)
+- [ ] `WoodLog_Build`의 CapsuleCollider 제거
+- [ ] `Assets/02. Prefabs/WoodLog.prefab`로 추출, 씬의 임시 인스턴스 삭제
+- [ ] `Player.prefab`에 `PlayerWoodcutting` 컴포넌트 추가, `woodItemPrefab` = `WoodLog.prefab` 연결
+- [ ] 콘솔 에러 0건 재확인 후 유저에게 벌목 테스트 요청
+
+---
+
+## 2026-07-27 (계속 9)
+
+### 나무 상호작용 수정 완료 (3개 작업 모두 완료)
+1. `WoodLog.prefab` 신규 제작 (Cylinder + TreeTrunk.mat, 콜라이더 없음 - OreChunk와 동일한 스타일).
+2. `Player.prefab`에 `PlayerWoodcutting` 컴포넌트 추가 (중복 없이 1개만 정상 추가됨).
+3. `woodItemPrefab` = `WoodLog.prefab` 연결 (프리팹 원본 기준으로 설정, 씬 오버라이드 아님).
+- 콘솔 에러/경고 0건, 씬 저장 완료.
+
+### 다음에 할 일 (TODO)
+- [ ] 유저 플레이 테스트: 나무 5타로 벌목 + 도끼 스윙 표시 + 통나무 2~3개 획득 + 캐릭터 뒤에 통나무 쌓이는지 확인

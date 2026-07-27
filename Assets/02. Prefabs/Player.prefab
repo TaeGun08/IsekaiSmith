@@ -137,6 +137,7 @@ GameObject:
   - component: {fileID: 3183658213648403594}
   - component: {fileID: 6364471894945593198}
   - component: {fileID: 4883592853600809798}
+  - component: {fileID: 234502144642324763}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -262,6 +263,20 @@ MonoBehaviour:
   pickaxeTool: {fileID: 2661894219772440085}
   swingDuration: 0.25
   swingAngle: 70
+--- !u!114 &234502144642324763
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1236137428938157136}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c917f400c1d3b904dafedaa5888e4050, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerWoodcutting
+  woodItemPrefab: {fileID: 4740245910479757265, guid: 022c142a5d3fbe0478d1fdbe3d194f93, type: 3}
+  chopInterval: 0.6
 --- !u!1 &2301573201819260025
 GameObject:
   m_ObjectHideFlags: 0
