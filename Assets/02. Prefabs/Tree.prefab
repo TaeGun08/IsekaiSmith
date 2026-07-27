@@ -55,6 +55,7 @@ MonoBehaviour:
   respawnDelay: 6
   visual: {fileID: 481316511962730335}
   stump: {fileID: 7699755275833058002}
+  chipPrefab: {fileID: 3453578028716468898, guid: 17aaa6e6ce288444e9f56f87d823cdac, type: 3}
 --- !u!135 &673716817156138972
 SphereCollider:
   m_ObjectHideFlags: 0

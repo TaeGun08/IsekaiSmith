@@ -9,12 +9,16 @@ public class WoodNode : MonoBehaviour
     [SerializeField] private float chopAbandonTimeout = 5f;
     [SerializeField] private float respawnDelay = 6f;
     [SerializeField] private float respawnJitterRadius = 1.5f;
-    [SerializeField] private float hitShakeAngle = 10f;
+    [SerializeField] private float hitShakeAngle = 13f;
     [SerializeField] private float hitShakeDuration = 0.15f;
     [SerializeField] private float fallAngle = 85f;
     [SerializeField] private float fallDuration = 0.7f;
     [SerializeField] private Transform visual;
     [SerializeField] private Transform stump;
+    [SerializeField] private GameObject chipPrefab;
+    [SerializeField] private int chipCount = 3;
+    [SerializeField] private float chipSpeed = 2f;
+    [SerializeField] private float chipLifetime = 0.4f;
 
     private Collider triggerCollider;
     private Vector3 spawnPosition;
@@ -57,6 +61,8 @@ public class WoodNode : MonoBehaviour
         currentHits++;
         lastHitTime = Time.time;
 
+        SpawnChips();
+
         if (currentHits < hitsToFell)
         {
             PlayHitShake();
@@ -66,6 +72,53 @@ public class WoodNode : MonoBehaviour
         woodAmount = Random.Range(minWoodReward, maxWoodReward + 1);
         Fell();
         return true;
+    }
+
+    private void SpawnChips()
+    {
+        if (chipPrefab == null || visual == null)
+        {
+            return;
+        }
+
+        Vector3 origin = visual.position;
+
+        for (int i = 0; i < chipCount; i++)
+        {
+            GameObject chip = Instantiate(chipPrefab, origin, Random.rotation);
+
+            Vector3 direction = Random.insideUnitSphere;
+            direction.y = Mathf.Abs(direction.y) + 0.3f;
+            direction.Normalize();
+
+            StartCoroutine(ChipRoutine(chip.transform, direction));
+        }
+    }
+
+    private IEnumerator ChipRoutine(Transform chip, Vector3 direction)
+    {
+        Vector3 startPosition = chip.position;
+        Vector3 startScale = chip.localScale;
+        float elapsed = 0f;
+
+        while (elapsed < chipLifetime && chip != null)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / chipLifetime);
+
+            Vector3 travel = direction * chipSpeed * t;
+            travel.y -= 4f * t * t;
+            chip.position = startPosition + travel;
+            chip.localScale = startScale * (1f - t);
+            chip.Rotate(direction * 360f * Time.deltaTime, Space.World);
+
+            yield return null;
+        }
+
+        if (chip != null)
+        {
+            Destroy(chip.gameObject);
+        }
     }
 
     private void PlayHitShake()
