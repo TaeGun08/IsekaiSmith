@@ -14,6 +14,7 @@ public class CarryStack : MonoBehaviour
     [SerializeField] private int oreCapacity = 8;
     [SerializeField] private int woodCapacity = 8;
     [SerializeField] private float itemHeight = 0.5f;
+    [SerializeField] private float woodItemHeight = 0.4f;
     [SerializeField] private float woodBackOffset = 0.35f;
     [SerializeField] private float swayAmplitude = 6f;
     [SerializeField] private float swaySpeed = 6f;
@@ -44,22 +45,25 @@ public class CarryStack : MonoBehaviour
         }
 
         int index;
+        float height;
         float zOffset;
 
         if (layer == CarryLayer.Ore)
         {
             index = reservedOre;
             reservedOre++;
+            height = itemHeight;
             zOffset = 0f;
         }
         else
         {
             index = reservedWood;
             reservedWood++;
+            height = woodItemHeight;
             zOffset = -woodBackOffset;
         }
 
-        Vector3 targetLocalPosition = new Vector3(0f, index * itemHeight, zOffset);
+        Vector3 targetLocalPosition = new Vector3(0f, index * height, zOffset);
 
         GameObject instance = Instantiate(itemPrefab, worldStartPosition, Quaternion.identity);
         StartCoroutine(FlyToStack(instance.transform, worldStartPosition, targetLocalPosition, layer));
