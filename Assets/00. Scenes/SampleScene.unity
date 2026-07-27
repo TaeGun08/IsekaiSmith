@@ -172,7 +172,7 @@ MonoBehaviour:
   treeCount: 12
   areaWidth: 20
   areaDepth: 20
-  minSpacing: 5
+  minSpacing: 4.3
   maxAttemptsPerTree: 50
 --- !u!1 &330585543
 GameObject:
