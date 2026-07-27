@@ -44,6 +44,11 @@ public class PlayerWoodcutting : MonoBehaviour
             return;
         }
 
+        if (PlayerMotor.Instance != null && !PlayerMotor.Instance.HasMovementInput)
+        {
+            PlayerMotor.Instance.FaceTarget(currentTree.transform.position);
+        }
+
         tickTimer += Time.deltaTime;
         if (tickTimer < chopInterval)
         {

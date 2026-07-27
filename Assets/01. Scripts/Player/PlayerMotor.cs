@@ -28,6 +28,22 @@ public class PlayerMotor : MonoBehaviour
         joystickInput = input;
     }
 
+    public bool HasMovementInput => (keyboardInput + joystickInput).sqrMagnitude > 0.0001f;
+
+    public void FaceTarget(Vector3 worldPosition)
+    {
+        Vector3 direction = worldPosition - transform.position;
+        direction.y = 0f;
+
+        if (direction.sqrMagnitude < 0.0001f)
+        {
+            return;
+        }
+
+        Quaternion targetRotation = Quaternion.LookRotation(direction, Vector3.up);
+        rb.MoveRotation(Quaternion.RotateTowards(rb.rotation, targetRotation, rotationSpeed * Time.deltaTime));
+    }
+
     private void FixedUpdate()
     {
         Vector2 combined = keyboardInput + joystickInput;

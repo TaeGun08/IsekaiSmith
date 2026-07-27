@@ -138,6 +138,8 @@ GameObject:
   - component: {fileID: 6364471894945593198}
   - component: {fileID: 4883592853600809798}
   - component: {fileID: 234502144642324763}
+  - component: {fileID: 5620532841406061524}
+  - component: {fileID: 7573282549743937614}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -229,6 +231,7 @@ MonoBehaviour:
   oreCapacity: 8
   woodCapacity: 8
   itemHeight: 0.5
+  woodItemHeight: 0.4
   woodBackOffset: 0.35
   swayAmplitude: 6
   swaySpeed: 6
@@ -277,6 +280,32 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerWoodcutting
   woodItemPrefab: {fileID: 4740245910479757265, guid: 022c142a5d3fbe0478d1fdbe3d194f93, type: 3}
   chopInterval: 0.6
+--- !u!114 &5620532841406061524
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1236137428938157136}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8a8c323bc89ca674594d18386af875e1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerMotor
+  moveSpeed: 5
+  rotationSpeed: 720
+--- !u!114 &7573282549743937614
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1236137428938157136}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be3b2b7639092a44a9800eb45a50ed6b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerKeyboardInput
 --- !u!1 &2301573201819260025
 GameObject:
   m_ObjectHideFlags: 0
@@ -316,6 +345,14 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 3615649843248033527}
     m_Modifications:
+    - target: {fileID: 1341461846363405305, guid: 5c2515342297ca543990ae0b2b928fd6, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1341461846363405305, guid: 5c2515342297ca543990ae0b2b928fd6, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 3746908152922263985, guid: 5c2515342297ca543990ae0b2b928fd6, type: 3}
       propertyPath: m_Name
       value: Axe
@@ -415,6 +452,26 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 5091987114996831352, guid: 603020cb84837584fa1a5d40528a30a2, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5847288175478206322, guid: 603020cb84837584fa1a5d40528a30a2, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5847288175478206322, guid: 603020cb84837584fa1a5d40528a30a2, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5847288175478206322, guid: 603020cb84837584fa1a5d40528a30a2, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5847288175478206322, guid: 603020cb84837584fa1a5d40528a30a2, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5847288175478206322, guid: 603020cb84837584fa1a5d40528a30a2, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}

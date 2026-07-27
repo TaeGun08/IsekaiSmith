@@ -25,6 +25,11 @@ public class PlayerMining : MonoBehaviour
 
         if (node.TryCollect())
         {
+            if (PlayerMotor.Instance != null)
+            {
+                PlayerMotor.Instance.FaceTarget(node.transform.position);
+            }
+
             toolSwing.PlayPickaxeSwing();
             carryStack.TryAdd(oreItemPrefab, node.transform.position, CarryLayer.Ore);
         }
