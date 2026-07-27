@@ -20,10 +20,10 @@ public class CarryStack : MonoBehaviour
     [SerializeField] private float swaySpeed = 6f;
     [SerializeField] private float flightDuration = 0.4f;
     [SerializeField] private float flightArcHeight = 1.5f;
-    [SerializeField] private float woodDropDuration = 0.3f;
-    [SerializeField] private float woodDropArcHeight = 0.4f;
-    [SerializeField] private float woodDropScatterRadius = 0.6f;
-    [SerializeField] private float woodPickupDelay = 0.5f;
+    [SerializeField] private float dropDuration = 0.3f;
+    [SerializeField] private float dropArcHeight = 0.4f;
+    [SerializeField] private float dropScatterRadius = 0.6f;
+    [SerializeField] private float pickupDelay = 0.5f;
 
     private readonly List<Transform> oreItems = new List<Transform>();
     private readonly List<Transform> woodItems = new List<Transform>();
@@ -100,38 +100,33 @@ public class CarryStack : MonoBehaviour
 
     private IEnumerator FlyToStack(Transform item, Vector3 startWorldPosition, Vector3 targetLocalPosition, CarryLayer layer)
     {
-        Vector3 flightStart = startWorldPosition;
+        Vector2 scatter = Random.insideUnitCircle * dropScatterRadius;
+        Vector3 groundPosition = startWorldPosition + new Vector3(scatter.x, 0f, scatter.y);
 
-        if (layer == CarryLayer.Wood)
+        float dropElapsed = 0f;
+        while (dropElapsed < dropDuration && item != null)
         {
-            Vector2 scatter = Random.insideUnitCircle * woodDropScatterRadius;
-            Vector3 groundPosition = startWorldPosition + new Vector3(scatter.x, 0f, scatter.y);
+            dropElapsed += Time.deltaTime;
+            float dropT = Mathf.Clamp01(dropElapsed / dropDuration);
+            Vector3 dropPosition = Vector3.Lerp(startWorldPosition, groundPosition, dropT);
+            dropPosition.y += dropArcHeight * Mathf.Sin(dropT * Mathf.PI);
+            item.position = dropPosition;
+            yield return null;
+        }
 
-            float dropElapsed = 0f;
-            while (dropElapsed < woodDropDuration && item != null)
-            {
-                dropElapsed += Time.deltaTime;
-                float dropT = Mathf.Clamp01(dropElapsed / woodDropDuration);
-                Vector3 dropPosition = Vector3.Lerp(startWorldPosition, groundPosition, dropT);
-                dropPosition.y += woodDropArcHeight * Mathf.Sin(dropT * Mathf.PI);
-                item.position = dropPosition;
-                yield return null;
-            }
+        if (item == null)
+        {
+            yield break;
+        }
 
-            if (item == null)
-            {
-                yield break;
-            }
+        item.position = groundPosition;
+        Vector3 flightStart = groundPosition;
 
-            item.position = groundPosition;
-            flightStart = groundPosition;
+        yield return new WaitForSeconds(pickupDelay);
 
-            yield return new WaitForSeconds(woodPickupDelay);
-
-            if (item == null)
-            {
-                yield break;
-            }
+        if (item == null)
+        {
+            yield break;
         }
 
         float elapsed = 0f;

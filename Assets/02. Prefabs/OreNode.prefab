@@ -48,6 +48,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::OreNode
   respawnDelay: 6
   visual: {fileID: 1734162520982685062}
+  fragmentPrefab: {fileID: 6328951878675862927, guid: 93c026231214cf441b3d9dd6e0fb5be0, type: 3}
 --- !u!135 &6795330326996253818
 SphereCollider:
   m_ObjectHideFlags: 0
