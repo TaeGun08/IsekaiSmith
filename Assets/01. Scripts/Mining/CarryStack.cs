@@ -14,7 +14,7 @@ public class CarryStack : MonoBehaviour
     [SerializeField] private int oreCapacity = 8;
     [SerializeField] private int woodCapacity = 8;
     [SerializeField] private float itemHeight = 0.5f;
-    [SerializeField] private float woodItemHeight = 0.48f;
+    [SerializeField] private float woodItemHeight = 0.4f;
     [SerializeField] private float woodBackOffset = 0.35f;
     [SerializeField] private float swayAmplitude = 6f;
     [SerializeField] private float swaySpeed = 6f;

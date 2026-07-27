@@ -5,9 +5,12 @@ using UnityEngine;
 public class PlayerMining : MonoBehaviour
 {
     [SerializeField] private GameObject oreItemPrefab;
+    [SerializeField] private float mineInterval = 0.6f;
 
     private CarryStack carryStack;
     private ToolSwing toolSwing;
+    private OreNode currentNode;
+    private float tickTimer;
 
     private void Awake()
     {
@@ -18,20 +21,50 @@ public class PlayerMining : MonoBehaviour
     private void OnTriggerEnter(Collider other)
     {
         OreNode node = other.GetComponentInParent<OreNode>();
-        if (node == null)
+        if (node != null && node != currentNode)
+        {
+            currentNode = node;
+            tickTimer = 0f;
+        }
+    }
+
+    private void OnTriggerExit(Collider other)
+    {
+        OreNode node = other.GetComponentInParent<OreNode>();
+        if (node != null && node == currentNode)
+        {
+            currentNode = null;
+        }
+    }
+
+    private void Update()
+    {
+        if (currentNode == null || !currentNode.IsAvailable)
         {
             return;
         }
 
-        if (node.TryCollect())
+        if (PlayerMotor.Instance != null && !PlayerMotor.Instance.HasMovementInput)
         {
-            if (PlayerMotor.Instance != null)
-            {
-                PlayerMotor.Instance.FaceTarget(node.transform.position);
-            }
+            PlayerMotor.Instance.FaceTarget(currentNode.transform.position);
+        }
 
+        tickTimer += Time.deltaTime;
+        if (tickTimer < mineInterval)
+        {
+            return;
+        }
+
+        tickTimer = 0f;
+
+        if (currentNode.TryMine(out int oreAmount))
+        {
             toolSwing.PlayPickaxeSwing();
-            carryStack.TryAdd(oreItemPrefab, node.transform.position, CarryLayer.Ore);
+
+            for (int i = 0; i < oreAmount; i++)
+            {
+                carryStack.TryAdd(oreItemPrefab, currentNode.transform.position, CarryLayer.Ore);
+            }
         }
     }
 }

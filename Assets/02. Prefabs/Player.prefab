@@ -231,7 +231,7 @@ MonoBehaviour:
   oreCapacity: 8
   woodCapacity: 8
   itemHeight: 0.5
-  woodItemHeight: 0.48
+  woodItemHeight: 0.4
   woodBackOffset: 0.35
   swayAmplitude: 6
   swaySpeed: 6

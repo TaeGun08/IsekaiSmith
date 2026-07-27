@@ -6,20 +6,13 @@ public class ToolSwing : MonoBehaviour
     [SerializeField] private Transform axeTool;
     [SerializeField] private Transform pickaxeTool;
     [SerializeField] private float axeSwingDuration = 0.45f;
-    [SerializeField] private float pickaxeSwingDuration = 0.25f;
-    [SerializeField] private float swingAngle = 70f;
+    [SerializeField] private float pickaxeSwingDuration = 0.4f;
 
-    private Quaternion pickaxeRestRotation;
     private Coroutine axeSwingRoutine;
     private Coroutine pickaxeSwingRoutine;
 
     private void Awake()
     {
-        if (pickaxeTool != null)
-        {
-            pickaxeRestRotation = pickaxeTool.localRotation;
-        }
-
         SetToolActive(axeTool, false);
         SetToolActive(pickaxeTool, false);
     }
@@ -54,9 +47,10 @@ public class ToolSwing : MonoBehaviour
             StopCoroutine(pickaxeSwingRoutine);
         }
 
-        // Downward strike.
-        Quaternion swungRotation = pickaxeRestRotation * Quaternion.Euler(-swingAngle, 0f, 0f);
-        pickaxeSwingRoutine = StartCoroutine(SwingRoutine(pickaxeTool, pickaxeRestRotation, swungRotation, pickaxeSwingDuration));
+        // Y stays at 90 and Z sweeps from -30 to 90 for a downward pick strike.
+        Quaternion restRotation = Quaternion.Euler(0f, 90f, -30f);
+        Quaternion swungRotation = Quaternion.Euler(0f, 90f, 90f);
+        pickaxeSwingRoutine = StartCoroutine(SwingRoutine(pickaxeTool, restRotation, swungRotation, pickaxeSwingDuration));
     }
 
     private IEnumerator SwingRoutine(Transform tool, Quaternion restRotation, Quaternion swungRotation, float duration)
