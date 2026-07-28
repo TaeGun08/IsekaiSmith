@@ -47,7 +47,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7171a0936e7a7e64c9392161204d7046, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Tree
-  hitsToFell: 5
+  hitsToFell: 7
   minWoodReward: 2
   maxWoodReward: 3
   chopAbandonTimeout: 5

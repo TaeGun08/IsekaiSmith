@@ -136,7 +136,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0a450101946fbb745b97eef8d1697464, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::OreNode
-  hitsToBreak: 5
+  hitsToBreak: 7
   minOreReward: 2
   maxOreReward: 3
   mineAbandonTimeout: 5
