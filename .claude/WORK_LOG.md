@@ -1212,3 +1212,17 @@ Unity 콘솔(`read_console`) 확인 결과 에러/경고 0건 — 컴파일 정�
 - [ ] 컴파일 에러 0건 확인
 - [ ] 씬에 남은 `WoodChip_Build` 임시 오브젝트 정리 필요할 수 있음(유저가 OreNode 프리팹 스테이지를 열어놔서 이번 턴엔 확인/삭제 못 함)
 - [ ] 유저 재테스트: 타격마다 파편이 튀는지, 광석 파괴가 더 "깨지는" 느낌인지, 전체적으로 눈에 더 잘 띄는지 확인
+
+---
+
+## 2026-07-27 (계속 25)
+
+### 광석 잔재 미표시 원인 확인 + 나무 파편 가시성 강화 + 말투 피드백
+- 이전 턴에 지적받은 "채광 시 잔재 안 보임" 원인 확인: 컴파일이 안 끝나서 `OreNode.prefab`이 리팩토링 전 필드명(`fragmentCount`/`fragmentSpeed`)으로 저장돼 있었던 것. 이번 턴엔 컴파일이 끝난 상태를 확인했고, 라이브 툴로 새 필드(`hitChipCount` 등)가 정상 인식되는 것 확인 — 버그가 아니라 타이밍 문제였음.
+- `OreNode` 값 상향: `hitChipCount` 2→3, `hitChipSpeed` 1.5→2.2, `breakFragmentCount` 7→8, `breakFragmentSpeed` 3→3.5, `fragmentLifetime` 0.5→0.6, `hitShakeAmplitude` 0.22→0.28. `OreFragment.prefab` 크기도 0.15→0.22로 확대.
+- 나무 파편(`WoodChip.prefab`)도 크기 확대(0.14/0.06/0.1 → 0.22/0.1/0.16), `chipCount` 3→4, `chipSpeed` 2→2.8, `chipLifetime` 0.4→0.5로 상향.
+- 씬에 남아있던 `WoodChip_Build` 임시 오브젝트 정리 완료.
+- **유저 피드백(말투)**: 존댓말로 일관되게 답변해달라는 요청 — 메모리에 저장, 이후 세션에도 적용 필요.
+
+### 다음에 할 일 (TODO)
+- [ ] 유저 재테스트: 채광 시 잔재가 이제 보이는지, 나무 파편도 잘 보이는지 확인

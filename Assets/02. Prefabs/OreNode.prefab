@@ -141,14 +141,18 @@ MonoBehaviour:
   maxOreReward: 3
   mineAbandonTimeout: 5
   respawnDelay: 6
-  hitShakeAmplitude: 0.18
+  hitShakeAmplitude: 0.28
   hitShakeFrequency: 40
   hitShakeDuration: 0.22
   visual: {fileID: 5364408880257141002}
   fragmentPrefab: {fileID: 6328951878675862927, guid: 93c026231214cf441b3d9dd6e0fb5be0, type: 3}
-  fragmentCount: 5
-  fragmentSpeed: 2.5
-  fragmentLifetime: 0.5
+  hitChipCount: 3
+  hitChipSpeed: 2.2
+  breakFragmentCount: 8
+  breakFragmentSpeed: 3.5
+  fragmentLifetime: 0.6
+  breakPunchScale: 1.18
+  breakPunchDuration: 0.08
 --- !u!135 &6795330326996253818
 SphereCollider:
   m_ObjectHideFlags: 0
