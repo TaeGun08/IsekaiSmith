@@ -1,23 +1,35 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class SmithyRoofFade : MonoBehaviour
 {
-    [SerializeField] private Renderer roofRenderer;
+    [SerializeField] private Renderer[] roofRenderers;
     [SerializeField] private float fadeDuration = 0.25f;
     [SerializeField] private float hiddenAlpha = 0.15f;
 
-    private Material roofMaterial;
+    private readonly List<Material> roofMaterials = new List<Material>();
     private Color baseColor;
     private Coroutine fadeRoutine;
     private int playersInside;
 
     private void Awake()
     {
-        if (roofRenderer != null)
+        if (roofRenderers == null)
         {
-            roofMaterial = roofRenderer.material;
-            baseColor = roofMaterial.color;
+            return;
+        }
+
+        for (int i = 0; i < roofRenderers.Length; i++)
+        {
+            if (roofRenderers[i] == null)
+            {
+                continue;
+            }
+
+            Material instanceMaterial = roofRenderers[i].material;
+            roofMaterials.Add(instanceMaterial);
+            baseColor = instanceMaterial.color;
         }
     }
 
@@ -49,7 +61,7 @@ public class SmithyRoofFade : MonoBehaviour
 
     private void PlayFade(float targetAlpha)
     {
-        if (roofMaterial == null)
+        if (roofMaterials.Count == 0)
         {
             return;
         }
@@ -64,22 +76,30 @@ public class SmithyRoofFade : MonoBehaviour
 
     private IEnumerator FadeRoutine(float targetAlpha)
     {
-        float startAlpha = roofMaterial.color.a;
+        float startAlpha = roofMaterials[0].color.a;
         float elapsed = 0f;
 
         while (elapsed < fadeDuration)
         {
             elapsed += Time.deltaTime;
             float t = Mathf.Clamp01(elapsed / fadeDuration);
-            Color c = baseColor;
-            c.a = Mathf.Lerp(startAlpha, targetAlpha, t);
-            roofMaterial.color = c;
+            float alpha = Mathf.Lerp(startAlpha, targetAlpha, t);
+            SetAlpha(alpha);
             yield return null;
         }
 
-        Color final = baseColor;
-        final.a = targetAlpha;
-        roofMaterial.color = final;
+        SetAlpha(targetAlpha);
         fadeRoutine = null;
+    }
+
+    private void SetAlpha(float alpha)
+    {
+        Color c = baseColor;
+        c.a = alpha;
+
+        for (int i = 0; i < roofMaterials.Count; i++)
+        {
+            roofMaterials[i].color = c;
+        }
     }
 }
