@@ -2,15 +2,18 @@ using UnityEngine;
 
 public class StorageDepot : MonoBehaviour
 {
+    [SerializeField] private CarryLayer acceptedLayer = CarryLayer.Wood;
     [SerializeField] private float depositRadius = 2f;
     [SerializeField] private float depositInterval = 0.5f;
 
-    private int storedWood;
-    private int storedOre;
+    public static int TotalWood { get; private set; }
+    public static int TotalOre { get; private set; }
+
+    private int storedAmount;
     private float depositTimer;
 
-    public int StoredWood => storedWood;
-    public int StoredOre => storedOre;
+    public CarryLayer AcceptedLayer => acceptedLayer;
+    public int StoredAmount => storedAmount;
 
     private void Update()
     {
@@ -37,24 +40,23 @@ public class StorageDepot : MonoBehaviour
             return;
         }
 
-        depositTimer = depositInterval;
-        DepositAll(carryStack);
-    }
-
-    private void DepositAll(CarryStack carryStack)
-    {
-        int wood = carryStack.GetCount(CarryLayer.Wood);
-        if (wood > 0)
+        int amount = carryStack.GetCount(acceptedLayer);
+        if (amount <= 0)
         {
-            storedWood += wood;
-            carryStack.Clear(CarryLayer.Wood);
+            return;
         }
 
-        int ore = carryStack.GetCount(CarryLayer.Ore);
-        if (ore > 0)
+        depositTimer = depositInterval;
+        storedAmount += amount;
+        carryStack.Clear(acceptedLayer);
+
+        if (acceptedLayer == CarryLayer.Wood)
         {
-            storedOre += ore;
-            carryStack.Clear(CarryLayer.Ore);
+            TotalWood += amount;
+        }
+        else
+        {
+            TotalOre += amount;
         }
     }
 }

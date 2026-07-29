@@ -90,52 +90,6 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!1 &2142054415917487198
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 3587492354267295207}
-  - component: {fileID: 3194919759354448777}
-  m_Layer: 0
-  m_Name: StorageMarker
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &3587492354267295207
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2142054415917487198}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1.7, y: 0, z: 0.25}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 5859447576527091003}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &3194919759354448777
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2142054415917487198}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0ddec0182f7234a4fb12903b6d4ab5ea, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::StorageDepot
-  depositRadius: 2
-  depositInterval: 0.5
 --- !u!1 &2678917735417748974
 GameObject:
   m_ObjectHideFlags: 0
@@ -237,6 +191,7 @@ GameObject:
   - component: {fileID: 7449542949684511508}
   - component: {fileID: 683217238667461697}
   - component: {fileID: 1736694970479387755}
+  - component: {fileID: 9200000000000000202}
   m_Layer: 0
   m_Name: StorageCrate2
   m_TagString: Untagged
@@ -253,7 +208,7 @@ Transform:
   m_GameObject: {fileID: 4267894040592925799}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1.7, y: 0.3, z: -0.4}
+  m_LocalPosition: {x: 1.7, y: 0.3, z: -1.6}
   m_LocalScale: {x: 0.6, y: 0.6, z: 0.6}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -292,7 +247,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 3936b0a9f6d766a47aebb9243e7b1dec, type: 2}
+  - {fileID: 2100000, guid: 6cc3072f060b7fb4c8347cb96fab8ff5, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -316,6 +271,21 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!114 &9200000000000000202
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4267894040592925799}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0ddec0182f7234a4fb12903b6d4ab5ea, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::StorageDepot
+  acceptedLayer: 0
+  depositRadius: 2
+  depositInterval: 0.5
 --- !u!1 &6957566105935336916
 GameObject:
   m_ObjectHideFlags: 0
@@ -351,7 +321,6 @@ Transform:
   - {fileID: 4646088683271535329}
   - {fileID: 8029813145125062786}
   - {fileID: 7449542949684511508}
-  - {fileID: 3587492354267295207}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &6980973929043155960
@@ -365,6 +334,7 @@ GameObject:
   - component: {fileID: 8029813145125062786}
   - component: {fileID: 1499081571335104837}
   - component: {fileID: 3907636767565024690}
+  - component: {fileID: 9200000000000000201}
   m_Layer: 0
   m_Name: StorageCrate1
   m_TagString: Untagged
@@ -381,7 +351,7 @@ Transform:
   m_GameObject: {fileID: 6980973929043155960}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1.7, y: 0.3, z: 0.9}
+  m_LocalPosition: {x: 1.7, y: 0.3, z: 1.6}
   m_LocalScale: {x: 0.6, y: 0.6, z: 0.6}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -444,6 +414,21 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!114 &9200000000000000201
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6980973929043155960}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0ddec0182f7234a4fb12903b6d4ab5ea, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::StorageDepot
+  acceptedLayer: 1
+  depositRadius: 2
+  depositInterval: 0.5
 --- !u!1 &7823777561997621151
 GameObject:
   m_ObjectHideFlags: 0
