@@ -6,6 +6,19 @@
 
 ---
 
+## 2026-07-30 (35) 세션 사이드바 접기/펼치기
+
+사용자 요청: "세션창 부분을 접었다 펼 수 있게 해줬으면 좋겠어" (게임 작업 들어가기 전 툴
+요청). `turnStepperCollapsed`와 동일한 `[SerializeField] bool` 영속 패턴으로
+`sidebarCollapsed` 추가. `RebuildSidebar()`에 토글 버튼(◀ 접기/▶ 펼치기)을 상단에 항상
+표시하고, 접힌 상태에선 전체 폭(150px) 대신 26px 스트립에 세션별 색상 점만 남김(클릭으로
+전환 가능, `sidebarDots` 공유라 OnAnimationTick의 활동색 갱신도 그대로 적용됨). USS에
+`.sidebar--collapsed`(width 전환 애니메이션 포함), `.sidebar-header`, `.session-dot-collapsed`
+추가.
+
+컴파일 read_console 에러 0건. 도메인 리로드는 평소 패턴대로 다음 턴 확인 필요 — 실제
+버튼 클릭 시 접힘/펼침 전환과 점 클릭으로 세션 전환되는지 스크린샷/리플렉션 검증 필요.
+
 ## 2026-07-23 (34) 멀티 AI 프로바이더 확장 작업 일시 중지
 
 사용자 확인: Codex 로그인 문제 해결 후 Claude 전환/동작이 잘 되는 것을 확인, "AI 추가 작업은
