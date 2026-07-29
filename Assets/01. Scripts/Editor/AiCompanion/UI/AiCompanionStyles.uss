@@ -18,13 +18,51 @@
     width: 150px;
     flex-shrink: 0;
     padding: 4px;
+    transition-property: width;
+    transition-duration: 120ms;
+}
+
+.sidebar--collapsed {
+    width: 26px;
+    padding-left: 2px;
+    padding-right: 2px;
+}
+
+.sidebar-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+
+.sidebar--collapsed .sidebar-header {
+    justify-content: center;
 }
 
 .sidebar-title {
     -unity-font-style: bold;
     font-size: 12px;
     color: rgb(230, 227, 224);
+}
+
+.sidebar-toggle-button {
+    width: 20px;
+    height: 18px;
+    padding: 0;
+    font-size: 10px;
+}
+
+.session-dot-collapsed {
+    width: 14px;
+    height: 14px;
+    border-radius: 7px;
+    border-width: 2px;
+    align-self: center;
     margin-bottom: 4px;
+}
+
+.session-dot-collapsed--active {
+    border-width: 2px;
 }
 
 .vertical-divider {

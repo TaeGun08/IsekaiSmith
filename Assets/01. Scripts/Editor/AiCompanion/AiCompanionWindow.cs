@@ -109,6 +109,7 @@ public class AiCompanionWindow : EditorWindow
     [SerializeField] private List<SessionRecord> sessionRecords = new List<SessionRecord>();
     [SerializeField] private int activeSessionIndex;
     [SerializeField] private bool turnStepperCollapsed;
+    [SerializeField] private bool sidebarCollapsed;
     [SerializeField] private bool soundEnabled = true;
     [SerializeField] private int soundVariant;
     [SerializeField] private bool characterRoomExpanded;
@@ -439,9 +440,36 @@ public class AiCompanionWindow : EditorWindow
         sidebarContainer.Clear();
         sidebarDots.Clear();
 
-        Label title = new Label("세션");
-        title.AddToClassList("sidebar-title");
-        sidebarContainer.Add(title);
+        sidebarContainer.EnableInClassList("sidebar--collapsed", sidebarCollapsed);
+
+        VisualElement header = new VisualElement();
+        header.AddToClassList("sidebar-header");
+
+        if (!sidebarCollapsed)
+        {
+            Label title = new Label("세션");
+            title.AddToClassList("sidebar-title");
+            header.Add(title);
+        }
+
+        Button toggle = new Button(ToggleSidebarCollapsed) { text = sidebarCollapsed ? "▶" : "◀" };
+        toggle.AddToClassList("sidebar-toggle-button");
+        toggle.tooltip = sidebarCollapsed ? "세션 목록 펼치기" : "세션 목록 접기";
+        header.Add(toggle);
+
+        sidebarContainer.Add(header);
+
+        if (sidebarCollapsed)
+        {
+            // Folded down to just a thin strip of per-session color dots (still clickable to
+            // switch, still live-updated by OnAnimationTick via sidebarDots) so the busy/idle
+            // glance value isn't lost while collapsed, without paying the 150px width cost.
+            for (int i = 0; i < sessions.Count; i++)
+            {
+                sidebarContainer.Add(BuildCollapsedSessionDot(i));
+            }
+            return;
+        }
 
         for (int i = 0; i < sessions.Count; i++)
         {
@@ -455,6 +483,37 @@ public class AiCompanionWindow : EditorWindow
         Button addButton = new Button(ShowAddSessionMenu) { text = "+ 새 세션" };
         addButton.AddToClassList("new-session-button");
         sidebarContainer.Add(addButton);
+    }
+
+    private void ToggleSidebarCollapsed()
+    {
+        sidebarCollapsed = !sidebarCollapsed;
+        RebuildSidebar();
+    }
+
+    private VisualElement BuildCollapsedSessionDot(int index)
+    {
+        CompanionSession s = sessions[index];
+        bool isActive = index == activeSessionIndex;
+
+        VisualElement dot = new VisualElement();
+        dot.AddToClassList("session-dot-collapsed");
+        if (isActive)
+        {
+            dot.AddToClassList("session-dot-collapsed--active");
+        }
+        dot.style.backgroundColor = CharacterStageElement.GetIndicatorColor(s.CurrentActivity, s.Concept);
+        Color accent = GetSessionAccent(index);
+        dot.style.borderTopColor = accent;
+        dot.style.borderBottomColor = accent;
+        dot.style.borderLeftColor = accent;
+        dot.style.borderRightColor = accent;
+        dot.tooltip = index < sessionRecords.Count ? sessionRecords[index].DisplayName : $"세션 {index + 1}";
+        sidebarDots[s] = dot;
+
+        dot.RegisterCallback<ClickEvent>(_ => SwitchToSession(index));
+
+        return dot;
     }
 
     // Step 3 of the multi-provider plan (2026-07-23): which AI a new session talks to is picked
