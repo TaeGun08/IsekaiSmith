@@ -24,12 +24,12 @@ public class ResourceHUD : MonoBehaviour
 
         if (woodText != null)
         {
-            woodText.text = "목재 " + wood;
+            woodText.text = "Wood " + wood;
         }
 
         if (oreText != null)
         {
-            oreText.text = "광물 " + ore;
+            oreText.text = "Ore " + ore;
         }
     }
 }
