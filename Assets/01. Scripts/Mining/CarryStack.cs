@@ -24,6 +24,9 @@ public class CarryStack : MonoBehaviour
     [SerializeField] private float dropArcHeight = 0.4f;
     [SerializeField] private float dropScatterRadius = 0.6f;
     [SerializeField] private float pickupDelay = 0.5f;
+    [SerializeField] private float depositFlightDuration = 0.35f;
+    [SerializeField] private float depositArcHeight = 1f;
+    [SerializeField] private float depositStagger = 0.08f;
 
     private readonly List<Transform> oreItems = new List<Transform>();
     private readonly List<Transform> woodItems = new List<Transform>();
@@ -100,6 +103,72 @@ public class CarryStack : MonoBehaviour
         else
         {
             reservedWood = 0;
+        }
+    }
+
+    public void Deposit(CarryLayer layer, Vector3 targetPosition)
+    {
+        List<Transform> items = layer == CarryLayer.Ore ? oreItems : woodItems;
+
+        for (int i = 0; i < items.Count; i++)
+        {
+            Transform item = items[i];
+
+            if (item == null)
+            {
+                continue;
+            }
+
+            item.SetParent(null, true);
+            StartCoroutine(DepositFlightRoutine(item, targetPosition, i * depositStagger));
+        }
+
+        items.Clear();
+
+        if (layer == CarryLayer.Ore)
+        {
+            reservedOre = 0;
+        }
+        else
+        {
+            reservedWood = 0;
+        }
+    }
+
+    private IEnumerator DepositFlightRoutine(Transform item, Vector3 targetPosition, float delay)
+    {
+        if (delay > 0f)
+        {
+            yield return new WaitForSeconds(delay);
+        }
+
+        if (item == null)
+        {
+            yield break;
+        }
+
+        Vector3 startPosition = item.position;
+        Vector3 startScale = item.localScale;
+        float elapsed = 0f;
+
+        while (elapsed < depositFlightDuration && item != null)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / depositFlightDuration);
+
+            Vector3 flatPosition = Vector3.Lerp(startPosition, targetPosition, t);
+            float arc = depositArcHeight * Mathf.Sin(t * Mathf.PI);
+
+            item.position = flatPosition + Vector3.up * arc;
+            item.localScale = startScale * Mathf.Lerp(1f, 0.1f, t * t);
+            item.Rotate(Vector3.up, 540f * Time.deltaTime, Space.World);
+
+            yield return null;
+        }
+
+        if (item != null)
+        {
+            Destroy(item.gameObject);
         }
     }
 

@@ -48,7 +48,7 @@ public class StorageDepot : MonoBehaviour
 
         depositTimer = depositInterval;
         storedAmount += amount;
-        carryStack.Clear(acceptedLayer);
+        carryStack.Deposit(acceptedLayer, transform.position + Vector3.up * 0.4f);
 
         if (acceptedLayer == CarryLayer.Wood)
         {
