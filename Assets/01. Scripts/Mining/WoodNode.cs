@@ -20,12 +20,23 @@ public class WoodNode : MonoBehaviour
     [SerializeField] private float chipSpeed = 2f;
     [SerializeField] private float chipLifetime = 0.4f;
 
+    [Header("Damage Visual")]
+    [SerializeField] private Renderer trunkRenderer;
+    [SerializeField] private Transform foliage;
+    [SerializeField] private Color trunkDamagedColor = new Color(0.22f, 0.15f, 0.1f);
+    [SerializeField] private float foliageMinScale = 0.55f;
+    [SerializeField] private int leafChipCount = 2;
+    [SerializeField] private float cameraShakeAmplitude = 0.12f;
+    [SerializeField] private float cameraShakeDuration = 0.1f;
+
     private Collider triggerCollider;
     private Vector3 spawnPosition;
     private int currentHits;
     private float lastHitTime;
     private bool isAvailable = true;
     private Coroutine hitShakeRoutine;
+    private Color trunkBaseColor;
+    private Vector3 foliageBaseScale;
 
     public bool IsAvailable => isAvailable;
 
@@ -37,6 +48,16 @@ public class WoodNode : MonoBehaviour
         if (stump != null)
         {
             stump.gameObject.SetActive(false);
+        }
+
+        if (trunkRenderer != null)
+        {
+            trunkBaseColor = trunkRenderer.material.color;
+        }
+
+        if (foliage != null)
+        {
+            foliageBaseScale = foliage.localScale;
         }
     }
 
@@ -62,6 +83,13 @@ public class WoodNode : MonoBehaviour
         lastHitTime = Time.time;
 
         SpawnChips();
+        SpawnLeafChips();
+        ApplyDamageStage(currentHits);
+
+        if (CameraFollow.Instance != null)
+        {
+            CameraFollow.Instance.Shake(cameraShakeAmplitude, cameraShakeDuration);
+        }
 
         if (currentHits < hitsToFell)
         {
@@ -72,6 +100,55 @@ public class WoodNode : MonoBehaviour
         woodAmount = Random.Range(minWoodReward, maxWoodReward + 1);
         Fell();
         return true;
+    }
+
+    private void ApplyDamageStage(int hits)
+    {
+        float stage = Mathf.Clamp01((float)hits / hitsToFell);
+
+        if (trunkRenderer != null)
+        {
+            trunkRenderer.material.color = Color.Lerp(trunkBaseColor, trunkDamagedColor, stage);
+        }
+
+        if (foliage != null)
+        {
+            foliage.localScale = Vector3.Lerp(foliageBaseScale, foliageBaseScale * foliageMinScale, stage);
+        }
+    }
+
+    private void ResetDamageVisual()
+    {
+        if (trunkRenderer != null)
+        {
+            trunkRenderer.material.color = trunkBaseColor;
+        }
+
+        if (foliage != null)
+        {
+            foliage.localScale = foliageBaseScale;
+        }
+    }
+
+    private void SpawnLeafChips()
+    {
+        if (chipPrefab == null || foliage == null)
+        {
+            return;
+        }
+
+        Vector3 origin = foliage.position;
+
+        for (int i = 0; i < leafChipCount; i++)
+        {
+            GameObject chip = Instantiate(chipPrefab, origin, Random.rotation);
+
+            Vector3 direction = Random.insideUnitSphere;
+            direction.y = Mathf.Abs(direction.y) + 0.3f;
+            direction.Normalize();
+
+            StartCoroutine(ChipRoutine(chip.transform, direction));
+        }
     }
 
     private void SpawnChips()
@@ -206,6 +283,8 @@ public class WoodNode : MonoBehaviour
 
         Vector2 offset = Random.insideUnitCircle * respawnJitterRadius;
         transform.position = spawnPosition + new Vector3(offset.x, 0f, offset.y);
+
+        ResetDamageVisual();
 
         if (visual != null)
         {

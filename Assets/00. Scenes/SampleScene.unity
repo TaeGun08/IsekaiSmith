@@ -422,6 +422,9 @@ MonoBehaviour:
   offset: {x: 3, y: 15, z: -7}
   followSpeed: 100
   lookAtHeight: 1
+  defaultShakeAmplitude: 0.15
+  defaultShakeDuration: 0.12
+  shakeFrequency: 30
 --- !u!1 &334484949
 GameObject:
   m_ObjectHideFlags: 0

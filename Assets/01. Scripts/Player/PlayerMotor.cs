@@ -63,5 +63,10 @@ public class PlayerMotor : MonoBehaviour
             Quaternion targetRotation = Quaternion.LookRotation(moveDirection, Vector3.up);
             rb.MoveRotation(Quaternion.RotateTowards(rb.rotation, targetRotation, rotationSpeed * Time.fixedDeltaTime));
         }
+
+        // Wall/obstacle contacts can impart angular velocity via the physics solver;
+        // rotation here is fully script-driven (MoveRotation), so cancel it every step
+        // to stop the character from spinning after a collision.
+        rb.angularVelocity = Vector3.zero;
     }
 }

@@ -21,12 +21,19 @@ public class OreNode : MonoBehaviour
     [SerializeField] private float breakPunchScale = 1.18f;
     [SerializeField] private float breakPunchDuration = 0.08f;
 
+    [Header("Damage Visual")]
+    [SerializeField] private Renderer rockRenderer;
+    [SerializeField] private Color rockDamagedColor = new Color(0.2f, 0.19f, 0.18f);
+    [SerializeField] private float cameraShakeAmplitude = 0.12f;
+    [SerializeField] private float cameraShakeDuration = 0.1f;
+
     private Collider triggerCollider;
     private Vector3 visualRestPosition;
     private int currentHits;
     private float lastHitTime;
     private bool isAvailable = true;
     private Coroutine hitShakeRoutine;
+    private Color rockBaseColor;
 
     public bool IsAvailable => isAvailable;
 
@@ -37,6 +44,11 @@ public class OreNode : MonoBehaviour
         if (visual != null)
         {
             visualRestPosition = visual.localPosition;
+        }
+
+        if (rockRenderer != null)
+        {
+            rockBaseColor = rockRenderer.material.color;
         }
     }
 
@@ -61,6 +73,13 @@ public class OreNode : MonoBehaviour
         currentHits++;
         lastHitTime = Time.time;
 
+        ApplyDamageStage(currentHits);
+
+        if (CameraFollow.Instance != null)
+        {
+            CameraFollow.Instance.Shake(cameraShakeAmplitude, cameraShakeDuration);
+        }
+
         if (currentHits < hitsToBreak)
         {
             PlayHitShake();
@@ -71,6 +90,25 @@ public class OreNode : MonoBehaviour
         oreAmount = Random.Range(minOreReward, maxOreReward + 1);
         Break();
         return true;
+    }
+
+    private void ApplyDamageStage(int hits)
+    {
+        if (rockRenderer == null)
+        {
+            return;
+        }
+
+        float stage = Mathf.Clamp01((float)hits / hitsToBreak);
+        rockRenderer.material.color = Color.Lerp(rockBaseColor, rockDamagedColor, stage);
+    }
+
+    private void ResetDamageVisual()
+    {
+        if (rockRenderer != null)
+        {
+            rockRenderer.material.color = rockBaseColor;
+        }
     }
 
     private void PlayHitShake()
@@ -213,6 +251,7 @@ public class OreNode : MonoBehaviour
     private IEnumerator RespawnAfterDelay()
     {
         yield return new WaitForSeconds(respawnDelay);
+        ResetDamageVisual();
         isAvailable = true;
         SetVisible(true);
     }

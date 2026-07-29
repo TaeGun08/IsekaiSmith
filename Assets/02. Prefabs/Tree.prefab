@@ -63,6 +63,8 @@ MonoBehaviour:
   chipCount: 4
   chipSpeed: 2.8
   chipLifetime: 0.5
+  trunkRenderer: {fileID: 4568387125471310456}
+  foliage: {fileID: 6279533966663907057}
 --- !u!135 &673716817156138972
 SphereCollider:
   m_ObjectHideFlags: 0

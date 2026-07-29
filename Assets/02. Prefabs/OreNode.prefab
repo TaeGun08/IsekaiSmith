@@ -153,6 +153,7 @@ MonoBehaviour:
   fragmentLifetime: 0.6
   breakPunchScale: 1.18
   breakPunchDuration: 0.08
+  rockRenderer: {fileID: 5364408880257141013}
 --- !u!135 &6795330326996253818
 SphereCollider:
   m_ObjectHideFlags: 0

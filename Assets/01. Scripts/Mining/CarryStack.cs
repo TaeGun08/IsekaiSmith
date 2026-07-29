@@ -41,6 +41,11 @@ public class CarryStack : MonoBehaviour
         return layer == CarryLayer.Ore ? reservedOre >= oreCapacity : reservedWood >= woodCapacity;
     }
 
+    public int GetCount(CarryLayer layer)
+    {
+        return layer == CarryLayer.Ore ? reservedOre : reservedWood;
+    }
+
     public bool TryAdd(GameObject itemPrefab, Vector3 worldStartPosition, CarryLayer layer)
     {
         if (itemPrefab == null || stackAnchor == null || IsFull(layer))
