@@ -6,9 +6,6 @@ public class StorageDepot : MonoBehaviour
     [SerializeField] private float depositRadius = 2f;
     [SerializeField] private float depositInterval = 0.5f;
 
-    public static int TotalWood { get; private set; }
-    public static int TotalOre { get; private set; }
-
     private int storedAmount;
     private float depositTimer;
 
@@ -50,13 +47,7 @@ public class StorageDepot : MonoBehaviour
         storedAmount += amount;
         carryStack.Deposit(acceptedLayer, transform.position + Vector3.up * 0.4f);
 
-        if (acceptedLayer == CarryLayer.Wood)
-        {
-            TotalWood += amount;
-        }
-        else
-        {
-            TotalOre += amount;
-        }
+        ResourceType type = acceptedLayer == CarryLayer.Wood ? ResourceType.Wood : ResourceType.Ore;
+        ResourceBank.Add(type, amount);
     }
 }

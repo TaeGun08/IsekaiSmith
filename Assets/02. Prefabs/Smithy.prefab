@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 454209263935488039}
   - component: {fileID: 4492258008226631544}
   - component: {fileID: 7494342859112309760}
+  - component: {fileID: 130000001}
   m_Layer: 0
   m_Name: FurnaceBody
   m_TagString: Untagged
@@ -530,6 +531,7 @@ GameObject:
   - component: {fileID: 3114711718327886734}
   - component: {fileID: 4439968402785641291}
   - component: {fileID: 7191872465602167875}
+  - component: {fileID: 130000002}
   m_Layer: 0
   m_Name: AnvilBase
   m_TagString: Untagged
@@ -560,6 +562,56 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8195429601880580420}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!114 &130000001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 265538846074728063}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 43ad7211a7e5e9d42a114e38a5772ee3, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::CraftingStation
+  inputTypes:
+  - 1
+  inputAmounts:
+  - 2
+  outputType: 2
+  outputAmount: 1
+  craftDuration: 3
+  interactRadius: 2
+  abandonTimeout: 3
+  pulseVisual: {fileID: 4646088683271535329}
+  pulseStrength: 0.12
+  pulseSpeed: 10
+--- !u!114 &130000002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8195429601880580420}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 43ad7211a7e5e9d42a114e38a5772ee3, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::CraftingStation
+  inputTypes:
+  - 2
+  - 0
+  inputAmounts:
+  - 1
+  - 1
+  outputType: 3
+  outputAmount: 1
+  craftDuration: 4
+  interactRadius: 2
+  abandonTimeout: 3
+  pulseVisual: {fileID: 440567680809466404}
+  pulseStrength: 0.12
+  pulseSpeed: 10
 --- !u!23 &7191872465602167875
 MeshRenderer:
   m_ObjectHideFlags: 0
