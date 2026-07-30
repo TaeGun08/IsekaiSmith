@@ -1,4 +1,12 @@
+using System.Collections;
 using UnityEngine;
+using UnityEngine.InputSystem;
+
+public enum CraftingMinigameType
+{
+    Temperature,
+    Hammering
+}
 
 public class CraftingStation : MonoBehaviour
 {
@@ -6,18 +14,30 @@ public class CraftingStation : MonoBehaviour
     [SerializeField] private int[] inputAmounts;
     [SerializeField] private ResourceType outputType;
     [SerializeField] private int outputAmount = 1;
-    [SerializeField] private float craftDuration = 3f;
     [SerializeField] private float interactRadius = 2f;
-    [SerializeField] private float abandonTimeout = 3f;
+    [SerializeField] private string stationTitle = "제작";
+    [SerializeField] private CraftingMinigameType minigameType = CraftingMinigameType.Temperature;
     [SerializeField] private Transform pulseVisual;
     [SerializeField] private float pulseStrength = 0.12f;
     [SerializeField] private float pulseSpeed = 10f;
 
-    private float progress;
-    private float lastActiveTime;
-    private Vector3 pulseBaseScale;
+    [Header("Temperature Minigame (Furnace)")]
+    [SerializeField] private float temperatureDuration = 4f;
+    [SerializeField] private float sweetMin = 0.55f;
+    [SerializeField] private float sweetMax = 0.75f;
+    [SerializeField] private float pumpRate = 0.7f;
+    [SerializeField] private float coolRate = 0.35f;
 
-    public float Progress01 => craftDuration > 0f ? Mathf.Clamp01(progress / craftDuration) : 0f;
+    [Header("Hammering Minigame (Anvil)")]
+    [SerializeField] private int hammerRounds = 4;
+    [SerializeField] private float hammerRoundDuration = 1.1f;
+    [SerializeField] private float perfectMin = 0.35f;
+    [SerializeField] private float perfectMax = 0.5f;
+    [SerializeField] private float goodMin = 0.18f;
+    [SerializeField] private float goodMax = 0.65f;
+
+    private Vector3 pulseBaseScale;
+    private bool isCrafting;
 
     private void Awake()
     {
@@ -29,27 +49,29 @@ public class CraftingStation : MonoBehaviour
 
     private void Update()
     {
+        UpdatePulse();
+
+        if (isCrafting)
+        {
+            return;
+        }
+
         bool nearPlayer = PlayerMotor.Instance != null &&
             (PlayerMotor.Instance.transform.position - transform.position).sqrMagnitude <= interactRadius * interactRadius;
-        bool hasInputs = HasEnoughInputs();
 
-        if (nearPlayer && hasInputs)
+        if (!nearPlayer || Keyboard.current == null || !HasEnoughInputs())
         {
-            progress += Time.deltaTime;
-            lastActiveTime = Time.time;
-
-            if (progress >= craftDuration)
-            {
-                progress = 0f;
-                Craft();
-            }
-        }
-        else if (progress > 0f && Time.time - lastActiveTime > abandonTimeout)
-        {
-            progress = 0f;
+            return;
         }
 
-        UpdatePulse();
+        if (Keyboard.current.eKey.wasPressedThisFrame)
+        {
+            StartCoroutine(CraftWithMinigame());
+        }
+        else if (Keyboard.current.qKey.wasPressedThisFrame)
+        {
+            ApplyCraft(0.5f);
+        }
     }
 
     private bool HasEnoughInputs()
@@ -65,14 +87,52 @@ public class CraftingStation : MonoBehaviour
         return true;
     }
 
-    private void Craft()
+    private IEnumerator CraftWithMinigame()
     {
+        isCrafting = true;
+        float quality = 0.5f;
+
+        if (minigameType == CraftingMinigameType.Temperature)
+        {
+            yield return CraftingMinigameUI.Instance.RunTemperature(
+                stationTitle, temperatureDuration, sweetMin, sweetMax, pumpRate, coolRate,
+                q => quality = q);
+        }
+        else
+        {
+            yield return CraftingMinigameUI.Instance.RunHammering(
+                stationTitle, hammerRounds, hammerRoundDuration, perfectMin, perfectMax, goodMin, goodMax,
+                q => quality = q);
+        }
+
+        ApplyCraft(quality);
+        isCrafting = false;
+    }
+
+    private void ApplyCraft(float quality)
+    {
+        if (!HasEnoughInputs())
+        {
+            return;
+        }
+
         for (int i = 0; i < inputTypes.Length; i++)
         {
             ResourceBank.TrySpend(inputTypes[i], inputAmounts[i]);
         }
 
-        ResourceBank.Add(outputType, outputAmount);
+        int amount = outputAmount;
+
+        if (quality >= 0.85f)
+        {
+            amount += 1;
+        }
+        else if (quality >= 0.5f && Random.value < 0.5f)
+        {
+            amount += 1;
+        }
+
+        ResourceBank.Add(outputType, amount);
     }
 
     private void UpdatePulse()
@@ -82,7 +142,7 @@ public class CraftingStation : MonoBehaviour
             return;
         }
 
-        if (progress <= 0f)
+        if (!isCrafting)
         {
             pulseVisual.localScale = pulseBaseScale;
             return;

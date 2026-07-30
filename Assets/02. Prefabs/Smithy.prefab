@@ -576,16 +576,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CraftingStation
   inputTypes:
   - 1
+  - 0
   inputAmounts:
   - 2
+  - 1
   outputType: 2
   outputAmount: 1
-  craftDuration: 3
   interactRadius: 2
-  abandonTimeout: 3
+  stationTitle: "용광로 제련"
+  minigameType: 0
   pulseVisual: {fileID: 4646088683271535329}
   pulseStrength: 0.12
   pulseSpeed: 10
+  temperatureDuration: 4
+  sweetMin: 0.55
+  sweetMax: 0.75
+  pumpRate: 0.7
+  coolRate: 0.35
 --- !u!114 &130000002
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -600,15 +607,19 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CraftingStation
   inputTypes:
   - 2
-  - 0
   inputAmounts:
-  - 1
   - 1
   outputType: 3
   outputAmount: 1
-  craftDuration: 4
   interactRadius: 2
-  abandonTimeout: 3
+  stationTitle: "모루 단조"
+  minigameType: 1
+  hammerRounds: 4
+  hammerRoundDuration: 1.1
+  perfectMin: 0.35
+  perfectMax: 0.5
+  goodMin: 0.18
+  goodMax: 0.65
   pulseVisual: {fileID: 440567680809466404}
   pulseStrength: 0.12
   pulseSpeed: 10

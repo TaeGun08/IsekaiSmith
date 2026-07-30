@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>이세계 대장장이 - 게임 기획서 v1</title>
+<style>
+  :root {
+    --ink: #2b2420;
+    --paper: #f6f1e7;
+    --card: #ffffff;
+    --border: #dcd3c2;
+    --accent: #b5651d;
+    --field: #6f9955;
+    --stage: #b5651d;
+    --dungeon: #5c4a8a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 20px 80px;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .doc { width: 100%; max-width: 1080px; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 8px; color: #6b6155; font-size: 14px; }
+  p.pitch {
+    font-size: 15px;
+    line-height: 1.7;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    border-radius: 8px;
+    padding: 16px 18px;
+    margin: 16px 0 32px;
+  }
+  h2 {
+    font-size: 19px;
+    margin: 44px 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--border);
+  }
+  h2 .num { color: var(--accent); margin-right: 8px; }
+  h3 { font-size: 14px; margin: 20px 0 8px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+  }
+  .note {
+    font-size: 12.5px;
+    color: #6b6155;
+    line-height: 1.6;
+    margin-top: 8px;
+  }
+
+  /* Core loop */
+  .loop-wrap { display: flex; justify-content: center; margin: 8px 0 4px; }
+  .loop-steps {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+  }
+  .loop-step {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    text-align: center;
+    width: 128px;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.05);
+  }
+  .loop-step .icon { font-size: 22px; }
+  .loop-step b { display: block; font-size: 12.5px; margin-top: 4px; }
+  .loop-step span { font-size: 10.5px; color: #6b6155; }
+  .loop-arrow { font-size: 18px; color: var(--accent); }
+
+  /* Three tiers */
+  .tier-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-top: 10px;
+  }
+  .tier-card {
+    border-radius: 10px;
+    padding: 16px;
+    color: #fff;
+  }
+  .tier-card.field { background: linear-gradient(160deg, #7fae5f, #567a3d); }
+  .tier-card.stage { background: linear-gradient(160deg, #d98a3f, #a3541a); }
+  .tier-card.dungeon { background: linear-gradient(160deg, #7c67ad, #4c3c73); }
+  .tier-card h4 { margin: 0 0 4px; font-size: 15px; }
+  .tier-card .eng { font-size: 10.5px; opacity: 0.8; margin-bottom: 10px; }
+  .tier-card ul { margin: 0; padding-left: 16px; font-size: 12px; line-height: 1.7; }
+  .tier-card .badge {
+    display: inline-block;
+    font-size: 10px;
+    background: rgba(255,255,255,0.22);
+    border-radius: 10px;
+    padding: 2px 8px;
+    margin-top: 10px;
+  }
+
+  table.compare {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 16px;
+    font-size: 12.5px;
+  }
+  table.compare th, table.compare td {
+    border: 1px solid var(--border);
+    padding: 8px 10px;
+    text-align: left;
+  }
+  table.compare th { background: #efe8d8; }
+  table.compare td.field-col { border-left: 3px solid var(--field); }
+  table.compare td.stage-col { border-left: 3px solid var(--stage); }
+  table.compare td.dungeon-col { border-left: 3px solid var(--dungeon); }
+
+  /* Material tiers */
+  .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 20px;
+    padding: 6px 12px;
+    font-size: 12px;
+    color: #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  }
+  .chip .dot { width: 9px; height: 9px; border-radius: 5px; background: rgba(255,255,255,0.9); }
+  .chip.iron { background: #7a7d82; }
+  .chip.steel { background: #4d6a86; }
+  .chip.mithril { background: #2f9c95; }
+  .chip.orichalcum { background: #8a4fae; }
+  .chip.manastone { background: #b0468f; }
+  .chip.elem-fire { background: #c0442f; }
+  .chip.elem-poison { background: #5f8a3f; }
+  .chip.elem-paralysis { background: #c9a63f; color: #2b2420; }
+  .chip.elem-frost { background: #4f8fc9; }
+
+  table.elem { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12.5px; }
+  table.elem th, table.elem td { border: 1px solid var(--border); padding: 8px; text-align: center; }
+  table.elem th { background: #efe8d8; }
+
+  table.matrix { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 12.5px; }
+  table.matrix th, table.matrix td { border: 1px solid var(--border); padding: 8px; text-align: center; }
+  table.matrix th { background: #efe8d8; }
+  table.matrix td.locked { color: #b0a690; font-style: italic; }
+
+  /* Order ticket mockup */
+  .ticket-row { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+  .ticket {
+    width: 220px;
+    background: #fffdf6;
+    border: 1px dashed #c9bd9e;
+    border-radius: 6px;
+    padding: 12px 14px;
+    font-family: "Courier New", monospace;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  .ticket .head { font-size: 11px; color: #948a7c; border-bottom: 1px dashed #c9bd9e; padding-bottom: 6px; margin-bottom: 6px; }
+  .ticket .item { font-size: 14px; font-weight: bold; margin-bottom: 4px; }
+  .ticket .tier { font-size: 11px; margin-bottom: 8px; }
+  .ticket .patience-bar { height: 8px; background: #eee2c8; border-radius: 4px; overflow: hidden; }
+  .ticket .patience-fill { height: 100%; background: #6f9955; width: 70%; }
+  .ticket .pay { font-size: 11px; margin-top: 8px; color: #6b6155; }
+
+  /* Progression flow */
+  .flow-wrap { overflow-x: auto; padding: 10px 0; }
+  .flow { display: flex; align-items: stretch; gap: 4px; min-width: 900px; }
+  .flow-stage {
+    flex: 1;
+    border-radius: 10px;
+    padding: 14px;
+    color: #fff;
+    position: relative;
+  }
+  .flow-stage.f1 { background: #7fae5f; }
+  .flow-stage.f2 { background: #d98a3f; }
+  .flow-stage.f3 { background: #7c67ad; }
+  .flow-stage h4 { margin: 0 0 6px; font-size: 13px; }
+  .flow-stage p { margin: 0; font-size: 11px; line-height: 1.6; }
+  .flow-gate {
+    width: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 10.5px;
+    color: #6b6155;
+  }
+
+  /* Smithy growth */
+  .growth-row { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+  .growth-step { flex: 1; min-width: 140px; text-align: center; }
+  .growth-icon {
+    width: 100%;
+    height: 70px;
+    border-radius: 8px;
+    background: #efe8d8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    margin-bottom: 6px;
+  }
+  .growth-step b { font-size: 12px; display: block; }
+  .growth-step span { font-size: 10.5px; color: #6b6155; }
+
+  .qa-list { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.9; }
+  .qa-list li b { color: var(--accent); }
+
+  /* Forging minigame mockups */
+  .mini-row { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 10px; align-items: flex-start; }
+  .mini-box { flex: 1; min-width: 260px; }
+  .mini-box h4 { font-size: 12.5px; margin: 0 0 8px; color: var(--accent); }
+
+  .temp-gauge {
+    height: 22px;
+    border-radius: 11px;
+    background: linear-gradient(90deg, #4f8fc9 0%, #4f8fc9 30%, #7fae5f 45%, #7fae5f 60%, #d98a3f 75%, #c0442f 100%);
+    position: relative;
+    border: 1px solid var(--border);
+  }
+  .temp-gauge .sweet-spot {
+    position: absolute;
+    top: -3px; bottom: -3px;
+    left: 42%; width: 20%;
+    border: 2px dashed #2b2420;
+    border-radius: 6px;
+  }
+  .temp-gauge .needle {
+    position: absolute;
+    top: -6px;
+    left: 48%;
+    width: 3px;
+    height: 34px;
+    background: #2b2420;
+  }
+  .bellows-hint { font-size: 11px; color: #6b6155; margin-top: 6px; }
+
+  .circle-row { display: flex; align-items: flex-end; gap: 14px; margin-top: 6px; }
+  .circle-step { text-align: center; }
+  .circle-step .ring {
+    border-radius: 50%;
+    border: 3px solid #b5651d;
+    margin: 0 auto 6px;
+  }
+  .circle-step.s1 .ring { width: 64px; height: 64px; border-color: #c9bd9e; }
+  .circle-step.s2 .ring { width: 46px; height: 46px; border-color: #d98a3f; }
+  .circle-step.s3 .ring { width: 30px; height: 30px; border-color: #6f9955; background: rgba(111,153,85,0.15); }
+  .circle-step.s4 .ring { width: 30px; height: 30px; border: 3px solid #c0442f; position: relative; }
+  .circle-step.s4 .ring::before, .circle-step.s4 .ring::after {
+    content: ""; position: absolute; left: 4px; right: 4px; top: 50%; height: 2px; background: #c0442f;
+  }
+  .circle-step.s4 .ring::before { transform: rotate(45deg); }
+  .circle-step.s4 .ring::after { transform: rotate(-45deg); }
+  .circle-step span { font-size: 10px; color: #6b6155; }
+  .circle-step b { font-size: 10.5px; display: block; }
+
+  footer { margin-top: 50px; font-size: 12px; color: #948a7c; text-align: center; }
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>이세계 대장장이 — 게임 기획서 v1</h1>
+  <p class="sub">game_design_doc.html · 기존 지형 배치안(terrain_layout_plan*.html)은 참고용으로 별도 유지, 방해되면 정리 가능</p>
+
+  <p class="pitch">
+    <b>한 줄 컨셉</b> — 이세계로 떨어진 대장장이가 초라한 오두막에서 시작해, 필드에서 재료를 모으고
+    스테이지·던전에서 사냥하며 더 좋은 재료를 얻고, 그 재료로 무기를 만들어 손님에게 팔아
+    돈을 벌고, 그 돈으로 더 깊은 곳에 도전할 힘(도구·장비)과 대장간 자체를 키워나가는
+    <b>수집 → 제작 → 판매 → 재투자</b> 순환 게임.<br><br>
+    <b>중요한 정체성 하나</b> — 대장장이가 만드는 무기와 모험가가 쓰는 무기가 분리돼 있지 않습니다.
+    <b>플레이어는 자신이 직접 벼려낸 그 무기를 손에 들고 스테이지·던전으로 사냥을 나갑니다.</b>
+    "장사"와 "액션"이 같은 아이템 하나로 이어지는 게 이 게임의 RPG적 핵심입니다 — 잘 만들수록
+    더 강하게 싸울 수 있고, 더 강하게 싸울수록 더 좋은 재료로 더 잘 만들 수 있습니다.
+  </p>
+
+  <h2><span class="num">1</span>핵심 루프</h2>
+  <div class="card">
+    <div class="loop-wrap">
+      <div class="loop-steps">
+        <div class="loop-step"><div class="icon">⛏️</div><b>사냥/채집</b><span>필드·스테이지·던전</span></div>
+        <div class="loop-arrow">→</div>
+        <div class="loop-step"><div class="icon">📦</div><b>보관</b><span>목재/광물 창고</span></div>
+        <div class="loop-arrow">→</div>
+        <div class="loop-step"><div class="icon">🔥</div><b>제작</b><span>용광로·모루</span></div>
+        <div class="loop-arrow">→</div>
+        <div class="loop-step"><div class="icon">🤝</div><b>판매</b><span>손님 주문 처리</span></div>
+        <div class="loop-arrow">→</div>
+        <div class="loop-step"><div class="icon">💰</div><b>골드</b><span>수익</span></div>
+        <div class="loop-arrow">→</div>
+        <div class="loop-step"><div class="icon">🛠️</div><b>재투자</b><span>도구/대장간 확장</span></div>
+      </div>
+    </div>
+    <p class="note">재투자가 다시 "더 깊은 사냥터 진입"으로 이어져 루프가 닫힙니다 — 지금까지는
+    사냥→보관→제작까지만 있었고, 판매/재투자/사냥터 확장이 빠져있어서 "애매하다"고 느껴진
+    것으로 보입니다. 이번 기획서의 핵심은 이 뒷부분(2~9)을 채우는 것입니다.</p>
+  </div>
+
+  <h2><span class="num">2</span>3단계 사냥터 구조</h2>
+  <div class="tier-grid">
+    <div class="tier-card field">
+      <h4>필드 사냥 (Field)</h4>
+      <div class="eng">상시 개방 · 저위험 · 스테이지 진행에 맞춰 함께 성장</div>
+      <ul>
+        <li>대장간 주변 계곡 — 지금 만든 벌목장/채석장</li>
+        <li>수목/광맥 채집 + 약한 잡몹(슬라임 등) 소수</li>
+        <li>등급: <b>철(Iron)</b> 재료만 (방치형처럼 몬스터 강함은 스테이지
+        진행도에 맞춰 계속 오르지만, 재료 등급 자체는 항상 철로 고정)</li>
+        <li>전투 압박 거의 없음, 튜토리얼 성격 — 그래도 후반까지 "몸 풀기"로 계속 들를 이유가 있음</li>
+      </ul>
+      <span class="badge">언제나 입장 가능</span>
+    </div>
+    <div class="tier-card stage">
+      <h4>스테이지 사냥 (Stage)</h4>
+      <div class="eng">여러 스테이지를 순서대로 클리어</div>
+      <ul>
+        <li>스테이지 1 → 2 → 3 ... 순차 진행, 클리어할수록 다음 스테이지 해금</li>
+        <li>실제 전투 필요 (도구=무기로 스윙 재사용)</li>
+        <li>획득: <b>마석(Mana Stone)</b> — 등급×속성 조합 (광물 아님, §3 참고)</li>
+        <li>클리어 시 몬스터 부산물(가죽/이빨 등)도 획득</li>
+        <li>스테이지 진행도가 필드 몬스터 강함에 그대로 반영됨</li>
+      </ul>
+      <span class="badge">향상된 장비로 입장 필요</span>
+    </div>
+    <div class="tier-card dungeon">
+      <h4>던전 사냥 (Dungeon)</h4>
+      <div class="eng">지하 개방형 콘텐츠 · 매번 랜덤 생성</div>
+      <ul>
+        <li>스테이지 보스 처치 시 지형에 <b>동굴 입구가 실제로 열림</b></li>
+        <li>입장할 때마다 방 구조가 <b>랜덤 생성</b> — 매번 새로운 탐험</li>
+        <li>최초 클리어 시 <b>채석장의 광맥이 깊어짐</b> — 채석장에서 캘 수
+        있는 최고 등급이 한 단계 상승 (별도 채굴터가 아니라 기존 채석장 업그레이드)</li>
+        <li>이후 재방문은 보스 전용 희귀 재료 파밍용</li>
+      </ul>
+      <span class="badge">최고 등급 장비로만 생존 가능</span>
+    </div>
+  </div>
+
+  <table class="compare">
+    <tr><th></th><th>필드</th><th>스테이지</th><th>던전</th></tr>
+    <tr><td>위험도</td><td class="field-col">낮음 (몬스터 강함은 스테이지 진행에 비례해 계속 상승)</td><td class="stage-col">중간</td><td class="dungeon-col">높음</td></tr>
+    <tr><td>진입 방식</td><td class="field-col">항상 열림</td><td class="stage-col">여러 스테이지 순차 해금</td><td class="dungeon-col">스테이지 보스 처치로 영구 개방, 매회 랜덤 생성</td></tr>
+    <tr><td>콘텐츠 성격</td><td class="field-col">채집 위주 + 약한 잡몹</td><td class="stage-col">웨이브 전투</td><td class="dungeon-col">방 단위 랜덤 탐험 + 전투</td></tr>
+    <tr><td>주 획득물</td><td class="field-col">철 광물 (채석장)</td><td class="stage-col">속성 마석 (등급×속성)</td><td class="dungeon-col">채석장 등급 업그레이드(최초 1회) + 보스 재료(매회)</td></tr>
+    <tr><td>대응 손님 등급</td><td class="field-col">일반 손님</td><td class="stage-col">숙련 모험가</td><td class="dungeon-col">VIP / 지명 의뢰</td></tr>
+  </table>
+
+  <h2><span class="num">3</span>재료 등급 &amp; 제작 매트릭스</h2>
+  <div class="card">
+    <h3>두 자원 축 — 광물(채석장) vs 마석(스테이지)</h3>
+    <p class="note">원래 초안에서는 "스테이지=강철/미스릴 광물"로 잡았었는데, 그보다 <b>스테이지는
+    마석(마물에게서 나오는 마력 결정)을 주는 축으로, 광물은 전부 채석장 한 곳에서 던전
+    클리어로 등급이 오르는 축으로</b> 분리하는 게 더 명확합니다. 채석장이라는 기존 장소가
+    실제로 성장하는 느낌도 살고, 스테이지는 "무기의 재료"가 아니라 "무기에 마법을 불어넣는
+    재료"라는 별개의 역할을 갖게 됩니다.</p>
+
+    <h4 style="margin:14px 0 6px; font-size:12.5px;">광물 등급 — 채석장 하나, 던전 클리어로 단계 상승</h4>
+    <div class="chip-row">
+      <div class="chip iron"><span class="dot"></span>철 Iron — 채석장 기본</div>
+      <div class="chip steel"><span class="dot"></span>강철 Steel — 던전1 클리어 후</div>
+      <div class="chip mithril"><span class="dot"></span>미스릴 Mithril — 던전2 클리어 후</div>
+      <div class="chip orichalcum"><span class="dot"></span>오리하르콘 Orichalcum — 던전3 클리어 후</div>
+    </div>
+
+    <h4 style="margin:14px 0 6px; font-size:12.5px;">마석 — 등급(세기) × 속성(효과), 두 값의 조합</h4>
+    <p class="note">마석은 등급 하나로만 나뉘지 않고, <b>어떤 스테이지/몬스터에서 나왔느냐에 따라
+    속성이 갈립니다.</b> 같은 "중급 마석"이라도 화염 스테이지에서 나오면 화상, 늪지 스테이지에서
+    나오면 독 — 이렇게 스테이지마다 테마가 생기고, 무기 결과물도 다양해집니다.</p>
+    <div class="chip-row">
+      <div class="chip elem-fire"><span class="dot"></span>화염 마석 → 화상</div>
+      <div class="chip elem-poison"><span class="dot"></span>독 마석 → 중독</div>
+      <div class="chip elem-paralysis"><span class="dot"></span>번개 마석 → 마비</div>
+      <div class="chip elem-frost"><span class="dot"></span>냉기 마석 → 동상</div>
+    </div>
+    <table class="elem">
+      <tr><th>등급</th><th>출처</th><th>인챈트 효과 세기</th></tr>
+      <tr><td class="chip manastone" style="border-radius:0;display:table-cell;">하급</td><td>스테이지 초반 웨이브</td><td>낮은 확률 / 짧은 지속시간</td></tr>
+      <tr><td class="chip manastone" style="border-radius:0;display:table-cell;">중급</td><td>스테이지 중반 웨이브</td><td>중간 확률 / 보통 지속시간</td></tr>
+      <tr><td class="chip manastone" style="border-radius:0;display:table-cell;">상급</td><td>스테이지 보스</td><td>높은 확률 / 긴 지속시간</td></tr>
+    </table>
+    <p class="note">목재는 기존대로 일반 목재(필드) → 경목 → 고목 3단계로 손잡이 재료 역할을
+    유지합니다. 속성 종류는 우선 4개(화염/독/번개/냉기)로 시작해서, 반응이 좋으면 나중에
+    (성/암흑 등) 늘리는 방향을 제안합니다.</p>
+
+    <h3>제작 매트릭스 (무기 종류 × 광물 등급)</h3>
+    <table class="matrix">
+      <tr><th></th><th>검</th><th>도끼</th><th>망치</th><th>단검</th></tr>
+      <tr><td class="chip iron" style="border-radius:0;display:table-cell;">철</td><td>철검</td><td>철도끼</td><td>철망치</td><td>철단검</td></tr>
+      <tr><td class="chip steel" style="border-radius:0;display:table-cell;">강철</td><td>강철검</td><td>강철도끼</td><td>강철망치</td><td>강철단검</td></tr>
+      <tr><td class="chip mithril" style="border-radius:0;display:table-cell;">미스릴</td><td>미스릴검</td><td class="locked">(추후)</td><td>미스릴망치</td><td class="locked">(추후)</td></tr>
+      <tr><td class="chip orichalcum" style="border-radius:0;display:table-cell;">오리하르콘</td><td>오리하르콘검</td><td class="locked">(추후)</td><td class="locked">(추후)</td><td class="locked">(추후)</td></tr>
+    </table>
+    <p class="note">처음부터 4종×4등급 16개를 다 채우기보다, <b>검을 세로축 전체(등급 4개) 먼저
+    완성</b>해서 세로 진행 루트 하나를 끝까지 뚫어보고, 이후 도끼/망치/단검을 옆으로 채우는
+    순서를 제안합니다. 광물→주괴(용광로)→무기(모루) 2단계 제작은 이미 구현되어 있어서,
+    이 매트릭스는 레시피 데이터만 채우면 됩니다.</p>
+
+    <h3>마석 인챈트 — 기본 무기의 상위 변형</h3>
+    <p class="note">완성된 기본 무기(예: 강철검)에 원하는 속성의 마석을 모루에서 함께 소모하면
+    <b>"화염 강철검"(공격 시 화상 부여)</b> 같은 인챈트 변형이 나옵니다. 같은 광물 등급이라도
+    어떤 마석을 넣었느냐에 따라 결과 무기가 갈라지므로, 검 하나만 봐도 무속성/화염/독/번개/냉기
+    5종류가 생겨 매트릭스가 훨씬 다양해집니다(무기 종류 × 광물 등급 × 마석 속성). 광물 축
+    (채석장)과 마석 축(스테이지)이 최종 무기 하나에서 합쳐지는 지점이 바로 여기입니다.</p>
+  </div>
+
+  <h2><span class="num">4</span>대장간 미니게임 — 제련과 단조 (잭스미스 스타일)</h2>
+  <div class="card">
+    <p>지금 구현된 제작(용광로/모루)은 <b>근처에 서 있으면 자동으로 완성되는 방식</b>이라
+    "뚝딱 나온다"는 느낌이 강합니다. 말씀하신 <b>잭스미스(Jacksmith)</b> 참고해서, 용광로=제련
+    단계 / 모루=단조 단계로 나누고 각각 실제 손이 가는 미니게임을 넣습니다. 다만 잭스미스의
+    손잡이·장식 조립 단계는 제외하고, <b>두들기는 단조 작업까지만</b> 게임화합니다.</p>
+
+    <div class="mini-row">
+      <div class="mini-box">
+        <h4>① 용광로 — 제련 (재료 투입 + 온도 조절)</h4>
+        <p class="note">투입 재료: <b>광물(필수, 등급 결정) + 목재(필수, 손잡이재) + 마석(선택,
+        속성 부여용 0~N개)</b>. 재료를 넣은 뒤 <b>풀무질</b>로 온도를 올립니다 — 클릭/홀드로
+        풀무를 눌러 온도를 올리고, 놓으면 서서히 식습니다. 목표는 "적정 구간(sweet spot)"에
+        최대한 오래 머무르게 유지하는 것 — 너무 식으면 합금이 덜 되고, 과열되면 재료 손실
+        위험이 생깁니다.</p>
+        <div class="temp-gauge"><div class="sweet-spot"></div><div class="needle"></div></div>
+        <div class="bellows-hint">🔥 풀무질(클릭/홀드)로 바늘을 초록 적정 구간에 붙잡아두기</div>
+      </div>
+      <div class="mini-box">
+        <h4>② 모루 — 단조 (잭스미스식 해머링)</h4>
+        <p class="note">제련이 끝난 합금 주괴 위에 <b>무작위 위치로 타격 지점이 나타나고, 그
+        자리에 원이 점점 줄어듭니다.</b> 원이 다 줄어들어 사라지기 전에, 딱 적당히 작아진
+        "판정 구간"에서 클릭(=망치질)해야 성공입니다. 너무 일찍 치면 Good, 딱 맞으면 Perfect,
+        놓치면 Miss. 3~5회 반복해서 최종 단조 정확도를 냅니다.</p>
+        <div class="circle-row">
+          <div class="circle-step s1"><div class="ring"></div><b>등장</b><span>크다</span></div>
+          <div class="circle-step s2"><div class="ring"></div><b>줄어드는 중</b><span>Good</span></div>
+          <div class="circle-step s3"><div class="ring"></div><b>Perfect!</b><span>지금 클릭</span></div>
+          <div class="circle-step s4"><div class="ring"></div><b>Miss</b><span>놓침</span></div>
+        </div>
+      </div>
+    </div>
+
+    <h3>품질 = 온도 유지력 × 해머링 정확도</h3>
+    <p class="note">제련 단계의 온도 유지 정확도와 단조 단계의 해머링 정확도를 곱해서 최종
+    <b>품질 등급</b>(조악/보통/양호/일품)을 정합니다. 품질은 판매가와 마석 인챈트 효과 확률에
+    함께 반영되어, 두 미니게임 모두 잘해야 "일품" 무기가 나오는 구조입니다.</p>
+
+    <h3>피로도 관리 — 참여는 선택</h3>
+    <p class="note">기본 철검처럼 자주 만드는 저티어 아이템까지 매번 두 미니게임을 강제하면
+    피로도 문제가 생깁니다. <b>"빠른 제작" 버튼</b>을 항상 열어둬서, 건너뛰면 자동으로 "보통"
+    품질을 받는 선택지를 제공합니다 — 고티어/중요 아이템만 직접 참여해서 품질을 끌어올리는
+    식으로, 몰입과 편의 사이를 플레이어가 스스로 선택하게 합니다.</p>
+  </div>
+
+  <h2><span class="num">5</span>암시장 상인 (확률 등장 NPC)</h2>
+  <div class="card">
+    <p>일정 확률로(예: 하루에 한 번 정도 확률 판정) 대장간 근처에 <b>수상한 암시장 상인</b>이
+    나타납니다. 정상 유통 경로로는 안 팔리는 <b>희귀 재료(상급 마석, 등급을 건너뛴 광물,
+    보스 전용 재료 등)</b>를 시세보다 훨씬 비싼 골드로 판매하고, 일정 시간(또는 다음 방문
+    전까지)이 지나면 떠납니다.</p>
+    <div class="ticket-row">
+      <div class="ticket" style="border-color:#8a6a3f; background:#fbf3e6;">
+        <div class="head">암시장 상인 방문 중</div>
+        <div class="item">상급 마석 × 1</div>
+        <div class="tier chip manastone" style="display:inline-flex;">희귀 재료</div>
+        <div class="pay" style="margin-top:6px;">가격: 300 G (시세 대비 매우 비쌈)</div>
+        <div class="pay">체류: 남은 시간 02:14</div>
+      </div>
+    </div>
+    <p class="note">역할 — 파밍이 막힌 순간(운 나쁘게 재료가 안 나올 때)에도 <b>골드만 있으면
+    우회할 수 있는 안전판</b>이자, 골드가 쌓여도 딱히 쓸 곳이 없던 구간에 새로운 소비처가
+    됩니다. 등장 확률/체류 시간/가격 배수는 밸런스 수치라 플레이해보며 조정 필요.</p>
+
+    <h3>매입(판매)도 가능 — 단, 급전용</h3>
+    <p class="note">암시장 상인에게 플레이어가 재료를 <b>팔 수도 있지만, 시세보다 낮은 가격</b>만
+    쳐줍니다. 정상적인 돈벌이 수단이 아니라, "지금 당장 골드가 급한데 재료만 쌓여있다"는
+    비상 상황에서 손해를 감수하고 빠르게 현금화하는 용도로 자리 잡습니다 — 손님 주문 판매(§6)가
+    "제값 받는 정석 루트", 암시장 매입은 "급할 때 손해 보고 파는 비상 루트"로 역할이 뚜렷하게
+    나뉩니다.</p>
+  </div>
+
+  <h2><span class="num">6</span>손님 주문 시스템 (피자레디 방식)</h2>
+  <div class="card">
+    <p>손님이 상점 앞 거리에 나타나 <b>주문서</b>를 들고 대기줄에 섭니다. 주문서에는 "아이템 종류
+    (무기 또는 도구) + 최소 등급"이 적혀 있고, 인내심 게이지가 서서히 줄어듭니다. 플레이어는
+    재고에 맞는 물건이 있으면 즉시 건네고, 없으면 그 자리에서 제작(또는 미리 재고를 쌓아두는
+    전략)해야 합니다. <b>무기뿐 아니라 곡괭이/도끼 같은 도구도 판매 상품 대상</b>입니다 —
+    손님 주문이 도구를 요청하면 그것도 만들어 팔 수 있습니다 (재료 전용인 암시장 상인과의
+    차이점).</p>
+    <div class="ticket-row">
+      <div class="ticket">
+        <div class="head">주문서 #014</div>
+        <div class="item">강철 도끼</div>
+        <div class="tier chip steel" style="display:inline-flex;">강철 등급 이상</div>
+        <div class="patience-bar"><div class="patience-fill" style="width:70%; background:#6f9955;"></div></div>
+        <div class="pay">예상 지급: 42 G (+속도 보너스)</div>
+      </div>
+      <div class="ticket">
+        <div class="head">주문서 #015</div>
+        <div class="item">미스릴 검</div>
+        <div class="tier chip mithril" style="display:inline-flex;">미스릴 등급 이상</div>
+        <div class="patience-bar"><div class="patience-fill" style="width:95%; background:#6f9955;"></div></div>
+        <div class="pay">예상 지급: 120 G (+속도 보너스)</div>
+      </div>
+      <div class="ticket">
+        <div class="head">주문서 #016</div>
+        <div class="item">철 단검</div>
+        <div class="tier chip iron" style="display:inline-flex;">철 등급 이상</div>
+        <div class="patience-bar"><div class="patience-fill" style="width:25%; background:#c98a3f;"></div></div>
+        <div class="pay">예상 지급: 15 G</div>
+      </div>
+    </div>
+    <p class="note">규칙 제안 — <b>등급은 "이상"으로 판정</b>(강철 주문에 미스릴 납품하면 받아주되
+    보너스는 없음, 낮은 등급 납품은 불가)해서 재고 관리 실수의 여지를 줄임 ·
+    <b>고등급 주문일수록 인내심이 김</b>(어차피 제작 시간이 기니까) · 지급액은 등급별 기본가 +
+    인내심 남은 비율 기반 속도 보너스.</p>
+
+    <h3>평판 = 판매 수익 배율</h3>
+    <p class="note">주문을 놓치면(시간 초과/오배송) <b>평판 게이지가 깎이고, 평판이 낮을수록
+    모든 판매에서 받는 골드에 %감소 페널티</b>가 붙습니다(예: 평판 100%=정상가, 60%=수익
+    -20% 등). 게임오버 같은 강한 페널티 대신, "요즘 장사가 잘 안 된다"는 체감으로 자연스럽게
+    이어지는 가벼운 형태입니다. 반대로 연속 성공하면 평판이 서서히 회복되도록 해서, 한 번의
+    실수가 영구적인 손해로 남지 않게 합니다.</p>
+  </div>
+
+  <h2><span class="num">7</span>진행 흐름 (해금 게이트)</h2>
+  <div class="flow-wrap">
+    <div class="flow">
+      <div class="flow-stage f1">
+        <h4>① 필드 시대</h4>
+        <p>철 장비로 시작 · 벌목장/채석장 채집 · 일반 손님 응대 · 골드로 첫 도구 업그레이드</p>
+      </div>
+      <div class="flow-gate">향상된<br>곡괭이/도끼<br>→</div>
+      <div class="flow-stage f2">
+        <h4>② 스테이지 시대</h4>
+        <p>스테이지 1→2→3... 순차 해금 · 속성 마석 획득 · 인챈트 무기 제작 · 숙련 모험가 손님 등장 ·
+        진행할수록 필드 몬스터도 동반 강화 · 마지막 스테이지에 보스</p>
+      </div>
+      <div class="flow-gate">보스 처치<br>→ 동굴 개방<br>→</div>
+      <div class="flow-stage f3">
+        <h4>③ 던전 시대</h4>
+        <p>던전(랜덤 생성) 개방 · 클리어로 채석장 광맥 심화(오리하르콘까지) · 보스 전용 재료 · VIP/지명 의뢰 · 전설 등급 무기 제작</p>
+      </div>
+    </div>
+  </div>
+  <p class="note">각 시대 전환마다 (a) 새 사냥터 개방 (b) 새 재료 등급 해금 (c) 새 손님 등급 등장이
+  동시에 맞물리도록 해서, "장비를 올려야 더 깊이 갈 수 있고, 더 깊이 가야 더 좋은 걸 팔 수 있다"는
+  동기가 항상 살아있게 합니다.</p>
+
+  <h2><span class="num">8</span>대장간 성장 (재투자의 시각적 보상)</h2>
+  <div class="card">
+    <div class="growth-row">
+      <div class="growth-step"><div class="growth-icon">🛖</div><b>Lv.1 오두막</b><span>지금 상태 — 용광로+모루+보관함</span></div>
+      <div class="growth-step"><div class="growth-icon">🏚️</div><b>Lv.2 작업장</b><span>벽/지붕 복원, 진열대 추가</span></div>
+      <div class="growth-step"><div class="growth-icon">🏠</div><b>Lv.3 정식 대장간</div><span>다중 용광로, 재고 진열</span></div>
+      <div class="growth-step"><div class="growth-icon">🏛️</div><b>Lv.4 명공방</b><span>간판/장식, VIP 전용 구역</span></div>
+    </div>
+    <p class="note">이 파트는 시각/맵 디자인 영역이라 실제 배치는 나중에 직접 진행하시기로 한
+    범위 밖입니다 — 여기서는 "골드를 뭐에 쓰는가"에 대한 개념적 목표로만 넣어둡니다.</p>
+  </div>
+
+  <h2><span class="num">9</span>전투 개념 (스테이지/던전 공통)</h2>
+  <div class="card">
+    <p>완전히 새로운 액션 시스템을 만들기보다, 이미 구현된 <b>도끼/곡괭이 스윙(ToolSwing)</b>을
+    그대로 재사용합니다 — 자원 노드 대신 몬스터에게 스윙, 몬스터도 노드처럼 HP/피격 흔들림/
+    파편 연출을 갖되, 몬스터는 플레이어를 쫓아오고 되받아칩니다. 새로 필요한 것은 몬스터
+    AI(접근→공격 단순 루프)와 플레이어 체력/피격 정도입니다.</p>
+    <h3>장착 무기 = 내가 만든 그 무기</h3>
+    <p class="note">채집용 도끼/곡괭이(필드 전용 유틸리티)와는 별도로 <b>"장착 무기" 슬롯</b>을
+    하나 둬서, 모루에서 완성한 검/도끼/망치/단검 중 하나를 장비하고 스테이지·던전에 들어갑니다.
+    무기의 광물 등급(공격력/내구도)과 마석 속성(추가 효과: 화상/독/마비/동상)이 그대로 전투
+    스탯이 되므로, "더 잘 만들수록 더 잘 싸운다"는 인과관계가 눈에 보이게 됩니다. 반대로 좋은
+    장비 없이 스테이지에 들어가면 못 버티므로, 자연스럽게 필드→제작→스테이지 순서를 유도합니다.</p>
+    <p class="note">전투 세부 수치(몬스터 종류, 데미지, 플레이어 HP/회복 등)는 이번 기획서에서
+    방향만 잡고, 별도 턴에서 더 구체화하는 걸 제안합니다.</p>
+  </div>
+
+  <h2><span class="num">10</span>확정된 결정 사항</h2>
+  <div class="card">
+    <ul class="qa-list">
+      <li><b>던전</b> 재방문 구조는 <b>랜덤 생성</b>. 광맥 심화(채석장 등급업)는 최초 클리어 1회만.</li>
+      <li><b>스테이지</b>는 여러 개를 순차 해금, 진행도에 비례해 <b>필드 몬스터도 함께 강해짐</b>(방치형 스타일). <b>개수는 우선 소수(예 3개)로 시작해서 반응 보고 추가.</b></li>
+      <li><b>주문 실패</b>는 게임오버 없이 <b>평판 하락 → 전체 판매 수익 %감소</b>로만 반영.</li>
+      <li><b>판매 대상</b>은 무기 + 도구(곡괭이 등) 전부 포함. 암시장 상인은 재료 전용(매입도 가능하지만 저가).</li>
+      <li><b>마석 속성</b>은 <b>화염/독/번개/냉기 4종으로 시작</b>, 반응 봐서 추후 추가.</li>
+      <li><b>암시장 매입</b> 기능 포함 — 단, 급전용으로 시세보다 낮은 가격.</li>
+      <li><b>전투 장비</b>는 플레이어가 직접 제작한 무기를 그대로 장착해서 사용(§9).</li>
+      <li><b>제작</b>은 자동 완성이 아니라 <b>용광로(재료 투입+풀무질 온도 조절) → 모루(잭스미스식
+      해머링)</b> 2단계 미니게임으로 품질이 갈리는 구조(§4). 목재는 항상 필수 투입, 마석은 선택
+      투입. 손잡이/장식 조립 단계는 만들지 않음. 참여 자체는 "빠른 제작"으로 건너뛸 수 있음.</li>
+    </ul>
+    <p class="note">지금까지 나온 아이디어는 이 정도면 뼈대가 꽤 탄탄하게 잡힌 것 같습니다.
+    다음 단계는 (a) 이 문서 전체를 한 번 더 훑어보고 눈에 걸리는 부분 다듬기, 또는 (b) 확정된
+    부분부터 실제 구현 순서를 정하고 들어가기 — 둘 중 편하신 쪽으로 진행하면 됩니다.</p>
+  </div>
+
+  <footer>game_design_doc.html · 확인 후 피드백 주시면 확정된 부분부터 실제 구현에 들어가겠습니다.</footer>
+</div>
+</body>
+</html>
