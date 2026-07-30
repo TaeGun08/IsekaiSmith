@@ -58,7 +58,8 @@ public class CraftingMinigameUI : MonoBehaviour
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         var scaler = canvasGO.GetComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920, 1080);
+        scaler.referenceResolution = new Vector2(1080, 1920);
+        scaler.matchWidthOrHeight = 1f;
 
         panel = new GameObject("Panel", typeof(RectTransform), typeof(Image));
         panel.transform.SetParent(canvasGO.transform, false);
