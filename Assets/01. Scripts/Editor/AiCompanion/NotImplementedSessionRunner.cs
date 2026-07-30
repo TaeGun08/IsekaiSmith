@@ -6,10 +6,14 @@ using System;
 // instead of silently doing nothing or throwing out of Send().
 public class NotImplementedSessionRunner : IAiSessionRunner
 {
+    // Required by IAiSessionRunner but genuinely never raised by this stub - only OnError
+    // fires (from Send() below). CS0067 is expected and harmless here, not a bug.
+#pragma warning disable CS0067
     public event Action<string> OnSessionStarted;
     public event Action<string> OnAssistantText;
     public event Action<string> OnToolActivity;
     public event Action OnTurnComplete;
+#pragma warning restore CS0067
     public event Action<string> OnError;
 
     private readonly string providerDisplayName;

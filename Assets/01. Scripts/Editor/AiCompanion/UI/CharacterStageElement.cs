@@ -708,8 +708,8 @@ public class CharacterStageElement : VisualElement
         body.style.rotate = new Rotate(new Angle(swayDegrees, AngleUnit.Degree));
 
         // Glossy highlight, fixed offset from the body's own top-left regardless of bob (moves
-        // with the body, doesn't independently animate).
-        const float shineSize = 16f;
+        // with the body, doesn't independently animate). Size is set once at creation
+        // (MakeCircle(16f) in the constructor), not here - only position/opacity animate.
         bodyShine.style.left = center.x - BodySize / 2f + 8f + shakeX;
         bodyShine.style.top = center.y - BodySize / 2f + 6f + bobY;
         bodyShine.style.opacity = 0.30f;

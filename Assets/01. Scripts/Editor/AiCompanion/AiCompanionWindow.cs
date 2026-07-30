@@ -1405,6 +1405,13 @@ public class AiCompanionWindow : EditorWindow
         return container;
     }
 
+    // PreventDefault() is marked obsolete in favor of StopPropagation()/FocusController.IgnoreEvent(),
+    // but this method specifically needs to suppress the native TextField's own default keystroke
+    // handling (Enter inserting a newline, Ctrl+Z doing its own undo) - StopImmediatePropagation()
+    // alone was tried and didn't stop that native handling in practice (2026-07-16/07-23 bug
+    // reports: "엔터 눌렀을 때 전송은 됐는데 줄바꿈도 같이 됨"). Keeping PreventDefault() here
+    // deliberately rather than "fixing" the warning and risking that regression.
+#pragma warning disable CS0618
     private void OnInputKeyDown(KeyDownEvent evt)
     {
         if ((evt.keyCode == KeyCode.Return || evt.keyCode == KeyCode.KeypadEnter) && !evt.shiftKey)
@@ -1445,6 +1452,7 @@ public class AiCompanionWindow : EditorWindow
             }
         }
     }
+#pragma warning restore CS0618
 
     private void TrySend()
     {
