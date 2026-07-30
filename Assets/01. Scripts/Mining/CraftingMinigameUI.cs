@@ -2,11 +2,11 @@ using System;
 using System.Collections;
 using TMPro;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 // Self-contained: builds its own Canvas/UI in Awake so no scene wiring is needed.
 // CraftingStation just calls CraftingMinigameUI.Instance.RunTemperature/RunHammering.
+// Input is button press/hold (mouse or touch) - no keyboard dependency, mobile-friendly.
 public class CraftingMinigameUI : MonoBehaviour
 {
     private static CraftingMinigameUI instance;
@@ -35,11 +35,14 @@ public class CraftingMinigameUI : MonoBehaviour
     private GameObject tempGroup;
     private RectTransform sweetZoneRect;
     private RectTransform needleRect;
+    private PointerHoldTracker pumpButton;
     private float barWidth = 260f;
 
     // Hammering phase widgets
     private GameObject hammerGroup;
     private RectTransform targetRect;
+    private Button hammerButton;
+    private bool hammerTapped;
 
     private void Awake()
     {
@@ -64,11 +67,11 @@ public class CraftingMinigameUI : MonoBehaviour
         panelRect.anchorMax = new Vector2(0.5f, 0f);
         panelRect.pivot = new Vector2(0.5f, 0f);
         panelRect.anchoredPosition = new Vector2(0f, 60f);
-        panelRect.sizeDelta = new Vector2(340f, 190f);
+        panelRect.sizeDelta = new Vector2(340f, 280f);
         panel.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.55f);
 
         titleText = MakeText(panel.transform, "Title", 24, TextAlignmentOptions.Center, new Vector2(0f, -14f), new Vector2(320f, 26f));
-        instructionText = MakeText(panel.transform, "Instruction", 13, TextAlignmentOptions.Center, new Vector2(0f, -160f), new Vector2(320f, 24f));
+        instructionText = MakeText(panel.transform, "Instruction", 13, TextAlignmentOptions.Center, new Vector2(0f, -220f), new Vector2(320f, 24f));
         resultText = MakeText(panel.transform, "Result", 16, TextAlignmentOptions.Center, new Vector2(0f, -130f), new Vector2(320f, 24f));
 
         BuildTemperatureGroup();
@@ -130,6 +133,19 @@ public class CraftingMinigameUI : MonoBehaviour
         needleRect.sizeDelta = new Vector2(4f, 32f);
         needle.GetComponent<Image>().color = Color.white;
 
+        var pumpGO = new GameObject("PumpButton", typeof(RectTransform), typeof(Image), typeof(PointerHoldTracker));
+        pumpGO.transform.SetParent(tempGroup.transform, false);
+        var pumpRect = pumpGO.GetComponent<RectTransform>();
+        pumpRect.anchorMin = new Vector2(0f, 0.5f);
+        pumpRect.anchorMax = new Vector2(0f, 0.5f);
+        pumpRect.pivot = new Vector2(0.5f, 1f);
+        pumpRect.anchoredPosition = new Vector2(barWidth * 0.5f, -40f);
+        pumpRect.sizeDelta = new Vector2(160f, 64f);
+        pumpGO.GetComponent<Image>().color = new Color(0.75f, 0.35f, 0.2f);
+        pumpButton = pumpGO.GetComponent<PointerHoldTracker>();
+        MakeText(pumpGO.transform, "PumpLabel", 16, TextAlignmentOptions.Center, Vector2.zero, new Vector2(160f, 64f))
+            .text = "HOLD TO PUMP";
+
         tempGroup.SetActive(false);
     }
 
@@ -142,16 +158,18 @@ public class CraftingMinigameUI : MonoBehaviour
         groupRect.anchorMax = new Vector2(0.5f, 1f);
         groupRect.pivot = new Vector2(0.5f, 1f);
         groupRect.anchoredPosition = new Vector2(0f, -55f);
-        groupRect.sizeDelta = new Vector2(80f, 80f);
+        groupRect.sizeDelta = new Vector2(96f, 96f);
 
-        var target = new GameObject("Target", typeof(RectTransform), typeof(Image));
+        var target = new GameObject("Target", typeof(RectTransform), typeof(Image), typeof(Button));
         target.transform.SetParent(hammerGroup.transform, false);
         targetRect = target.GetComponent<RectTransform>();
         targetRect.anchorMin = new Vector2(0.5f, 0.5f);
         targetRect.anchorMax = new Vector2(0.5f, 0.5f);
         targetRect.pivot = new Vector2(0.5f, 0.5f);
-        targetRect.sizeDelta = new Vector2(80f, 80f);
+        targetRect.sizeDelta = new Vector2(96f, 96f);
         target.GetComponent<Image>().color = new Color(0.85f, 0.4f, 0.2f);
+        hammerButton = target.GetComponent<Button>();
+        hammerButton.onClick.AddListener(() => hammerTapped = true);
 
         hammerGroup.SetActive(false);
     }
@@ -167,7 +185,7 @@ public class CraftingMinigameUI : MonoBehaviour
         tempGroup.SetActive(true);
         titleText.text = title;
         resultText.text = "";
-        instructionText.text = "Hold E to pump the bellows - stay in the green zone as long as possible";
+        instructionText.text = "Hold the button to pump the bellows - stay in the green zone as long as possible";
 
         sweetZoneRect.anchoredPosition = new Vector2(sweetMin * barWidth, 0f);
         sweetZoneRect.sizeDelta = new Vector2((sweetMax - sweetMin) * barWidth, 26f);
@@ -180,7 +198,7 @@ public class CraftingMinigameUI : MonoBehaviour
         {
             elapsed += Time.deltaTime;
 
-            bool pumping = Keyboard.current != null && Keyboard.current.eKey.isPressed;
+            bool pumping = pumpButton.IsHeld;
             value += (pumping ? pumpRate : -coolRate) * Time.deltaTime;
             value = Mathf.Clamp01(value);
 
@@ -214,8 +232,9 @@ public class CraftingMinigameUI : MonoBehaviour
 
         for (int round = 0; round < rounds; round++)
         {
-            instructionText.text = "Press E to strike! (" + (round + 1) + " / " + rounds + ")";
+            instructionText.text = "Tap the target to strike! (" + (round + 1) + " / " + rounds + ")";
             resultText.text = "";
+            hammerTapped = false;
 
             float elapsed = 0f;
             bool hit = false;
@@ -227,7 +246,7 @@ public class CraftingMinigameUI : MonoBehaviour
                 float scale = Mathf.Clamp01(1f - elapsed / circleDuration);
                 targetRect.localScale = new Vector3(scale, scale, 1f);
 
-                if (Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame)
+                if (hammerTapped)
                 {
                     hit = true;
 

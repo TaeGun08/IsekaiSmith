@@ -1,6 +1,5 @@
 using System.Collections;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 public enum CraftingMinigameType
 {
@@ -38,6 +37,7 @@ public class CraftingStation : MonoBehaviour
 
     private Vector3 pulseBaseScale;
     private bool isCrafting;
+    private bool promptShown;
 
     private void Awake()
     {
@@ -59,18 +59,24 @@ public class CraftingStation : MonoBehaviour
         bool nearPlayer = PlayerMotor.Instance != null &&
             (PlayerMotor.Instance.transform.position - transform.position).sqrMagnitude <= interactRadius * interactRadius;
 
-        if (!nearPlayer || Keyboard.current == null || !HasEnoughInputs())
+        if (!nearPlayer || !HasEnoughInputs())
         {
+            if (promptShown)
+            {
+                InteractionPromptUI.Instance.Hide();
+                promptShown = false;
+            }
+
             return;
         }
 
-        if (Keyboard.current.eKey.wasPressedThisFrame)
+        if (!promptShown)
         {
-            StartCoroutine(CraftWithMinigame());
-        }
-        else if (Keyboard.current.qKey.wasPressedThisFrame)
-        {
-            ApplyCraft(0.5f);
+            InteractionPromptUI.Instance.Show(
+                stationTitle,
+                () => StartCoroutine(CraftWithLoadAndMinigame()),
+                () => ApplyCraft(0.5f));
+            promptShown = true;
         }
     }
 
@@ -87,9 +93,21 @@ public class CraftingStation : MonoBehaviour
         return true;
     }
 
-    private IEnumerator CraftWithMinigame()
+    private IEnumerator CraftWithLoadAndMinigame()
     {
         isCrafting = true;
+        InteractionPromptUI.Instance.Hide();
+        promptShown = false;
+
+        bool loaded = false;
+        yield return CraftingLoadUI.Instance.RunLoadPanel(stationTitle, inputTypes, inputAmounts, started => loaded = started);
+
+        if (!loaded)
+        {
+            isCrafting = false;
+            yield break;
+        }
+
         float quality = 0.5f;
 
         if (minigameType == CraftingMinigameType.Temperature)
