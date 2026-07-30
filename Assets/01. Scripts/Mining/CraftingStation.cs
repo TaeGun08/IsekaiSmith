@@ -15,7 +15,7 @@ public class CraftingStation : MonoBehaviour
     [SerializeField] private ResourceType outputType;
     [SerializeField] private int outputAmount = 1;
     [SerializeField] private float interactRadius = 2f;
-    [SerializeField] private string stationTitle = "제작";
+    [SerializeField] private string stationTitle = "Crafting";
     [SerializeField] private CraftingMinigameType minigameType = CraftingMinigameType.Temperature;
     [SerializeField] private Transform pulseVisual;
     [SerializeField] private float pulseStrength = 0.12f;

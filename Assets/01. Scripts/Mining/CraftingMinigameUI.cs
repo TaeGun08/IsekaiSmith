@@ -167,7 +167,7 @@ public class CraftingMinigameUI : MonoBehaviour
         tempGroup.SetActive(true);
         titleText.text = title;
         resultText.text = "";
-        instructionText.text = "E키를 눌러 풀무질 - 초록 구간에 최대한 오래 유지하세요";
+        instructionText.text = "Hold E to pump the bellows - stay in the green zone as long as possible";
 
         sweetZoneRect.anchoredPosition = new Vector2(sweetMin * barWidth, 0f);
         sweetZoneRect.sizeDelta = new Vector2((sweetMax - sweetMin) * barWidth, 26f);
@@ -195,7 +195,7 @@ public class CraftingMinigameUI : MonoBehaviour
         }
 
         float quality = Mathf.Clamp01(timeInZone / duration);
-        resultText.text = "온도 유지 " + Mathf.RoundToInt(quality * 100f) + "%";
+        resultText.text = "Heat control " + Mathf.RoundToInt(quality * 100f) + "%";
         yield return new WaitForSeconds(0.6f);
 
         tempGroup.SetActive(false);
@@ -214,7 +214,7 @@ public class CraftingMinigameUI : MonoBehaviour
 
         for (int round = 0; round < rounds; round++)
         {
-            instructionText.text = "E키로 타격! (" + (round + 1) + " / " + rounds + ")";
+            instructionText.text = "Press E to strike! (" + (round + 1) + " / " + rounds + ")";
             resultText.text = "";
 
             float elapsed = 0f;
@@ -263,7 +263,7 @@ public class CraftingMinigameUI : MonoBehaviour
         }
 
         float quality = Mathf.Clamp01(totalScore / rounds);
-        resultText.text = "단조 정확도 " + Mathf.RoundToInt(quality * 100f) + "%";
+        resultText.text = "Forging accuracy " + Mathf.RoundToInt(quality * 100f) + "%";
         yield return new WaitForSeconds(0.6f);
 
         hammerGroup.SetActive(false);

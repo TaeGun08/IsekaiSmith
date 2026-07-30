@@ -583,7 +583,7 @@ MonoBehaviour:
   outputType: 2
   outputAmount: 1
   interactRadius: 2
-  stationTitle: "용광로 제련"
+  stationTitle: "Furnace - Smelting"
   minigameType: 0
   pulseVisual: {fileID: 4646088683271535329}
   pulseStrength: 0.12
@@ -612,7 +612,7 @@ MonoBehaviour:
   outputType: 3
   outputAmount: 1
   interactRadius: 2
-  stationTitle: "모루 단조"
+  stationTitle: "Anvil - Forging"
   minigameType: 1
   hammerRounds: 4
   hammerRoundDuration: 1.1
