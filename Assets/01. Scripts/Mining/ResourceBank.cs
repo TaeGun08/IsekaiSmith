@@ -5,7 +5,8 @@ public enum ResourceType
     Wood,
     Ore,
     Ingot,
-    Tool
+    Tool,
+    ManaStone
 }
 
 public static class ResourceBank

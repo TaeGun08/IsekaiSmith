@@ -1,33 +1,35 @@
 using System.Collections;
 using UnityEngine;
 
-public enum CraftingMinigameType
-{
-    Temperature,
-    Hammering
-}
-
+// Unified forge workstation: furnace (melt) and anvil (hammer) are placed right next to each
+// other, so interacting with either is treated as one combined crafting action instead of two
+// separate stops. Flow: pick materials on the weapon silhouette -> melt (temperature minigame)
+// -> hammer (hammering minigame) -> weapon is done.
 public class CraftingStation : MonoBehaviour
 {
-    [SerializeField] private ResourceType[] inputTypes;
-    [SerializeField] private int[] inputAmounts;
-    [SerializeField] private ResourceType outputType;
+    [SerializeField] private ResourceType oreType = ResourceType.Ore;
+    [SerializeField] private int oreAmount = 2;
+    [SerializeField] private ResourceType woodType = ResourceType.Wood;
+    [SerializeField] private int woodAmount = 1;
+    [SerializeField] private ResourceType manaStoneType = ResourceType.ManaStone;
+    [SerializeField] private ResourceType outputType = ResourceType.Tool;
     [SerializeField] private int outputAmount = 1;
-    [SerializeField] private float interactRadius = 2f;
-    [SerializeField] private string stationTitle = "Crafting";
-    [SerializeField] private CraftingMinigameType minigameType = CraftingMinigameType.Temperature;
-    [SerializeField] private Transform pulseVisual;
+    [SerializeField] private float interactRadius = 2.5f;
+    [SerializeField] private string stationTitle = "Forge: Sword";
+
+    [SerializeField] private Transform furnacePulseVisual;
+    [SerializeField] private Transform anvilPulseVisual;
     [SerializeField] private float pulseStrength = 0.12f;
     [SerializeField] private float pulseSpeed = 10f;
 
-    [Header("Temperature Minigame (Furnace)")]
+    [Header("Temperature Minigame (Melt)")]
     [SerializeField] private float temperatureDuration = 4f;
     [SerializeField] private float sweetMin = 0.55f;
     [SerializeField] private float sweetMax = 0.75f;
     [SerializeField] private float pumpRate = 0.7f;
     [SerializeField] private float coolRate = 0.35f;
 
-    [Header("Hammering Minigame (Anvil)")]
+    [Header("Hammering Minigame (Forge)")]
     [SerializeField] private int hammerRounds = 4;
     [SerializeField] private float hammerRoundDuration = 1.1f;
     [SerializeField] private float perfectMin = 0.35f;
@@ -35,15 +37,21 @@ public class CraftingStation : MonoBehaviour
     [SerializeField] private float goodMin = 0.18f;
     [SerializeField] private float goodMax = 0.65f;
 
-    private Vector3 pulseBaseScale;
+    private Vector3 furnacePulseBaseScale;
+    private Vector3 anvilPulseBaseScale;
     private bool isCrafting;
     private bool promptShown;
 
     private void Awake()
     {
-        if (pulseVisual != null)
+        if (furnacePulseVisual != null)
         {
-            pulseBaseScale = pulseVisual.localScale;
+            furnacePulseBaseScale = furnacePulseVisual.localScale;
+        }
+
+        if (anvilPulseVisual != null)
+        {
+            anvilPulseBaseScale = anvilPulseVisual.localScale;
         }
     }
 
@@ -74,33 +82,30 @@ public class CraftingStation : MonoBehaviour
         {
             InteractionPromptUI.Instance.Show(
                 stationTitle,
-                () => StartCoroutine(CraftWithLoadAndMinigame()),
-                () => ApplyCraft(0.5f));
+                () => StartCoroutine(CraftWithSilhouetteAndMinigames()),
+                () => ApplyCraft(0.5f, 0));
             promptShown = true;
         }
     }
 
     private bool HasEnoughInputs()
     {
-        for (int i = 0; i < inputTypes.Length; i++)
-        {
-            if (ResourceBank.Get(inputTypes[i]) < inputAmounts[i])
-            {
-                return false;
-            }
-        }
-
-        return true;
+        return ResourceBank.Get(oreType) >= oreAmount && ResourceBank.Get(woodType) >= woodAmount;
     }
 
-    private IEnumerator CraftWithLoadAndMinigame()
+    private IEnumerator CraftWithSilhouetteAndMinigames()
     {
         isCrafting = true;
         InteractionPromptUI.Instance.Hide();
         promptShown = false;
 
         bool loaded = false;
-        yield return CraftingLoadUI.Instance.RunLoadPanel(stationTitle, inputTypes, inputAmounts, started => loaded = started);
+        int manaSpent = 0;
+        yield return CraftingSilhouetteUI.Instance.RunSilhouette(stationTitle, (started, mana) =>
+        {
+            loaded = started;
+            manaSpent = mana;
+        });
 
         if (!loaded)
         {
@@ -108,35 +113,35 @@ public class CraftingStation : MonoBehaviour
             yield break;
         }
 
-        float quality = 0.5f;
+        float meltQuality = 0.5f;
+        yield return CraftingMinigameUI.Instance.RunTemperature(
+            "Melting", temperatureDuration, sweetMin, sweetMax, pumpRate, coolRate,
+            q => meltQuality = q);
 
-        if (minigameType == CraftingMinigameType.Temperature)
-        {
-            yield return CraftingMinigameUI.Instance.RunTemperature(
-                stationTitle, temperatureDuration, sweetMin, sweetMax, pumpRate, coolRate,
-                q => quality = q);
-        }
-        else
-        {
-            yield return CraftingMinigameUI.Instance.RunHammering(
-                stationTitle, hammerRounds, hammerRoundDuration, perfectMin, perfectMax, goodMin, goodMax,
-                q => quality = q);
-        }
+        float hammerQuality = 0.5f;
+        yield return CraftingMinigameUI.Instance.RunHammering(
+            "Forging", hammerRounds, hammerRoundDuration, perfectMin, perfectMax, goodMin, goodMax,
+            q => hammerQuality = q);
 
-        ApplyCraft(quality);
+        float quality = (meltQuality + hammerQuality) * 0.5f;
+        ApplyCraft(quality, manaSpent);
         isCrafting = false;
     }
 
-    private void ApplyCraft(float quality)
+    private void ApplyCraft(float quality, int manaSpent)
     {
         if (!HasEnoughInputs())
         {
             return;
         }
 
-        for (int i = 0; i < inputTypes.Length; i++)
+        ResourceBank.TrySpend(oreType, oreAmount);
+        ResourceBank.TrySpend(woodType, woodAmount);
+
+        if (manaSpent > 0)
         {
-            ResourceBank.TrySpend(inputTypes[i], inputAmounts[i]);
+            int actualMana = Mathf.Min(manaSpent, ResourceBank.Get(manaStoneType));
+            ResourceBank.TrySpend(manaStoneType, actualMana);
         }
 
         int amount = outputAmount;
@@ -155,18 +160,24 @@ public class CraftingStation : MonoBehaviour
 
     private void UpdatePulse()
     {
-        if (pulseVisual == null)
+        SetPulse(furnacePulseVisual, ref furnacePulseBaseScale);
+        SetPulse(anvilPulseVisual, ref anvilPulseBaseScale);
+    }
+
+    private void SetPulse(Transform visual, ref Vector3 baseScale)
+    {
+        if (visual == null)
         {
             return;
         }
 
         if (!isCrafting)
         {
-            pulseVisual.localScale = pulseBaseScale;
+            visual.localScale = baseScale;
             return;
         }
 
         float pulse = 1f + Mathf.Sin(Time.time * pulseSpeed) * pulseStrength;
-        pulseVisual.localScale = pulseBaseScale * pulse;
+        visual.localScale = baseScale * pulse;
     }
 }

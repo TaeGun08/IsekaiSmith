@@ -5,29 +5,29 @@ public class ResourceHUD : MonoBehaviour
 {
     [SerializeField] private TMP_Text woodText;
     [SerializeField] private TMP_Text oreText;
-    [SerializeField] private TMP_Text ingotText;
+    [SerializeField] private TMP_Text manaText;
     [SerializeField] private TMP_Text toolText;
 
     private int lastWood = -1;
     private int lastOre = -1;
-    private int lastIngot = -1;
+    private int lastMana = -1;
     private int lastTool = -1;
 
     private void Update()
     {
         int wood = ResourceBank.Get(ResourceType.Wood);
         int ore = ResourceBank.Get(ResourceType.Ore);
-        int ingot = ResourceBank.Get(ResourceType.Ingot);
+        int mana = ResourceBank.Get(ResourceType.ManaStone);
         int tool = ResourceBank.Get(ResourceType.Tool);
 
-        if (wood == lastWood && ore == lastOre && ingot == lastIngot && tool == lastTool)
+        if (wood == lastWood && ore == lastOre && mana == lastMana && tool == lastTool)
         {
             return;
         }
 
         lastWood = wood;
         lastOre = ore;
-        lastIngot = ingot;
+        lastMana = mana;
         lastTool = tool;
 
         if (woodText != null)
@@ -40,9 +40,9 @@ public class ResourceHUD : MonoBehaviour
             oreText.text = "Ore " + ore;
         }
 
-        if (ingotText != null)
+        if (manaText != null)
         {
-            ingotText.text = "Ingot " + ingot;
+            manaText.text = "Mana " + mana;
         }
 
         if (toolText != null)

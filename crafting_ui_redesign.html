@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>제작 UI 재설계 - 무기 실루엣 드래그 조립</title>
+<style>
+  :root {
+    --ink: #2b2420;
+    --paper: #f6f1e7;
+    --card: #ffffff;
+    --border: #dcd3c2;
+    --accent: #b5651d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 20px 80px;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .doc { width: 100%; max-width: 1080px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 24px; color: #6b6155; font-size: 14px; }
+  h2 {
+    font-size: 18px;
+    margin: 40px 0 12px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid var(--border);
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+  }
+  .note { font-size: 12.5px; color: #6b6155; line-height: 1.7; margin-top: 8px; }
+
+  .compare-row { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  .compare-col { flex: 1; min-width: 260px; }
+  .compare-col h3 { font-size: 13px; margin: 0 0 8px; }
+
+  /* Phone mockup frame */
+  .phone {
+    width: 220px;
+    height: 391px;
+    background: #1c1a18;
+    border-radius: 22px;
+    padding: 10px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+    margin: 0 auto;
+  }
+  .phone-screen {
+    width: 100%;
+    height: 100%;
+    background: #2b2622;
+    border-radius: 14px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Old UI mockup (abstract slots) */
+  .old-title { position:absolute; top:14px; left:0; right:0; text-align:center; color:#fff; font-size:11px; font-weight:bold; }
+  .old-hint { position:absolute; top:32px; left:0; right:0; text-align:center; color:#a89f92; font-size:8px; }
+  .old-chip { position:absolute; width:46px; height:34px; background:#8a7350; border-radius:5px; }
+  .old-slot { position:absolute; width:46px; height:34px; background:#4a443e; border:1px dashed #6b6155; border-radius:5px; }
+  .old-label { position:absolute; color:#e6e3e0; font-size:6.5px; text-align:center; width:46px; }
+
+  /* New UI mockup (silhouette) */
+  .new-title { position:absolute; top:14px; left:0; right:0; text-align:center; color:#fff; font-size:11px; font-weight:bold; }
+  .blade-zone {
+    position:absolute; top:50px; left:50%; transform:translateX(-50%);
+    width:26px; height:150px;
+    background: rgba(122,138,150,0.25);
+    border: 2px dashed #8a97a3;
+    clip-path: polygon(50% 0%, 100% 15%, 78% 100%, 22% 100%, 0% 15%);
+  }
+  .guard-bar {
+    position:absolute; top:200px; left:50%; transform:translateX(-50%);
+    width:52px; height:8px; background:#6b5a3e; border-radius:2px;
+  }
+  .handle-zone {
+    position:absolute; top:210px; left:50%; transform:translateX(-50%);
+    width:18px; height:58px;
+    background: rgba(139,107,58,0.25);
+    border: 2px dashed #b5651d;
+    border-radius: 6px;
+  }
+  .zone-label { position:absolute; left:50%; transform:translateX(-50%); color:#cfc9c1; font-size:7px; text-align:center; width:80px; }
+  .tray { position:absolute; bottom:34px; left:0; right:0; display:flex; justify-content:center; gap:8px; }
+  .tray-chip { width:40px; height:40px; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:6px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.3); }
+  .tray-chip.ore { background:#7a7d82; }
+  .tray-chip.mana { background:#b0468f; }
+  .tray-chip.wood { background:#8a6a3f; }
+  .forge-btn {
+    position:absolute; bottom:10px; left:50%; transform:translateX(-50%);
+    width:120px; height:20px; background:#6f9955; border-radius:10px;
+    color:#fff; font-size:8px; text-align:center; line-height:20px; font-weight:bold;
+  }
+  .drag-arrow { position:absolute; font-size:14px; color:#f2d16b; }
+
+  .zonecard-row { display:flex; gap:14px; margin-top: 14px; flex-wrap: wrap; }
+  .zonecard { flex:1; min-width:220px; border-radius:8px; padding:12px; color:#fff; }
+  .zonecard.blade { background: linear-gradient(160deg,#5c6875,#39424c); }
+  .zonecard.handle { background: linear-gradient(160deg,#8a6a3f,#5c4527); }
+  .zonecard h4 { margin:0 0 6px; font-size:13px; }
+  .zonecard ul { margin:0; padding-left:16px; font-size:11.5px; line-height:1.7; }
+
+  .flow-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top: 12px; }
+  .flow-step { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:10px 12px; font-size:12px; text-align:center; }
+  .flow-arrow { color: var(--accent); font-size:16px; }
+
+  .qa-list { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.9; }
+  .qa-list li b { color: var(--accent); }
+
+  footer { margin-top: 40px; font-size: 12px; color: #948a7c; text-align: center; }
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>제작 UI 재설계 — 무기 실루엣 드래그 조립</h1>
+  <p class="sub">crafting_ui_redesign.html · 세로 모바일(1080×1920) 기준 목업</p>
+
+  <h2>1. 문제 인식</h2>
+  <div class="card">
+    <p style="margin:0; font-size:13px; line-height:1.7;">지금 로딩 패널은 "Ore Slot", "Wood Slot"처럼 <b>추상적인 상자에 재료를 채우는 방식</b>이라
+    실제로 뭘 만들고 있는지 느낌이 안 삽니다. 말씀하신 대로 <b>완성될 무기의 실루엣이 뜨고, 그 실루엣의
+    부위(칼날/손잡이)에 맞는 재료를 드래그로 꽂아 넣는</b> 방식이 훨씬 직관적이고 "내가 검을 만들고
+    있다"는 실감이 납니다.</p>
+  </div>
+
+  <h2>2. Before / After 목업 비교</h2>
+  <div class="compare-row">
+    <div class="compare-col">
+      <h3>Before — 추상 슬롯 (지금)</h3>
+      <div class="phone"><div class="phone-screen">
+        <div class="old-title">Forge - Loading</div>
+        <div class="old-hint">Drag each material onto its slot</div>
+        <div class="old-chip" style="top:110px; left:20px;"></div>
+        <div class="old-label" style="top:146px; left:20px;">Ore<br>x2</div>
+        <div class="old-chip" style="top:110px; left:87px;"></div>
+        <div class="old-label" style="top:146px; left:87px;">Wood<br>x1</div>
+        <div class="old-slot" style="top:200px; left:20px;"></div>
+        <div class="old-label" style="top:236px; left:20px;">Ore Slot</div>
+        <div class="old-slot" style="top:200px; left:87px;"></div>
+        <div class="old-label" style="top:236px; left:87px;">Wood Slot</div>
+        <div class="forge-btn" style="background:#4a443e; bottom:30px;">START</div>
+      </div></div>
+      <p class="note" style="text-align:center;">뭘 만드는지 안 보이고, 그냥 상자 채우기 작업</p>
+    </div>
+    <div class="compare-col">
+      <h3>After — 무기 실루엣 조립 (제안)</h3>
+      <div class="phone"><div class="phone-screen">
+        <div class="new-title">Forge: Sword</div>
+        <div class="blade-zone"></div>
+        <div class="guard-bar"></div>
+        <div class="handle-zone"></div>
+        <div class="zone-label" style="top:44px;">Blade</div>
+        <div class="zone-label" style="top:272px;">Handle</div>
+        <div class="drag-arrow" style="bottom:80px; left:70px;">↑</div>
+        <div class="tray">
+          <div class="tray-chip ore">Ore<br>x12</div>
+          <div class="tray-chip mana">Mana<br>x3</div>
+          <div class="tray-chip wood">Wood<br>x8</div>
+        </div>
+        <div class="forge-btn">FORGE</div>
+      </div></div>
+      <p class="note" style="text-align:center;">검 모양 위에 직접 재료를 꽂아 넣는 느낌</p>
+    </div>
+  </div>
+
+  <h2>3. 부위(Zone)별 역할</h2>
+  <div class="zonecard-row">
+    <div class="zonecard blade">
+      <h4>⚔️ 칼날 (Blade Zone)</h4>
+      <ul>
+        <li><b>광물(필수)</b> — 무기 등급/기본 공격력 결정</li>
+        <li><b>마석(선택)</b> — 같은 자리에 추가로 드래그하면 속성 효과 부여 (화상/독/마비/동상)</li>
+        <li>재료가 채워질 때마다 실루엣이 그 재료 색으로 물들어서 시각적으로 확인 가능</li>
+      </ul>
+    </div>
+    <div class="zonecard handle">
+      <h4>🪵 손잡이 (Handle Zone)</h4>
+      <ul>
+        <li><b>목재(필수)</b> — 손잡이 등급, 내구도 보정</li>
+        <li>도끼/망치/단검 등 다른 무기는 손잡이 모양만 다르고 로직은 동일하게 재사용</li>
+      </ul>
+    </div>
+  </div>
+  <p class="note">이 방식의 장점: 부위-재료 매핑을 데이터로만 정의하면 되므로, 나중에 도끼/망치/단검
+  실루엣을 추가할 때도 같은 시스템을 재사용할 수 있습니다 (실루엣 이미지 + 부위별 좌표만 교체).</p>
+
+  <h2>4. 구조적으로 확인이 필요한 부분</h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px;">지금은 용광로(광물+목재→주괴, 온도조절)와 모루(주괴→완제품, 해머링)가
+    <b>물리적으로 분리된 두 단계</b>입니다. 말씀하신 실루엣 조립은 무기 하나를 한 화면에서 완성하는
+    느낌이라, 다음 둘 중 하나로 정리하면 좋을 것 같습니다:</p>
+    <div class="flow-row">
+      <div class="flow-step"><b>안 A (제안)</b><br>실루엣 조립 1번만<br>(용광로+모루를 "하나의 대장간 작업대"로 통합)</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">온도조절 미니게임</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">해머링 미니게임</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">완성!</div>
+    </div>
+    <p class="note">모루가 용광로 바로 옆에 배치된 것도 원래 "효율적인 대장장이 동선"을 위해서였으니,
+    두 스테이션을 하나의 상호작용으로 묶어도 기존 배치 의도와 자연스럽게 맞습니다. 안 B(실루엣도
+    용광로/모루에서 각각 따로 뜨는 방식)도 가능하지만 손이 더 가고 "재료 선택"이라는 하나의
+    행동이 두 번 쪼개져서 어색할 수 있습니다. <b>안 A로 진행하는 게 좋아 보이는데 괜찮으실까요?</b></p>
+  </div>
+
+  <h2>5. 세로 화면(1080×1920) 배치 근거</h2>
+  <div class="card">
+    <p style="margin:0; font-size:13px; line-height:1.7;">검처럼 세로로 긴 무기는 <b>세로 화면과 실루엣 방향이 자연스럽게 맞아떨어집니다</b> —
+    화면 위쪽에 칼날, 아래쪽에 손잡이, 그 아래 재료 트레이, 맨 아래 액션 버튼 — 전부 세로로 쌓이는
+    구조라 엄지로 트레이에서 위로 드래그하는 모바일 제스처와도 잘 맞습니다.</p>
+  </div>
+
+  <h2>6. 확인 부탁드립니다</h2>
+  <div class="card">
+    <ul class="qa-list">
+      <li><b>Q1.</b> §4 구조 제안(안 A: 용광로+모루를 하나의 통합 작업대로) 괜찮으신가요?</li>
+      <li><b>Q2.</b> 지금은 검만 만들 수 있으니 우선 검 실루엣만 구현하고, 다른 무기(도끼/망치/단검)는 나중에 실루엣만 추가하는 순서로 가도 될까요?</li>
+      <li><b>Q3.</b> 부위가 재료로 채워질 때 "실루엣이 재료 색으로 물든다"는 연출 방향에 동의하시나요, 다른 피드백 방식을 원하시나요?</li>
+    </ul>
+  </div>
+
+  <footer>crafting_ui_redesign.html · 확인 후 피드백 주시면 실제 구현에 들어가겠습니다.</footer>
+</div>
+</body>
+</html>

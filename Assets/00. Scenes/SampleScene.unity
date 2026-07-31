@@ -1167,7 +1167,7 @@ GameObject:
   - component: {fileID: 1369039070}
   - component: {fileID: 1369039069}
   m_Layer: 0
-  m_Name: IngotText
+  m_Name: ManaText
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1212,7 +1212,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Ingot 0
+  m_text: Mana 0
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -1497,7 +1497,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ResourceHUD
   woodText: {fileID: 375815690}
   oreText: {fileID: 901177884}
-  ingotText: {fileID: 1369039069}
+  manaText: {fileID: 1369039069}
   toolText: {fileID: 1926755239}
 --- !u!1 &1926755237
 GameObject:
