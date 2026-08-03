@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>이세계 대장장이 - 플레이 가이드</title>
+<style>
+  :root {
+    --ink: #2b2420;
+    --paper: #f6f1e7;
+    --card: #ffffff;
+    --border: #dcd3c2;
+    --accent: #b5651d;
+    --ok: #4f8f5f;
+    --todo: #9c9284;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 20px 80px;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .doc { width: 100%; max-width: 1040px; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 8px; color: #6b6155; font-size: 14px; }
+  p.pitch {
+    font-size: 15px;
+    line-height: 1.7;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    border-radius: 8px;
+    padding: 16px 18px;
+    margin: 16px 0 32px;
+  }
+  h2 {
+    font-size: 19px;
+    margin: 44px 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h2 .num { color: var(--accent); }
+  h3 { font-size: 14.5px; margin: 20px 0 8px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+  }
+  .note {
+    font-size: 12.5px;
+    color: #6b6155;
+    line-height: 1.6;
+    margin-top: 8px;
+  }
+  .status {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 999px;
+    color: #fff;
+    white-space: nowrap;
+  }
+  .status.done { background: var(--ok); }
+  .status.todo { background: var(--todo); }
+
+  /* Step list */
+  .steps { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+  .step {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+  }
+  .step .n {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .step .body { flex: 1; }
+  .step .body b { font-size: 13.5px; }
+  .step .body p { margin: 4px 0 0; font-size: 12.5px; color: #6b6155; line-height: 1.6; }
+
+  /* Mock phone */
+  .phone-row { display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; margin: 14px 0; }
+  .phone {
+    width: 220px;
+    height: 390px;
+    background: #1c1a17;
+    border-radius: 22px;
+    padding: 10px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+    position: relative;
+  }
+  .phone .screen {
+    width: 100%;
+    height: 100%;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #4a6b3d, #2f4a26);
+    position: relative;
+    overflow: hidden;
+  }
+  .phone .caption {
+    text-align: center;
+    color: #cfc6b6;
+    font-size: 11.5px;
+    margin-top: 8px;
+  }
+  .hud-chip {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    font-size: 8px;
+    padding: 3px 6px;
+    border-radius: 5px;
+    line-height: 1.5;
+  }
+  .joystick-mock {
+    position: absolute;
+    left: 20px;
+    bottom: 20px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.5);
+  }
+  .joystick-mock .handle {
+    position: absolute;
+    left: 15px;
+    top: 15px;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.75);
+  }
+  .prompt-mock {
+    position: absolute;
+    left: 50%;
+    bottom: 70px;
+    transform: translateX(-50%);
+    width: 170px;
+    background: rgba(0,0,0,0.6);
+    border-radius: 8px;
+    padding: 6px 8px;
+    text-align: center;
+  }
+  .prompt-mock .title { color: #fff; font-size: 9px; margin-bottom: 5px; }
+  .prompt-mock .btns { display: flex; gap: 5px; }
+  .prompt-mock .btns div {
+    flex: 1;
+    font-size: 7.5px;
+    color: #fff;
+    text-align: center;
+    padding: 6px 2px;
+    border-radius: 5px;
+  }
+  .btn-craft { background: #bf5933; }
+  .btn-quick { background: #66727d; }
+
+  /* Silhouette mock */
+  .silhouette-mock {
+    position: absolute;
+    inset: 0;
+    background: rgba(15,12,10,0.94);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 16px;
+  }
+  .silhouette-mock .blade { width: 26px; height: 120px; background: #565a63; border-radius: 3px; }
+  .silhouette-mock .guard { width: 46px; height: 5px; background: #665729; margin-top: 4px; }
+  .silhouette-mock .handle { width: 16px; height: 40px; background: #423a30; margin-top: 2px; }
+  .silhouette-mock .tray { display: flex; gap: 6px; margin-top: 26px; }
+  .silhouette-mock .tray div {
+    width: 32px; height: 26px; border-radius: 4px; font-size: 6px; color: #fff;
+    display: flex; align-items: center; justify-content: center; text-align: center;
+  }
+  .chip-ore { background: #78766f; }
+  .chip-mana { background: #b0468f; }
+  .chip-wood { background: #8c6b47; }
+  .silhouette-mock .forge-btn {
+    margin-top: 20px; width: 90px; padding: 6px 0; text-align: center;
+    background: #598a5c; color: #fff; font-size: 8px; border-radius: 6px;
+  }
+
+  /* Gauge mock (hammering) */
+  .hammer-mock { position: absolute; inset: 0; background: rgba(15,12,10,0.94); }
+  .hammer-mock .blade2 {
+    position: absolute; left: 50%; top: 50px; transform: translateX(-50%);
+    width: 60px; height: 170px; background: #4c4f57; border-radius: 4px;
+  }
+  .hammer-mock .marker {
+    position: absolute; width: 14px; height: 14px; border-radius: 50%;
+    background: #e0c23f; left: 60%; top: 130px;
+  }
+  .hammer-mock .target-label {
+    position: absolute; top: 26px; left: 0; right: 0; text-align: center;
+    color: #fff; font-size: 10px;
+  }
+  .hammer-mock .gauge-bg {
+    position: absolute; right: 26px; top: 50px; width: 12px; height: 170px;
+    background: rgba(255,255,255,0.15); border-radius: 6px;
+  }
+  .hammer-mock .gauge-fill {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 55%;
+    background: #d98a3f; border-radius: 6px;
+  }
+  .hammer-mock .hold-btn {
+    position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%);
+    width: 130px; padding: 8px 0; text-align: center; background: #7a4a2c;
+    color: #fff; font-size: 8px; border-radius: 8px;
+  }
+
+  table.impl { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+  table.impl th, table.impl td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+  table.impl th { background: #efe8d9; font-size: 12px; }
+  table.impl td.cat { font-weight: 700; white-space: nowrap; }
+
+  .loop-wrap { display: flex; justify-content: center; margin: 8px 0 4px; }
+  .loop-steps { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px; }
+  .loop-step {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 12px; text-align: center; width: 118px; font-size: 12px;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.05);
+  }
+  .loop-step.dim { opacity: 0.45; }
+  .arrow { color: var(--accent); font-size: 16px; }
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <h1>이세계 대장장이 - 플레이 가이드</h1>
+  <p class="sub">현재 빌드 기준 조작법 &amp; 진행 흐름 안내 (모바일 터치 / PC 마우스 공용)</p>
+  <p class="pitch">
+    이 문서는 지금 실제로 플레이할 수 있는 기능만을 기준으로 작성되었습니다. 각 섹션 옆에는
+    <span class="status done">구현됨</span> / <span class="status todo">준비중</span> 표시가 붙어 있어서,
+    지금 바로 해볼 수 있는 것과 앞으로 추가될 것을 구분할 수 있습니다.
+  </p>
+
+  <h2><span class="num">1.</span> 기본 조작 <span class="status done">구현됨</span></h2>
+  <div class="card">
+    <div class="steps">
+      <div class="step">
+        <div class="n">1</div>
+        <div class="body">
+          <b>이동 - 가상 조이스틱</b>
+          <p>화면 아무 곳이나 터치(또는 마우스 클릭)하고 드래그하면 그 지점에 조이스틱이 나타나고, 캐릭터가 드래그 방향으로 이동합니다. 손을 떼면 조이스틱이 사라집니다.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="n">2</div>
+        <div class="body">
+          <b>자동 정면 응시</b>
+          <p>이동하지 않고 제자리에 있을 때는 캐릭터가 자동으로 채집 대상(나무/광석)을 바라봅니다.</p>
+        </div>
+      </div>
+    </div>
+    <p class="note">키보드 단축키는 사용하지 않습니다. 모든 조작은 터치/클릭 기반이라 모바일 출시를 염두에 두고 설계되어 있습니다.</p>
+  </div>
+  <div class="phone-row">
+    <div class="phone">
+      <div class="screen">
+        <div class="joystick-mock"><div class="handle"></div></div>
+      </div>
+      <div class="caption">화면을 터치&드래그 → 가상 조이스틱으로 이동</div>
+    </div>
+  </div>
+
+  <h2><span class="num">2.</span> 채집 - 벌목 &amp; 채굴 <span class="status done">구현됨</span></h2>
+  <div class="card">
+    <div class="steps">
+      <div class="step">
+        <div class="n">1</div>
+        <div class="body">
+          <b>나무 / 광석 근처로 이동</b>
+          <p>맵에 배치된 나무(벌목장)나 광석(채석장)에 캐릭터가 가까이 다가가면 자동으로 채집이 시작됩니다. 별도의 버튼 입력은 필요 없습니다.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="n">2</div>
+        <div class="body">
+          <b>일정 간격으로 자동 타격</b>
+          <p>도끼/곡괭이를 자동으로 휘두르며 일정 횟수를 타격하면 나무가 쓰러지거나 광석이 깨지며 재료(목재/광물)를 드랍합니다. 타격할수록 대상에 손상 표시(색 변화)가 누적됩니다.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="n">3</div>
+        <div class="body">
+          <b>재료는 등에 쌓임</b>
+          <p>획득한 재료는 캐릭터 등 뒤에 쌓이는 연출로 표시됩니다(목재/광물 각각 최대 8개까지 소지). 이동 시 좌우로 살짝 흔들리는 연출이 있습니다.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="n">4</div>
+        <div class="body">
+          <b>다 채집한 자원은 잠시 후 리스폰</b>
+          <p>나무는 약 6초, 광석은 약 4초 후 다시 자라나거나 생성됩니다. 나무는 원래 위치 근처 랜덤한 곳에서 다시 자랍니다.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="num">3.</span> 보관함에 예치하기 <span class="status done">구현됨</span></h2>
+  <div class="card">
+    <div class="steps">
+      <div class="step">
+        <div class="n">1</div>
+        <div class="body">
+          <b>목재 보관함 / 광물 보관함으로 이동</b>
+          <p>대장간 근처에 목재 전용 보관함과 광물 전용 보관함이 따로 배치되어 있습니다. 각 보관함은 해당하는 재료만 받습니다.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="n">2</div>
+        <div class="body">
+          <b>가까이 서 있으면 자동 예치</b>
+          <p>보관함 근처에 서 있으면 등에 쌓인 재료가 날아가는 연출과 함께 자동으로 보관되고, 화면 우측 상단 자원 HUD 수치가 올라갑니다.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="phone-row">
+    <div class="phone">
+      <div class="screen">
+        <div class="hud-chip">Wood 12<br>Ore 7<br>Mana 0<br>Tool 0</div>
+      </div>
+      <div class="caption">우측 상단 HUD: Wood / Ore / Mana / Tool 보유량</div>
+    </div>
+  </div>
+
+  <h2><span class="num">4.</span> 제작 - 대장간 <span class="status done">구현됨</span></h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.7;">
+      용광로와 모루가 하나로 붙어있는 <b>대장간 작업대</b> 하나에서 재료 선택부터 제련, 단조까지 이어서 진행합니다.
+      재료가 충분한 상태로 대장간 근처에 서면 <b>CRAFT</b> / <b>QUICK CRAFT</b> 두 개의 버튼이 뜹니다.
+    </p>
+    <table class="impl">
+      <tr><th style="width:120px;">버튼</th><th>동작</th></tr>
+      <tr><td class="cat">CRAFT</td><td>재료 선택 → 제련 미니게임 → 단조 미니게임을 순서대로 거쳐 제작합니다. 미니게임 결과에 따라 완성품 개수(추가 보너스)가 달라집니다.</td></tr>
+      <tr><td class="cat">QUICK CRAFT</td><td>미니게임을 모두 건너뛰고 즉시 평균 품질(50%)로 제작합니다. 빠르게 재료를 소모하고 싶을 때 사용합니다.</td></tr>
+    </table>
+    <p class="note">현재 레시피: 광물 2개 + 목재 1개(+마석 선택) → 완제품(Tool) 1개. 판매 가능한 아이템 종류가 늘어나면 레시피도 확장될 예정입니다.</p>
+  </div>
+
+  <h3>4-1. 재료 배치 (검 실루엣)</h3>
+  <div class="phone-row">
+    <div class="phone">
+      <div class="screen">
+        <div class="silhouette-mock">
+          <div class="blade"></div>
+          <div class="guard"></div>
+          <div class="handle"></div>
+          <div class="tray">
+            <div class="chip-ore">Ore</div>
+            <div class="chip-mana">Mana</div>
+            <div class="chip-wood">Wood</div>
+          </div>
+          <div class="forge-btn">FORGE</div>
+        </div>
+      </div>
+      <div class="caption">아래 재료 칩을 드래그해서 칼날/손잡이에 놓기</div>
+    </div>
+  </div>
+  <div class="card">
+    <table class="impl">
+      <tr><th style="width:120px;">부위</th><th>받는 재료</th></tr>
+      <tr><td class="cat">칼날 (BLADE)</td><td>광물(필수, 1개) + 마석(선택, 최대 3개까지 추가 - 넣을수록 칼날이 보라빛으로 물듦)</td></tr>
+      <tr><td class="cat">손잡이 (HANDLE)</td><td>목재(필수, 1개) - 넣으면 갈색으로 물듦</td></tr>
+    </table>
+    <p class="note">칼날과 손잡이에 필수 재료를 모두 채우면 FORGE 버튼이 활성화됩니다. CANCEL로 언제든 취소할 수 있습니다.</p>
+  </div>
+
+  <h3>4-2. 제련 - 용광로 (클릭 펌프질)</h3>
+  <div class="card">
+    <div class="steps">
+      <div class="step">
+        <div class="n">1</div>
+        <div class="body"><b>화면을 탭(클릭)해서 풀무질</b><p>탭할 때마다 온도 게이지가 올라갑니다. 가만히 있으면 온도가 서서히 식습니다.</p></div>
+      </div>
+      <div class="step">
+        <div class="n">2</div>
+        <div class="body"><b>초록색 적정 구간 유지</b><p>온도가 초록 구간(적정 범위) 안에 머문 시간이 길수록 품질이 올라갑니다.</p></div>
+      </div>
+      <div class="step">
+        <div class="n">3</div>
+        <div class="body"><b>과열 주의</b><p>적정 구간을 넘어 너무 뜨겁게 만들면(빨간 구간) 과열 페널티가 붙어 오히려 품질이 깎입니다.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <h3>4-3. 단조 - 모루 (랜덤 위치 + 파워 게이지)</h3>
+  <div class="phone-row">
+    <div class="phone">
+      <div class="screen">
+        <div class="hammer-mock">
+          <div class="target-label">Target 59%</div>
+          <div class="blade2"></div>
+          <div class="marker"></div>
+          <div class="gauge-bg"><div class="gauge-fill"></div></div>
+          <div class="hold-btn">HOLD, RELEASE ON TARGET</div>
+        </div>
+      </div>
+      <div class="caption">홀드로 게이지 충전 → 목표 %에 최대한 가깝게 릴리즈</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="steps">
+      <div class="step">
+        <div class="n">1</div>
+        <div class="body"><b>매 라운드마다 칼날 위 랜덤 위치 + 목표 % 등장</b><p>노란 점(타격 위치)이 칼날 위 랜덤한 곳에 나타나고, 상단에 목표 퍼센트(예: "Target 59%")가 표시됩니다.</p></div>
+      </div>
+      <div class="step">
+        <div class="n">2</div>
+        <div class="body"><b>버튼을 꾹 눌러 파워 게이지 충전</b><p>누르고 있는 동안 세로 게이지가 0%→100%까지 차오릅니다.</p></div>
+      </div>
+      <div class="step">
+        <div class="n">3</div>
+        <div class="body"><b>목표 %에 최대한 가깝게 손을 떼기</b><p>목표와의 오차가 <b>±1% 이내면 Perfect</b>, <b>±5% 이내면 Good</b>, 그 밖이면 Miss로 판정됩니다. 총 4라운드를 진행하며, 평균 판정이 최종 단조 품질이 됩니다.</p></div>
+      </div>
+    </div>
+    <p class="note">제련 품질과 단조 품질의 평균이 최종 제작 품질이 됩니다. 품질이 높을수록 완성품이 추가로 1개 더 나올 확률/확정 보너스가 붙습니다.</p>
+  </div>
+
+  <h2><span class="num">5.</span> 지금까지의 플레이 루프 <span class="status done">구현됨</span></h2>
+  <div class="loop-wrap">
+    <div class="loop-steps">
+      <div class="loop-step">채집<br>(나무/광석)</div>
+      <span class="arrow">→</span>
+      <div class="loop-step">보관함<br>예치</div>
+      <span class="arrow">→</span>
+      <div class="loop-step">대장간<br>재료 배치</div>
+      <span class="arrow">→</span>
+      <div class="loop-step">제련<br>(용광로)</div>
+      <span class="arrow">→</span>
+      <div class="loop-step">단조<br>(모루)</div>
+      <span class="arrow">→</span>
+      <div class="loop-step">완제품<br>(Tool) 획득</div>
+    </div>
+  </div>
+
+  <h2><span class="num">6.</span> 아직 준비중인 콘텐츠 <span class="status todo">준비중</span></h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; color:#6b6155;">
+      기획서(game_design_doc.html) 기준으로 아래 시스템들은 아직 코드로 구현되지 않았습니다.
+      완제품(Tool)을 만들어도 현재는 팔거나 사용할 곳이 없고, 마석(Mana)은 아직 얻을 방법이 없어 항상 0으로 표시됩니다.
+    </p>
+    <table class="impl">
+      <tr><th style="width:160px;">콘텐츠</th><th>내용</th></tr>
+      <tr><td class="cat">손님 / 판매 시스템</td><td>완제품을 손님 주문에 맞춰 판매하고 돈을 버는 시스템. 아직 없음.</td></tr>
+      <tr><td class="cat">필드 사냥</td><td>기본 재료를 얻는 상시 개방 필드 전투. 아직 없음 (현재는 몬스터 없이 채집만 가능).</td></tr>
+      <tr><td class="cat">스테이지 사냥</td><td>마석을 얻는 웨이브 전투 콘텐츠. 아직 없음 - 이 때문에 마석(Mana)이 항상 0.</td></tr>
+      <tr><td class="cat">던전</td><td>클리어 시 채석장 광물 등급을 업그레이드하는 랜덤 생성 던전. 아직 없음.</td></tr>
+      <tr><td class="cat">암시장 상인</td><td>확률적으로 방문해 희귀 재료를 비싸게 팔고, 보유 재료를 급전으로 매입해주는 NPC. 아직 없음.</td></tr>
+      <tr><td class="cat">평판 시스템</td><td>주문 실패 시 이후 판매 수익 %가 줄어드는 페널티. 판매 시스템이 먼저 필요해 아직 없음.</td></tr>
+      <tr><td class="cat">다양한 무기 실루엣</td><td>현재는 검(Sword) 실루엣만 구현. 도끼/망치/단검 등은 추후 추가 예정.</td></tr>
+      <tr><td class="cat">플레이어 전투</td><td>직접 만든 무기를 들고 싸우는 전투 액션. 아직 없음.</td></tr>
+    </table>
+  </div>
+
+</div>
+</body>
+</html>
