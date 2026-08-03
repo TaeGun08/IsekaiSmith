@@ -589,14 +589,13 @@ MonoBehaviour:
   temperatureDuration: 4
   sweetMin: 0.55
   sweetMax: 0.75
-  pumpRate: 0.7
+  pumpBumpAmount: 0.14
   coolRate: 0.35
+  overheatPenaltyMultiplier: 1.5
   hammerRounds: 4
-  hammerRoundDuration: 1.1
-  perfectMin: 0.35
-  perfectMax: 0.5
-  goodMin: 0.18
-  goodMax: 0.65
+  chargeDuration: 1.4
+  perfectTolerancePercent: 1
+  goodTolerancePercent: 5
 --- !u!23 &7191872465602167875
 MeshRenderer:
   m_ObjectHideFlags: 0
