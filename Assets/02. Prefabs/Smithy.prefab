@@ -595,9 +595,9 @@ MonoBehaviour:
   coolRate: 0.35
   overheatPenaltyMultiplier: 1.5
   hammerRounds: 4
-  chargeDuration: 1.4
-  perfectTolerancePercent: 1
-  goodTolerancePercent: 5
+  ringShrinkDuration: 1.4
+  perfectTolerancePercent: 10
+  goodTolerancePercent: 30
 --- !u!23 &7191872465602167875
 MeshRenderer:
   m_ObjectHideFlags: 0

@@ -48,9 +48,9 @@ public class InteractionPromptUI : MonoBehaviour
         panelRect.anchorMin = new Vector2(0.5f, 0f);
         panelRect.anchorMax = new Vector2(0.5f, 0f);
         panelRect.pivot = new Vector2(0.5f, 0f);
-        panelRect.anchoredPosition = new Vector2(0f, 260f);
-        panelRect.sizeDelta = new Vector2(380f, 92f);
-        panel.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.55f);
+        panelRect.anchoredPosition = new Vector2(0f, 300f);
+        panelRect.sizeDelta = new Vector2(560f, 150f);
+        panel.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.6f);
 
         var labelGO = new GameObject("Label", typeof(RectTransform));
         labelGO.transform.SetParent(panel.transform, false);
@@ -58,15 +58,15 @@ public class InteractionPromptUI : MonoBehaviour
         labelRect.anchorMin = new Vector2(0f, 1f);
         labelRect.anchorMax = new Vector2(1f, 1f);
         labelRect.pivot = new Vector2(0.5f, 1f);
-        labelRect.anchoredPosition = new Vector2(0f, -6f);
-        labelRect.sizeDelta = new Vector2(-16f, 26f);
+        labelRect.anchoredPosition = new Vector2(0f, -10f);
+        labelRect.sizeDelta = new Vector2(-20f, 36f);
         label = labelGO.AddComponent<TextMeshProUGUI>();
-        label.fontSize = 16;
+        label.fontSize = 22;
         label.alignment = TextAlignmentOptions.Center;
         label.color = Color.white;
 
-        craftButton = MakeButton("CraftButton", new Vector2(-95f, -20f), new Vector2(170f, 48f), "CRAFT", new Color(0.75f, 0.35f, 0.2f));
-        quickCraftButton = MakeButton("QuickCraftButton", new Vector2(95f, -20f), new Vector2(170f, 48f), "QUICK CRAFT", new Color(0.4f, 0.45f, 0.5f));
+        craftButton = MakeButton("CraftButton", new Vector2(-140f, -30f), new Vector2(250f, 76f), "CRAFT", new Color(0.75f, 0.35f, 0.2f));
+        quickCraftButton = MakeButton("QuickCraftButton", new Vector2(140f, -30f), new Vector2(250f, 76f), "QUICK CRAFT", new Color(0.4f, 0.45f, 0.5f));
 
         panel.SetActive(false);
     }
@@ -92,7 +92,7 @@ public class InteractionPromptUI : MonoBehaviour
         textRect.offsetMax = Vector2.zero;
         var tmp = textGO.AddComponent<TextMeshProUGUI>();
         tmp.text = text;
-        tmp.fontSize = 15;
+        tmp.fontSize = 20;
         tmp.alignment = TextAlignmentOptions.Center;
         tmp.color = Color.white;
 

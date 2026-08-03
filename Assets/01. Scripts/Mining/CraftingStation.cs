@@ -32,11 +32,11 @@ public class CraftingStation : MonoBehaviour
     [SerializeField] private float coolRate = 0.35f;
     [SerializeField] private float overheatPenaltyMultiplier = 1.5f;
 
-    [Header("Hammering Minigame (Forge) - random spot + power gauge release")]
+    [Header("Hammering Minigame (Forge) - tap the blade when the shrinking ring matches the target")]
     [SerializeField] private int hammerRounds = 4;
-    [SerializeField] private float chargeDuration = 1.4f;
-    [SerializeField] private float perfectTolerancePercent = 1f;
-    [SerializeField] private float goodTolerancePercent = 5f;
+    [SerializeField] private float ringShrinkDuration = 1.4f;
+    [SerializeField] private float perfectTolerancePercent = 10f;
+    [SerializeField] private float goodTolerancePercent = 30f;
 
     private Vector3 furnacePulseBaseScale;
     private Vector3 anvilPulseBaseScale;
@@ -121,7 +121,7 @@ public class CraftingStation : MonoBehaviour
 
         float hammerQuality = 0.5f;
         yield return CraftingMinigameUI.Instance.RunHammering(
-            "Forging", hammerRounds, chargeDuration, perfectTolerancePercent, goodTolerancePercent,
+            "Forging", hammerRounds, ringShrinkDuration, perfectTolerancePercent, goodTolerancePercent,
             q => hammerQuality = q);
 
         float quality = (meltQuality + hammerQuality) * 0.5f;

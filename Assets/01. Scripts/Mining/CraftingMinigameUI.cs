@@ -44,19 +44,19 @@ public class CraftingMinigameUI : MonoBehaviour
     private TMP_Text comboText;
     private TMP_Text popText;
     private float popTimer;
-    private float barWidth = 260f;
+    private float barWidth = 460f;
 
     private readonly Color cleanPopColor = new Color(0.95f, 0.82f, 0.35f);
     private readonly Color glancingPopColor = new Color(0.75f, 0.8f, 0.85f);
     private readonly Color missPopColor = new Color(0.7f, 0.35f, 0.32f);
 
-    // Hammering phase widgets
+    // Hammering phase widgets - direct tap on the blade, no separate hold button.
     private GameObject hammerGroup;
     private RectTransform bladeRect;
-    private RectTransform markerRect;
-    private TMP_Text targetLabelText;
-    private RectTransform powerFillRect;
-    private PointerHoldTracker holdButton;
+    private Button bladeButton;
+    private bool bladeTapped;
+    private RectTransform targetRingRect;
+    private RectTransform approachRingRect;
     private readonly List<GameObject> hitMarks = new List<GameObject>();
 
     private void Awake()
@@ -83,12 +83,12 @@ public class CraftingMinigameUI : MonoBehaviour
         panelRect.anchorMax = new Vector2(0.5f, 0.5f);
         panelRect.pivot = new Vector2(0.5f, 0.5f);
         panelRect.anchoredPosition = Vector2.zero;
-        panelRect.sizeDelta = new Vector2(560f, 640f);
-        panel.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.6f);
+        panelRect.sizeDelta = new Vector2(980f, 1700f);
+        panel.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.65f);
 
-        titleText = MakeText(panel.transform, "Title", 26, new Vector2(0f, -18f), new Vector2(520f, 32f));
-        instructionText = MakeText(panel.transform, "Instruction", 15, new Vector2(0f, -580f), new Vector2(520f, 26f));
-        resultText = MakeText(panel.transform, "Result", 18, new Vector2(0f, -60f), new Vector2(520f, 26f));
+        titleText = MakeText(panel.transform, "Title", 34, new Vector2(0f, -46f), new Vector2(880f, 48f));
+        resultText = MakeText(panel.transform, "Result", 24, new Vector2(0f, -120f), new Vector2(880f, 40f));
+        instructionText = MakeText(panel.transform, "Instruction", 20, new Vector2(0f, -1620f), new Vector2(900f, 50f));
 
         BuildTemperatureGroup();
         BuildHammerGroup();
@@ -138,8 +138,8 @@ public class CraftingMinigameUI : MonoBehaviour
         groupRect.anchorMin = new Vector2(0.5f, 1f);
         groupRect.anchorMax = new Vector2(0.5f, 1f);
         groupRect.pivot = new Vector2(0.5f, 1f);
-        groupRect.anchoredPosition = new Vector2(0f, -110f);
-        groupRect.sizeDelta = new Vector2(barWidth, 22f);
+        groupRect.anchoredPosition = new Vector2(0f, -220f);
+        groupRect.sizeDelta = new Vector2(barWidth, 28f);
 
         var bg = new GameObject("Bar", typeof(RectTransform), typeof(Image));
         bg.transform.SetParent(tempGroup.transform, false);
@@ -148,7 +148,7 @@ public class CraftingMinigameUI : MonoBehaviour
         bgRect.anchorMax = new Vector2(0f, 0.5f);
         bgRect.pivot = new Vector2(0f, 0.5f);
         bgRect.anchoredPosition = Vector2.zero;
-        bgRect.sizeDelta = new Vector2(barWidth, 22f);
+        bgRect.sizeDelta = new Vector2(barWidth, 28f);
         bg.GetComponent<Image>().color = new Color(0.35f, 0.45f, 0.6f);
 
         var sweet = new GameObject("SweetZone", typeof(RectTransform), typeof(Image));
@@ -165,15 +165,15 @@ public class CraftingMinigameUI : MonoBehaviour
         needleRect.anchorMin = new Vector2(0f, 0.5f);
         needleRect.anchorMax = new Vector2(0f, 0.5f);
         needleRect.pivot = new Vector2(0.5f, 0.5f);
-        needleRect.sizeDelta = new Vector2(4f, 32f);
+        needleRect.sizeDelta = new Vector2(6f, 44f);
         needleImage = needle.GetComponent<Image>();
         needleImage.color = Color.white;
 
-        // Furnace pulse-tap widget - replaces the old plain "TAP TO PUMP" button. A ring of
-        // heat pulses outward on a steady beat; tapping close to the beat (not just tapping
-        // often) is what actually raises the temperature efficiently.
+        // Furnace pulse-tap widget. NOTE: this mechanic is under review per player feedback
+        // ("이게 아니었어") - kept functional but flagged for a follow-up redesign pass rather
+        // than guessed at again blind. Only sizes here were enlarged to match the bigger panel.
         float centerX = barWidth * 0.5f;
-        float centerY = -170f;
+        float centerY = -280f;
 
         var strikeRingGO = new GameObject("StrikeRing", typeof(RectTransform), typeof(Image));
         strikeRingGO.transform.SetParent(tempGroup.transform, false);
@@ -182,7 +182,7 @@ public class CraftingMinigameUI : MonoBehaviour
         strikeRingRect.anchorMax = new Vector2(0f, 0.5f);
         strikeRingRect.pivot = new Vector2(0.5f, 0.5f);
         strikeRingRect.anchoredPosition = new Vector2(centerX, centerY);
-        strikeRingRect.sizeDelta = new Vector2(150f, 150f);
+        strikeRingRect.sizeDelta = new Vector2(260f, 260f);
         var strikeRingImage = strikeRingGO.GetComponent<Image>();
         strikeRingImage.sprite = UIShapes.Circle();
         strikeRingImage.color = new Color(1f, 1f, 1f, 0.3f);
@@ -194,7 +194,7 @@ public class CraftingMinigameUI : MonoBehaviour
         pulseRingRect.anchorMax = new Vector2(0f, 0.5f);
         pulseRingRect.pivot = new Vector2(0.5f, 0.5f);
         pulseRingRect.anchoredPosition = new Vector2(centerX, centerY);
-        pulseRingRect.sizeDelta = new Vector2(150f, 150f);
+        pulseRingRect.sizeDelta = new Vector2(260f, 260f);
         var pulseImage = pulseGO.GetComponent<Image>();
         pulseImage.sprite = UIShapes.Circle();
         pulseImage.color = new Color(0.95f, 0.55f, 0.25f, 0.7f);
@@ -206,14 +206,14 @@ public class CraftingMinigameUI : MonoBehaviour
         coreRect.anchorMax = new Vector2(0f, 0.5f);
         coreRect.pivot = new Vector2(0.5f, 0.5f);
         coreRect.anchoredPosition = new Vector2(centerX, centerY);
-        coreRect.sizeDelta = new Vector2(96f, 96f);
+        coreRect.sizeDelta = new Vector2(170f, 170f);
         coreGO.GetComponent<Image>().color = new Color(0.85f, 0.4f, 0.15f);
         var furnaceButton = coreGO.GetComponent<Button>();
         furnaceButton.onClick.AddListener(() => furnaceTapped = true);
-        MakeGroupText(coreGO.transform, "CoreLabel", 13, Vector2.zero, new Vector2(96f, 96f), Color.white).text = "TAP";
+        MakeGroupText(coreGO.transform, "CoreLabel", 20, Vector2.zero, new Vector2(170f, 170f), Color.white).text = "TAP";
 
-        comboText = MakeGroupText(tempGroup.transform, "ComboText", 16, new Vector2(centerX + 80f, centerY + 70f), new Vector2(90f, 26f), cleanPopColor);
-        popText = MakeGroupText(tempGroup.transform, "PopText", 15, new Vector2(centerX, centerY + 100f), new Vector2(220f, 26f), Color.white);
+        comboText = MakeGroupText(tempGroup.transform, "ComboText", 24, new Vector2(centerX + 150f, centerY + 140f), new Vector2(150f, 44f), cleanPopColor);
+        popText = MakeGroupText(tempGroup.transform, "PopText", 22, new Vector2(centerX, centerY + 190f), new Vector2(360f, 44f), Color.white);
 
         tempGroup.SetActive(false);
     }
@@ -226,62 +226,50 @@ public class CraftingMinigameUI : MonoBehaviour
         groupRect.anchorMin = new Vector2(0.5f, 1f);
         groupRect.anchorMax = new Vector2(0.5f, 1f);
         groupRect.pivot = new Vector2(0.5f, 1f);
-        groupRect.anchoredPosition = new Vector2(0f, -100f);
-        groupRect.sizeDelta = new Vector2(520f, 460f);
+        groupRect.anchoredPosition = new Vector2(0f, -220f);
+        groupRect.sizeDelta = new Vector2(900f, 1300f);
 
-        var blade = new GameObject("Blade", typeof(RectTransform), typeof(Image));
+        // The blade itself is the tap target - "칼날 부위를 직접 클릭" - no separate button
+        // elsewhere on screen. Tapping anywhere on the blade counts as the strike attempt;
+        // WHEN you tap (matching the shrinking ring to the static target ring) is what's judged.
+        var blade = new GameObject("Blade", typeof(RectTransform), typeof(Image), typeof(Button));
         blade.transform.SetParent(hammerGroup.transform, false);
         bladeRect = blade.GetComponent<RectTransform>();
         bladeRect.anchorMin = new Vector2(0f, 1f);
         bladeRect.anchorMax = new Vector2(0f, 1f);
         bladeRect.pivot = new Vector2(0f, 1f);
-        bladeRect.anchoredPosition = new Vector2(90f, 0f);
-        bladeRect.sizeDelta = new Vector2(110f, 320f);
+        bladeRect.anchoredPosition = new Vector2(280f, -60f);
+        bladeRect.sizeDelta = new Vector2(340f, 1150f);
         blade.GetComponent<Image>().color = new Color(0.34f, 0.36f, 0.4f);
+        bladeButton = blade.GetComponent<Button>();
+        bladeButton.onClick.AddListener(() => bladeTapped = true);
 
-        var marker = new GameObject("StrikeMarker", typeof(RectTransform), typeof(Image));
-        marker.transform.SetParent(blade.transform, false);
-        markerRect = marker.GetComponent<RectTransform>();
-        markerRect.anchorMin = new Vector2(0.5f, 0.5f);
-        markerRect.anchorMax = new Vector2(0.5f, 0.5f);
-        markerRect.pivot = new Vector2(0.5f, 0.5f);
-        markerRect.sizeDelta = new Vector2(28f, 28f);
-        marker.GetComponent<Image>().color = new Color(0.95f, 0.82f, 0.35f);
+        var targetRingGO = new GameObject("TargetRing", typeof(RectTransform), typeof(Image));
+        targetRingGO.transform.SetParent(blade.transform, false);
+        targetRingRect = targetRingGO.GetComponent<RectTransform>();
+        targetRingRect.anchorMin = new Vector2(0.5f, 0.5f);
+        targetRingRect.anchorMax = new Vector2(0.5f, 0.5f);
+        targetRingRect.pivot = new Vector2(0.5f, 0.5f);
+        targetRingRect.sizeDelta = new Vector2(90f, 90f);
+        var targetRingImage = targetRingGO.GetComponent<Image>();
+        targetRingImage.sprite = UIShapes.Circle();
+        targetRingImage.color = new Color(0.95f, 0.82f, 0.35f, 0.55f);
+        targetRingImage.raycastTarget = false;
 
-        targetLabelText = MakeText(hammerGroup.transform, "TargetLabel", 15, new Vector2(90f, -30f), new Vector2(220f, 24f));
-        targetLabelText.color = new Color(0.95f, 0.82f, 0.35f);
+        var approachRingGO = new GameObject("ApproachRing", typeof(RectTransform), typeof(Image));
+        approachRingGO.transform.SetParent(blade.transform, false);
+        approachRingRect = approachRingGO.GetComponent<RectTransform>();
+        approachRingRect.anchorMin = new Vector2(0.5f, 0.5f);
+        approachRingRect.anchorMax = new Vector2(0.5f, 0.5f);
+        approachRingRect.pivot = new Vector2(0.5f, 0.5f);
+        approachRingRect.sizeDelta = new Vector2(90f, 90f);
+        var approachRingImage = approachRingGO.GetComponent<Image>();
+        approachRingImage.sprite = UIShapes.Circle();
+        approachRingImage.color = new Color(1f, 1f, 1f, 0.85f);
+        approachRingImage.raycastTarget = false;
 
-        var gaugeBg = new GameObject("PowerGaugeBg", typeof(RectTransform), typeof(Image));
-        gaugeBg.transform.SetParent(hammerGroup.transform, false);
-        var gaugeBgRect = gaugeBg.GetComponent<RectTransform>();
-        gaugeBgRect.anchorMin = new Vector2(0f, 1f);
-        gaugeBgRect.anchorMax = new Vector2(0f, 1f);
-        gaugeBgRect.pivot = new Vector2(0f, 1f);
-        gaugeBgRect.anchoredPosition = new Vector2(-60f, -20f);
-        gaugeBgRect.sizeDelta = new Vector2(24f, 320f);
-        gaugeBg.GetComponent<Image>().color = new Color(0.22f, 0.2f, 0.18f);
-
-        var gaugeFill = new GameObject("PowerGaugeFill", typeof(RectTransform), typeof(Image));
-        gaugeFill.transform.SetParent(gaugeBg.transform, false);
-        powerFillRect = gaugeFill.GetComponent<RectTransform>();
-        powerFillRect.anchorMin = new Vector2(0f, 0f);
-        powerFillRect.anchorMax = new Vector2(1f, 0f);
-        powerFillRect.pivot = new Vector2(0.5f, 0f);
-        powerFillRect.offsetMin = Vector2.zero;
-        powerFillRect.sizeDelta = new Vector2(0f, 0f);
-        gaugeFill.GetComponent<Image>().color = new Color(0.5f, 0.75f, 0.4f);
-
-        var holdGO = new GameObject("HoldButton", typeof(RectTransform), typeof(Image), typeof(PointerHoldTracker));
-        holdGO.transform.SetParent(hammerGroup.transform, false);
-        var holdRect = holdGO.GetComponent<RectTransform>();
-        holdRect.anchorMin = new Vector2(0.5f, 0f);
-        holdRect.anchorMax = new Vector2(0.5f, 0f);
-        holdRect.pivot = new Vector2(0.5f, 0f);
-        holdRect.anchoredPosition = new Vector2(0f, 0f);
-        holdRect.sizeDelta = new Vector2(280f, 72f);
-        holdGO.GetComponent<Image>().color = new Color(0.75f, 0.35f, 0.2f);
-        holdButton = holdGO.GetComponent<PointerHoldTracker>();
-        MakeText(holdGO.transform, "HoldLabel", 17, Vector2.zero, new Vector2(280f, 72f)).text = "HOLD, RELEASE ON TARGET";
+        targetRingGO.SetActive(false);
+        approachRingGO.SetActive(false);
 
         hammerGroup.SetActive(false);
     }
@@ -309,7 +297,7 @@ public class CraftingMinigameUI : MonoBehaviour
         comboText.text = "";
 
         sweetZoneRect.anchoredPosition = new Vector2(sweetMin * barWidth, 0f);
-        sweetZoneRect.sizeDelta = new Vector2((sweetMax - sweetMin) * barWidth, 26f);
+        sweetZoneRect.sizeDelta = new Vector2((sweetMax - sweetMin) * barWidth, 30f);
 
         float value = 0f;
         float elapsed = 0f;
@@ -408,12 +396,17 @@ public class CraftingMinigameUI : MonoBehaviour
         onComplete?.Invoke(quality);
     }
 
-    public IEnumerator RunHammering(string title, int rounds, float chargeDuration, float perfectTolerancePercent, float goodTolerancePercent, Action<float> onComplete)
+    // Direct-click hammering: a static target ring appears at a random spot on the blade and a
+    // larger "approach" ring shrinks toward it over ringShrinkDuration. Tap the blade (anywhere)
+    // when the approach ring visually matches the target ring - no separate hold button, no
+    // power gauge, just "click the blade at the right moment".
+    public IEnumerator RunHammering(string title, int rounds, float ringShrinkDuration, float perfectTolerancePercent, float goodTolerancePercent, Action<float> onComplete)
     {
         SetVisible(true);
         hammerGroup.SetActive(true);
         titleText.text = title;
         resultText.text = "";
+        instructionText.text = "Tap the blade when the rings match!";
 
         for (int i = 0; i < hitMarks.Count; i++)
         {
@@ -424,77 +417,87 @@ public class CraftingMinigameUI : MonoBehaviour
         }
         hitMarks.Clear();
 
+        const float approachStartScale = 2.4f;
+        const float targetScale = 1f;
         float totalScore = 0f;
 
         for (int round = 0; round < rounds; round++)
         {
-            int targetPercent = UnityEngine.Random.Range(20, 86);
-            targetLabelText.text = "Target " + targetPercent + "%";
-            instructionText.text = "Round " + (round + 1) + " / " + rounds + " - release right on the target!";
+            instructionText.text = "Round " + (round + 1) + " / " + rounds + " - tap when the rings match!";
             resultText.text = "";
 
-            float bladeHalfWidth = bladeRect.sizeDelta.x * 0.5f - 16f;
-            float bladeHalfHeight = bladeRect.sizeDelta.y * 0.5f - 16f;
-            markerRect.anchoredPosition = new Vector2(
+            float bladeHalfWidth = bladeRect.sizeDelta.x * 0.5f - 100f;
+            float bladeHalfHeight = bladeRect.sizeDelta.y * 0.5f - 100f;
+            Vector2 pos = new Vector2(
                 UnityEngine.Random.Range(-bladeHalfWidth, bladeHalfWidth),
                 UnityEngine.Random.Range(-bladeHalfHeight, bladeHalfHeight));
 
-            float power = 0f;
-            bool released = false;
-            float safetyTimer = 0f;
-            float maxTime = chargeDuration + 2f;
+            targetRingRect.anchoredPosition = pos;
+            approachRingRect.anchoredPosition = pos;
+            targetRingRect.gameObject.SetActive(true);
+            approachRingRect.gameObject.SetActive(true);
+            approachRingRect.localScale = Vector3.one * approachStartScale;
 
-            powerFillRect.anchorMax = new Vector2(1f, 0f);
+            bladeTapped = false;
+            float elapsed = 0f;
+            float maxTime = ringShrinkDuration + 0.6f;
+            bool tapped = false;
+            float finalScale = targetScale;
 
-            while (!released && safetyTimer < maxTime)
+            while (!tapped && elapsed < maxTime)
             {
-                safetyTimer += Time.deltaTime;
+                elapsed += Time.deltaTime;
+                float shrinkT = Mathf.Clamp01(elapsed / ringShrinkDuration);
+                finalScale = Mathf.Lerp(approachStartScale, targetScale, shrinkT);
+                approachRingRect.localScale = Vector3.one * finalScale;
 
-                if (holdButton.IsHeld)
+                if (bladeTapped)
                 {
-                    power = Mathf.Clamp01(power + Time.deltaTime / chargeDuration);
-                }
-
-                powerFillRect.anchorMax = new Vector2(1f, power);
-
-                if (holdButton.WasReleasedThisFrame)
-                {
-                    released = true;
+                    bladeTapped = false;
+                    tapped = true;
                 }
 
                 yield return null;
             }
 
-            int actualPercent = Mathf.RoundToInt(power * 100f);
-            int diff = Mathf.Abs(actualPercent - targetPercent);
+            float diffPercent = Mathf.Abs(finalScale - targetScale) / (approachStartScale - targetScale) * 100f;
+
+            if (!tapped)
+            {
+                diffPercent = 100f;
+            }
+
             float roundScore;
             float shakeAmplitude;
 
-            if (diff <= perfectTolerancePercent)
+            if (diffPercent <= perfectTolerancePercent)
             {
                 roundScore = 1f;
                 shakeAmplitude = 0.16f;
-                resultText.text = "Perfect! (" + actualPercent + "%)";
-                SpawnHitMark();
+                resultText.text = "Perfect!";
+                SpawnHitMark(pos);
             }
-            else if (diff <= goodTolerancePercent)
+            else if (diffPercent <= goodTolerancePercent)
             {
                 roundScore = 0.6f;
                 shakeAmplitude = 0.1f;
-                resultText.text = "Good (" + actualPercent + "%)";
-                SpawnHitMark();
+                resultText.text = "Good";
+                SpawnHitMark(pos);
             }
             else
             {
                 roundScore = 0.15f;
                 shakeAmplitude = 0f;
-                resultText.text = "Miss (" + actualPercent + "%)";
+                resultText.text = tapped ? "Miss" : "Too Slow";
             }
 
             if (shakeAmplitude > 0f && CameraFollow.Instance != null)
             {
                 CameraFollow.Instance.Shake(shakeAmplitude, 0.1f);
             }
+
+            targetRingRect.gameObject.SetActive(false);
+            approachRingRect.gameObject.SetActive(false);
 
             totalScore += roundScore;
             yield return new WaitForSeconds(0.45f);
@@ -509,7 +512,7 @@ public class CraftingMinigameUI : MonoBehaviour
         onComplete?.Invoke(quality);
     }
 
-    private void SpawnHitMark()
+    private void SpawnHitMark(Vector2 position)
     {
         var markGO = new GameObject("HitMark", typeof(RectTransform), typeof(Image));
         markGO.transform.SetParent(bladeRect, false);
@@ -517,9 +520,11 @@ public class CraftingMinigameUI : MonoBehaviour
         rect.anchorMin = new Vector2(0.5f, 0.5f);
         rect.anchorMax = new Vector2(0.5f, 0.5f);
         rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = markerRect.anchoredPosition;
-        rect.sizeDelta = new Vector2(10f, 10f);
-        markGO.GetComponent<Image>().color = new Color(0.15f, 0.14f, 0.13f, 0.85f);
+        rect.anchoredPosition = position;
+        rect.sizeDelta = new Vector2(14f, 14f);
+        var image = markGO.GetComponent<Image>();
+        image.color = new Color(0.15f, 0.14f, 0.13f, 0.85f);
+        image.raycastTarget = false;
         hitMarks.Add(markGO);
     }
 

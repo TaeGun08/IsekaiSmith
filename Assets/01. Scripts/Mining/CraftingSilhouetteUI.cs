@@ -37,6 +37,8 @@ public class CraftingSilhouetteUI : MonoBehaviour
 
     private Image bladeImage;
     private Image handleImage;
+    private TMP_Text bladeLabelText;
+    private TMP_Text handleLabelText;
     private readonly Color bladeBaseColor = new Color(0.3f, 0.32f, 0.36f);
     private readonly Color bladeOreColor = new Color(0.55f, 0.58f, 0.63f);
     private readonly Color bladeManaColor = new Color(0.6f, 0.3f, 0.55f);
@@ -79,11 +81,11 @@ public class CraftingSilhouetteUI : MonoBehaviour
         panelRect.anchorMax = new Vector2(0.5f, 0.5f);
         panelRect.pivot = new Vector2(0.5f, 0.5f);
         panelRect.anchoredPosition = Vector2.zero;
-        panelRect.sizeDelta = new Vector2(600f, 900f);
+        panelRect.sizeDelta = new Vector2(980f, 1700f);
         panel.GetComponent<Image>().color = new Color(0.08f, 0.07f, 0.06f, 0.94f);
 
-        titleText = MakeText(panel.transform, "Title", 30, new Vector2(0f, -24f), new Vector2(560f, 40f));
-        hintText = MakeText(panel.transform, "Hint", 16, new Vector2(0f, -66f), new Vector2(560f, 26f));
+        titleText = MakeText(panel.transform, "Title", 34, new Vector2(0f, -46f), new Vector2(880f, 48f));
+        hintText = MakeText(panel.transform, "Hint", 20, new Vector2(0f, -104f), new Vector2(880f, 36f));
         hintText.text = "Drag materials onto the blade and handle";
         hintText.color = new Color(0.75f, 0.72f, 0.68f);
 
@@ -94,12 +96,13 @@ public class CraftingSilhouetteUI : MonoBehaviour
         bladeRect.anchorMin = new Vector2(0.5f, 1f);
         bladeRect.anchorMax = new Vector2(0.5f, 1f);
         bladeRect.pivot = new Vector2(0.5f, 1f);
-        bladeRect.anchoredPosition = new Vector2(0f, -110f);
-        bladeRect.sizeDelta = new Vector2(90f, 420f);
+        bladeRect.anchoredPosition = new Vector2(0f, -170f);
+        bladeRect.sizeDelta = new Vector2(170f, 760f);
         bladeImage = bladeGO.GetComponent<Image>();
         bladeImage.color = bladeBaseColor;
         bladeGO.GetComponent<CraftingDropZone>().OnDropped = OnBladeDrop;
-        MakeText(bladeGO.transform, "Label", 15, new Vector2(0f, 20f), new Vector2(200f, 24f)).text = "BLADE";
+        bladeLabelText = MakeText(bladeGO.transform, "Label", 20, new Vector2(0f, 30f), new Vector2(300f, 32f));
+        bladeLabelText.text = "BLADE (Ore)";
 
         // Guard bar (decorative)
         var guardGO = new GameObject("Guard", typeof(RectTransform), typeof(Image));
@@ -108,8 +111,8 @@ public class CraftingSilhouetteUI : MonoBehaviour
         guardRect.anchorMin = new Vector2(0.5f, 1f);
         guardRect.anchorMax = new Vector2(0.5f, 1f);
         guardRect.pivot = new Vector2(0.5f, 1f);
-        guardRect.anchoredPosition = new Vector2(0f, -530f);
-        guardRect.sizeDelta = new Vector2(160f, 16f);
+        guardRect.anchoredPosition = new Vector2(0f, -930f);
+        guardRect.sizeDelta = new Vector2(300f, 22f);
         guardGO.GetComponent<Image>().color = new Color(0.4f, 0.33f, 0.22f);
 
         // Handle zone (short, lower)
@@ -119,12 +122,13 @@ public class CraftingSilhouetteUI : MonoBehaviour
         handleRect.anchorMin = new Vector2(0.5f, 1f);
         handleRect.anchorMax = new Vector2(0.5f, 1f);
         handleRect.pivot = new Vector2(0.5f, 1f);
-        handleRect.anchoredPosition = new Vector2(0f, -546f);
-        handleRect.sizeDelta = new Vector2(56f, 140f);
+        handleRect.anchoredPosition = new Vector2(0f, -956f);
+        handleRect.sizeDelta = new Vector2(110f, 260f);
         handleImage = handleGO.GetComponent<Image>();
         handleImage.color = handleBaseColor;
         handleGO.GetComponent<CraftingDropZone>().OnDropped = OnHandleDrop;
-        MakeText(handleGO.transform, "Label", 15, new Vector2(0f, 20f), new Vector2(200f, 24f)).text = "HANDLE";
+        handleLabelText = MakeText(handleGO.transform, "Label", 20, new Vector2(0f, 30f), new Vector2(300f, 32f));
+        handleLabelText.text = "HANDLE (Wood)";
 
         var trayGO = new GameObject("Tray", typeof(RectTransform));
         trayGO.transform.SetParent(panel.transform, false);
@@ -132,12 +136,12 @@ public class CraftingSilhouetteUI : MonoBehaviour
         trayRect.anchorMin = new Vector2(0.5f, 0f);
         trayRect.anchorMax = new Vector2(0.5f, 0f);
         trayRect.pivot = new Vector2(0.5f, 0f);
-        trayRect.anchoredPosition = new Vector2(0f, 130f);
-        trayRect.sizeDelta = new Vector2(560f, 110f);
+        trayRect.anchoredPosition = new Vector2(0f, 200f);
+        trayRect.sizeDelta = new Vector2(900f, 220f);
         tray = trayGO.transform;
 
-        forgeButton = MakeButton(panel.transform, "ForgeButton", new Vector2(-100f, 40f), new Vector2(180f, 56f), "FORGE", new Color(0.35f, 0.6f, 0.35f));
-        cancelButton = MakeButton(panel.transform, "CancelButton", new Vector2(100f, 40f), new Vector2(180f, 56f), "CANCEL", new Color(0.5f, 0.3f, 0.28f));
+        forgeButton = MakeButton(panel.transform, "ForgeButton", new Vector2(-160f, 60f), new Vector2(280f, 90f), "FORGE", new Color(0.35f, 0.6f, 0.35f));
+        cancelButton = MakeButton(panel.transform, "CancelButton", new Vector2(160f, 60f), new Vector2(280f, 90f), "CANCEL", new Color(0.5f, 0.3f, 0.28f));
     }
 
     private TMP_Text MakeText(Transform parent, string name, int fontSize, Vector2 anchoredPos, Vector2 size)
@@ -169,7 +173,7 @@ public class CraftingSilhouetteUI : MonoBehaviour
         rect.sizeDelta = size;
         go.GetComponent<Image>().color = color;
 
-        var label = MakeText(go.transform, "Text", 17, Vector2.zero, size);
+        var label = MakeText(go.transform, "Text", 22, Vector2.zero, size);
         var labelRect = label.GetComponent<RectTransform>();
         labelRect.anchorMin = Vector2.zero;
         labelRect.anchorMax = Vector2.one;
@@ -189,14 +193,14 @@ public class CraftingSilhouetteUI : MonoBehaviour
         rect.anchorMax = new Vector2(0.5f, 1f);
         rect.pivot = new Vector2(0.5f, 1f);
         rect.anchoredPosition = anchoredPos;
-        rect.sizeDelta = new Vector2(110f, 90f);
+        rect.sizeDelta = new Vector2(190f, 150f);
 
         Color chipColor = type == ResourceType.Ore ? new Color(0.48f, 0.46f, 0.43f)
             : type == ResourceType.ManaStone ? new Color(0.69f, 0.27f, 0.56f)
             : new Color(0.55f, 0.42f, 0.28f);
         go.GetComponent<Image>().color = chipColor;
 
-        var text = MakeText(go.transform, "Label", 14, Vector2.zero, new Vector2(110f, 90f));
+        var text = MakeText(go.transform, "Label", 20, Vector2.zero, new Vector2(190f, 150f));
         var textRect = text.GetComponent<RectTransform>();
         textRect.anchorMin = Vector2.zero;
         textRect.anchorMax = Vector2.one;
@@ -219,15 +223,17 @@ public class CraftingSilhouetteUI : MonoBehaviour
 
         bladeImage.color = bladeBaseColor;
         handleImage.color = handleBaseColor;
+        bladeLabelText.text = "BLADE (Ore)";
+        handleLabelText.text = "HANDLE (Wood)";
 
         foreach (Transform child in tray)
         {
             Destroy(child.gameObject);
         }
 
-        BuildChip(ResourceType.Ore, "Ore\nx" + ResourceBank.Get(ResourceType.Ore), new Vector2(-180f, -10f));
-        BuildChip(ResourceType.ManaStone, "Mana Stone\nx" + ResourceBank.Get(ResourceType.ManaStone), new Vector2(0f, -10f));
-        BuildChip(ResourceType.Wood, "Wood\nx" + ResourceBank.Get(ResourceType.Wood), new Vector2(180f, -10f));
+        BuildChip(ResourceType.Ore, "Ore\nx" + ResourceBank.Get(ResourceType.Ore), new Vector2(-280f, -20f));
+        BuildChip(ResourceType.ManaStone, "Mana Stone\nx" + ResourceBank.Get(ResourceType.ManaStone), new Vector2(0f, -20f));
+        BuildChip(ResourceType.Wood, "Wood\nx" + ResourceBank.Get(ResourceType.Wood), new Vector2(280f, -20f));
 
         forgeButton.onClick.RemoveAllListeners();
         forgeButton.onClick.AddListener(() => { if (oreFilled && woodFilled) started = true; });
@@ -285,11 +291,13 @@ public class CraftingSilhouetteUI : MonoBehaviour
         }
 
         bladeImage.color = color;
+        bladeLabelText.text = oreFilled ? "BLADE - READY" : "BLADE (Ore)";
     }
 
     private void UpdateHandleVisual()
     {
         handleImage.color = woodFilled ? handleWoodColor : handleBaseColor;
+        handleLabelText.text = woodFilled ? "HANDLE - READY" : "HANDLE (Wood)";
     }
 }
 
@@ -328,12 +336,48 @@ public class CraftingDragChip : MonoBehaviour, IBeginDragHandler, IDragHandler, 
     }
 }
 
-public class CraftingDropZone : MonoBehaviour, IDropHandler
+// Enlarged, forgiving drop target with a highlight ring that lights up while a compatible-looking
+// drag is hovering over it, so the player gets live feedback before releasing (not just a silent
+// miss if the drop lands a few pixels outside).
+public class CraftingDropZone : MonoBehaviour, IDropHandler, IPointerEnterHandler, IPointerExitHandler
 {
     public Action<ResourceType> OnDropped;
 
+    private Image highlightImage;
+    private static readonly Color HighlightOn = new Color(1f, 0.9f, 0.5f, 0.55f);
+    private static readonly Color HighlightOff = new Color(1f, 0.9f, 0.5f, 0f);
+
+    private void Awake()
+    {
+        var go = new GameObject("Highlight", typeof(RectTransform), typeof(Image));
+        go.transform.SetParent(transform, false);
+        var rect = go.GetComponent<RectTransform>();
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = new Vector2(-16f, -16f);
+        rect.offsetMax = new Vector2(16f, 16f);
+        highlightImage = go.GetComponent<Image>();
+        highlightImage.color = HighlightOff;
+        highlightImage.raycastTarget = false;
+    }
+
+    public void OnPointerEnter(PointerEventData eventData)
+    {
+        if (eventData.dragging)
+        {
+            highlightImage.color = HighlightOn;
+        }
+    }
+
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        highlightImage.color = HighlightOff;
+    }
+
     public void OnDrop(PointerEventData eventData)
     {
+        highlightImage.color = HighlightOff;
+
         if (eventData.pointerDrag == null)
         {
             return;
