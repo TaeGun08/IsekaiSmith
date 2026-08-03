@@ -221,16 +221,107 @@
     구조라 엄지로 트레이에서 위로 드래그하는 모바일 제스처와도 잘 맞습니다.</p>
   </div>
 
-  <h2>6. 확인 부탁드립니다</h2>
+  <h2>6. 확인 완료 (v1)</h2>
   <div class="card">
     <ul class="qa-list">
-      <li><b>Q1.</b> §4 구조 제안(안 A: 용광로+모루를 하나의 통합 작업대로) 괜찮으신가요?</li>
-      <li><b>Q2.</b> 지금은 검만 만들 수 있으니 우선 검 실루엣만 구현하고, 다른 무기(도끼/망치/단검)는 나중에 실루엣만 추가하는 순서로 가도 될까요?</li>
-      <li><b>Q3.</b> 부위가 재료로 채워질 때 "실루엣이 재료 색으로 물든다"는 연출 방향에 동의하시나요, 다른 피드백 방식을 원하시나요?</li>
+      <li><b>Q1.</b> 안 A(통합 작업대) — <b>✅ 확정.</b> "자연스럽게 광물 녹이고→망치질→풀무질 흐름이면 됨"</li>
+      <li><b>Q2.</b> 검부터 — <b>✅ 확정.</b> "일단 그렇게 해"</li>
+      <li><b>Q3.</b> 재료 색으로 물드는 연출 — <b>✅ 확정.</b> "마음에 드는 방법"</li>
+    </ul>
+    <p class="note">v1은 구현 완료했지만 실제 플레이해보니 재료 넣는 단계 이후(제련/단조)가 밋밋하다는
+    피드백을 받아서, 아래 v2로 그 부분만 다시 다듬습니다.</p>
+  </div>
+
+  <h2>7. v2 — 제련(용광로) 리뉴얼: 클릭 펌프질</h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.7;">기존엔 버튼을 <b>꾹 누르고 있으면</b> 온도가 올라가는 방식이었는데,
+    이걸 <b>"클릭할 때마다 풀무를 한 번 밟는" 방식(연타형 펌프질)</b>으로 바꿉니다. 가만히 있으면(안 누르면)
+    온도가 서서히 식습니다. 목표 구간(초록 존)에 최대한 오래 머무르게 하는 기존 판정 방식은 그대로
+    유지합니다. 잭스미스에 있는 "쇳물 붓기" 단계까지는 필요 없다고 하셨으니 그건 넣지 않습니다.</p>
+    <div class="compare-row">
+      <div class="compare-col">
+        <h3>기존 (홀드)</h3>
+        <p class="note">버튼을 누르고 있는 동안 계속 상승 → 손맛이 단조로움</p>
+      </div>
+      <div class="compare-col">
+        <h3>변경 (클릭)</h3>
+        <p class="note">한 번 클릭 = 풀무 한 번 밟기 = 온도 소폭 상승, 안 누르면 계속 식음 →
+        리듬감 있게 연타하는 손맛, "직접 불을 지피고 있다"는 느낌 강화</p>
+      </div>
+    </div>
+    <p class="note">추가 아이디어 — 과열 페널티: 온도가 초록 존을 넘어 계속 올라가면(너무 연타하면)
+    "과열" 상태가 되어 오히려 품질이 깎이거나 최악의 경우 재료 일부를 잃을 위험을 주면, 무작정
+    연타만 하는 게 아니라 완급 조절이 필요해져서 훨씬 긴장감 있어질 것 같습니다 (원래 §4 초안에
+    있던 아이디어인데 아직 구현 안 했었습니다 — 이번에 같이 넣는 걸 제안합니다).</p>
+  </div>
+
+  <h2>8. v2 — 단조(모루) 리뉴얼: 랜덤 위치 + 파워 게이지 매칭</h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.7;">기존의 "줄어드는 원 타이밍" 방식 대신,
+    말씀하신 방식으로 교체합니다: <b>매 타격마다 칼날 위 랜덤한 위치에 타격 지점이 뜨고</b>, 그 옆(또는
+    아래)에 <b>목표 파워 수치(예: 59%)</b>가 표시됩니다. 클릭을 <b>홀드하면 파워 게이지가 0→100%로
+    차오르고</b>, 목표치에 최대한 가깝다고 판단될 때 <b>손을 떼서(릴리즈) 확정</b>합니다. 목표치에
+    가까울수록 Perfect, 멀수록 Miss. <b>손잡이(목재)는 망치질 대상이 아니므로 칼날 부위에서만
+    진행합니다.</b></p>
+
+    <div class="phone" style="margin-bottom: 8px;"><div class="phone-screen">
+      <div class="new-title">Forging — Hit 2 / 4</div>
+      <div class="blade-zone" style="background: rgba(122,138,150,0.35);"></div>
+      <div class="guard-bar"></div>
+      <div class="handle-zone" style="opacity:0.35;"></div>
+      <div style="position:absolute; top:120px; left:130px; width:16px; height:16px; border-radius:50%; background:#f2d16b; box-shadow:0 0 8px #f2d16b;"></div>
+      <div style="position:absolute; top:100px; left:150px; color:#f2d16b; font-size:9px; font-weight:bold;">Target: 59%</div>
+      <div style="position:absolute; bottom:80px; left:30px; width:16px; height:220px; background:#3a352e; border-radius:8px;"></div>
+      <div style="position:absolute; bottom:80px; left:30px; width:16px; height:140px; background:linear-gradient(to top, #6f9955, #f2d16b); border-radius:8px;"></div>
+      <div style="position:absolute; bottom:216px; left:22px; width:32px; height:3px; background:#f2d16b;"></div>
+      <div style="position:absolute; bottom:60px; left:14px; color:#fff; font-size:8px;">HOLD</div>
+    </div></div>
+    <p class="note" style="text-align:center;">노란 점 = 이번 타격 지점(랜덤 위치) · 왼쪽 세로 바 = 홀드 중 차오르는 파워 게이지 ·
+    노란 가로선 = 목표치(59%) 표시선</p>
+
+    <h3>판정 기준 제안</h3>
+    <table class="elem" style="margin-top:8px;">
+      <tr><th>판정</th><th>목표치와의 오차</th><th>비고</th></tr>
+      <tr><td>Perfect</td><td>±5%p 이내</td><td>정확히 일치는 사실상 불가능에 가까워서 약간의 허용폭을 둠</td></tr>
+      <tr><td>Good</td><td>±15%p 이내</td><td></td></tr>
+      <tr><td>Miss</td><td>그 외 (게이지가 100% 넘도록 못 떼도 자동 Miss)</td><td></td></tr>
+    </table>
+    <p class="note">말씀하신 "59%면 정확히 59%가 완벽"이라는 감각은 유지하되, 사람이 정확히 정수
+    %로 손을 떼는 건 사실상 불가능에 가까워서 ±5%p 정도의 오차는 허용하는 걸 제안합니다.
+    너무 빡빡하면 스트레스만 쌓이고, 너무 널널하면 긴장감이 사라지니 실제 플레이해보고
+    오차 범위는 조정하면 됩니다.</p>
+  </div>
+
+  <h2>9. 추가로 제안하고 싶은 아이디어</h2>
+  <div class="card">
+    <ul class="qa-list">
+      <li><b>타격 자국 누적</b> — 성공한 타격마다 칼날 위에 작은 망치 자국/스파크 이펙트가 그 위치에
+      남아서, 라운드가 진행될수록 "내가 두들긴 흔적"이 시각적으로 쌓이는 느낌을 줍니다.</li>
+      <li><b>콤보 보너스</b> — 연속 Perfect 시 다음 타격의 판정 폭이 살짝 넓어지거나 보너스 수치가
+      쌓이는 식으로, 리듬을 타면 더 잘 되는 손맛을 추가할 수 있습니다.</li>
+      <li><b>온도 게이지 색상 연동</b> — 지금은 게이지 배경이 고정 그라데이션인데, 실시간 온도에 따라
+      칼날 실루엣 자체도 차가운 회색→달궈진 주황/빨강으로 같이 물들면 "정말 녹이고 있다"는 느낌이
+      더 살 것 같습니다.</li>
+      <li><b>망치 손 연출</b> — 클릭할 때마다 화면 어딘가에 작은 망치 아이콘이 쿵 내려찍는 스케일
+      펀치 애니메이션을 주면(사운드 없이도) 타격감이 확 살아납니다.</li>
+      <li><b>손잡이 조립은 미니게임 없이, 대신 짧은 연출만</b> — 말씀대로 손잡이는 망치질 없이
+      드래그로 끝나지만, 완전히 정적이면 밋밋하니 감싸는 듯한 아주 짧은(0.3초 정도) 애니메이션
+      정도만 살짝 주는 걸 제안합니다.</li>
+      <li><b>완성 연출</b> — 마지막 타격까지 끝나면 무기가 살짝 반짝이며 화면 중앙에 붕 떠오르는
+      짧은 "짜잔" 연출을 주면 지금 바로 사라지듯 끝나는 것보다 완성의 뿌듯함이 살 것 같습니다.</li>
     </ul>
   </div>
 
-  <footer>crafting_ui_redesign.html · 확인 후 피드백 주시면 실제 구현에 들어가겠습니다.</footer>
+  <h2>10. 확인 부탁드립니다</h2>
+  <div class="card">
+    <ul class="qa-list">
+      <li><b>Q1.</b> §7 과열 페널티(너무 연타하면 손해)를 이번에 같이 넣을까요, 아니면 일단 빼고 기본 온도조절만 먼저 완성할까요?</li>
+      <li><b>Q2.</b> §8 판정 오차(Perfect ±5%p, Good ±15%p) 수치가 괜찮아 보이시나요?</li>
+      <li><b>Q3.</b> §9에 제안한 아이디어 중 이번에 같이 넣고 싶은 게 있으신가요, 아니면 핵심(펌프질+파워게이지 매칭)부터 먼저 완성하고 나머지는 다음에 살을 붙일까요?</li>
+    </ul>
+  </div>
+
+  <footer>crafting_ui_redesign.html v2 · 확인 후 피드백 주시면 실제 구현에 들어가겠습니다.</footer>
 </div>
 </body>
 </html>
