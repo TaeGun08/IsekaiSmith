@@ -1,12 +1,15 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
 // Self-contained: builds its own Canvas/UI in Awake so no scene wiring is needed.
-// CraftingStation calls CraftingMinigameUI.Instance.RunTemperature/RunHammering.
-// Input is button press/hold/click (mouse or touch) - no keyboard dependency, mobile-friendly.
+// CraftingStation calls CraftingMinigameUI.Instance.RunTemperature/RunHammering/ShowGradeResult.
+// Input is tap/hold (mouse or touch) - no keyboard dependency, mobile-friendly.
+// Timing/quality judgement itself lives in PulsePump / CraftGradeUtility (pure logic, no UI
+// dependency) - this class only renders and orchestrates, it doesn't decide what counts as good.
 public class CraftingMinigameUI : MonoBehaviour
 {
     private static CraftingMinigameUI instance;
@@ -36,9 +39,16 @@ public class CraftingMinigameUI : MonoBehaviour
     private RectTransform sweetZoneRect;
     private RectTransform needleRect;
     private Image needleImage;
-    private Button pumpButton;
-    private bool pumpClicked;
+    private RectTransform pulseRingRect;
+    private bool furnaceTapped;
+    private TMP_Text comboText;
+    private TMP_Text popText;
+    private float popTimer;
     private float barWidth = 260f;
+
+    private readonly Color cleanPopColor = new Color(0.95f, 0.82f, 0.35f);
+    private readonly Color glancingPopColor = new Color(0.75f, 0.8f, 0.85f);
+    private readonly Color missPopColor = new Color(0.7f, 0.35f, 0.32f);
 
     // Hammering phase widgets
     private GameObject hammerGroup;
@@ -47,6 +57,7 @@ public class CraftingMinigameUI : MonoBehaviour
     private TMP_Text targetLabelText;
     private RectTransform powerFillRect;
     private PointerHoldTracker holdButton;
+    private readonly List<GameObject> hitMarks = new List<GameObject>();
 
     private void Awake()
     {
@@ -100,6 +111,25 @@ public class CraftingMinigameUI : MonoBehaviour
         return tmp;
     }
 
+    // Anchored to the parent's left edge / vertical middle - used for every widget inside
+    // tempGroup so they all share one predictable coordinate frame (matches the bar's anchor).
+    private TMP_Text MakeGroupText(Transform parent, string name, int fontSize, Vector2 anchoredPos, Vector2 size, Color color)
+    {
+        var go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        var rect = go.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0f, 0.5f);
+        rect.anchorMax = new Vector2(0f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = anchoredPos;
+        rect.sizeDelta = size;
+        var tmp = go.AddComponent<TextMeshProUGUI>();
+        tmp.fontSize = fontSize;
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.color = color;
+        return tmp;
+    }
+
     private void BuildTemperatureGroup()
     {
         tempGroup = new GameObject("TempGroup", typeof(RectTransform));
@@ -139,18 +169,51 @@ public class CraftingMinigameUI : MonoBehaviour
         needleImage = needle.GetComponent<Image>();
         needleImage.color = Color.white;
 
-        var pumpGO = new GameObject("PumpButton", typeof(RectTransform), typeof(Image), typeof(Button));
-        pumpGO.transform.SetParent(tempGroup.transform, false);
-        var pumpRect = pumpGO.GetComponent<RectTransform>();
-        pumpRect.anchorMin = new Vector2(0f, 0.5f);
-        pumpRect.anchorMax = new Vector2(0f, 0.5f);
-        pumpRect.pivot = new Vector2(0.5f, 1f);
-        pumpRect.anchoredPosition = new Vector2(barWidth * 0.5f, -40f);
-        pumpRect.sizeDelta = new Vector2(180f, 72f);
-        pumpGO.GetComponent<Image>().color = new Color(0.75f, 0.35f, 0.2f);
-        pumpButton = pumpGO.GetComponent<Button>();
-        pumpButton.onClick.AddListener(() => pumpClicked = true);
-        MakeText(pumpGO.transform, "PumpLabel", 17, Vector2.zero, new Vector2(180f, 72f)).text = "TAP TO PUMP";
+        // Furnace pulse-tap widget - replaces the old plain "TAP TO PUMP" button. A ring of
+        // heat pulses outward on a steady beat; tapping close to the beat (not just tapping
+        // often) is what actually raises the temperature efficiently.
+        float centerX = barWidth * 0.5f;
+        float centerY = -170f;
+
+        var strikeRingGO = new GameObject("StrikeRing", typeof(RectTransform), typeof(Image));
+        strikeRingGO.transform.SetParent(tempGroup.transform, false);
+        var strikeRingRect = strikeRingGO.GetComponent<RectTransform>();
+        strikeRingRect.anchorMin = new Vector2(0f, 0.5f);
+        strikeRingRect.anchorMax = new Vector2(0f, 0.5f);
+        strikeRingRect.pivot = new Vector2(0.5f, 0.5f);
+        strikeRingRect.anchoredPosition = new Vector2(centerX, centerY);
+        strikeRingRect.sizeDelta = new Vector2(150f, 150f);
+        var strikeRingImage = strikeRingGO.GetComponent<Image>();
+        strikeRingImage.sprite = UIShapes.Circle();
+        strikeRingImage.color = new Color(1f, 1f, 1f, 0.3f);
+
+        var pulseGO = new GameObject("PulseRing", typeof(RectTransform), typeof(Image));
+        pulseGO.transform.SetParent(tempGroup.transform, false);
+        pulseRingRect = pulseGO.GetComponent<RectTransform>();
+        pulseRingRect.anchorMin = new Vector2(0f, 0.5f);
+        pulseRingRect.anchorMax = new Vector2(0f, 0.5f);
+        pulseRingRect.pivot = new Vector2(0.5f, 0.5f);
+        pulseRingRect.anchoredPosition = new Vector2(centerX, centerY);
+        pulseRingRect.sizeDelta = new Vector2(150f, 150f);
+        var pulseImage = pulseGO.GetComponent<Image>();
+        pulseImage.sprite = UIShapes.Circle();
+        pulseImage.color = new Color(0.95f, 0.55f, 0.25f, 0.7f);
+
+        var coreGO = new GameObject("FurnaceCore", typeof(RectTransform), typeof(Image), typeof(Button));
+        coreGO.transform.SetParent(tempGroup.transform, false);
+        var coreRect = coreGO.GetComponent<RectTransform>();
+        coreRect.anchorMin = new Vector2(0f, 0.5f);
+        coreRect.anchorMax = new Vector2(0f, 0.5f);
+        coreRect.pivot = new Vector2(0.5f, 0.5f);
+        coreRect.anchoredPosition = new Vector2(centerX, centerY);
+        coreRect.sizeDelta = new Vector2(96f, 96f);
+        coreGO.GetComponent<Image>().color = new Color(0.85f, 0.4f, 0.15f);
+        var furnaceButton = coreGO.GetComponent<Button>();
+        furnaceButton.onClick.AddListener(() => furnaceTapped = true);
+        MakeGroupText(coreGO.transform, "CoreLabel", 13, Vector2.zero, new Vector2(96f, 96f), Color.white).text = "TAP";
+
+        comboText = MakeGroupText(tempGroup.transform, "ComboText", 16, new Vector2(centerX + 80f, centerY + 70f), new Vector2(90f, 26f), cleanPopColor);
+        popText = MakeGroupText(tempGroup.transform, "PopText", 15, new Vector2(centerX, centerY + 100f), new Vector2(220f, 26f), Color.white);
 
         tempGroup.SetActive(false);
     }
@@ -228,13 +291,22 @@ public class CraftingMinigameUI : MonoBehaviour
         panel.SetActive(visible);
     }
 
-    public IEnumerator RunTemperature(string title, float duration, float sweetMin, float sweetMax, float pumpBumpAmount, float coolRate, float overheatPenaltyMultiplier, Action<float> onComplete)
+    private void ShowPop(string text, Color color)
+    {
+        popText.text = text;
+        popText.color = color;
+        popTimer = 0.5f;
+    }
+
+    public IEnumerator RunTemperature(string title, float duration, float sweetMin, float sweetMax, float pulsePeriod, float cleanBump, float glancingBump, float coolRate, float overheatPenaltyMultiplier, Action<float> onComplete)
     {
         SetVisible(true);
         tempGroup.SetActive(true);
         titleText.text = title;
         resultText.text = "";
-        instructionText.text = "Tap to pump the bellows - stay in the green zone. Don't overheat!";
+        instructionText.text = "Tap the furnace on the beat - stay in the green zone. Don't overheat!";
+        popText.text = "";
+        comboText.text = "";
 
         sweetZoneRect.anchoredPosition = new Vector2(sweetMin * barWidth, 0f);
         sweetZoneRect.sizeDelta = new Vector2((sweetMax - sweetMin) * barWidth, 26f);
@@ -243,16 +315,55 @@ public class CraftingMinigameUI : MonoBehaviour
         float elapsed = 0f;
         float timeInZone = 0f;
         float overheatTime = 0f;
-        pumpClicked = false;
+        float cycleTimer = 0f;
+        int combo = 0;
+        bool penaltyActive = false;
+        furnaceTapped = false;
+        popTimer = 0f;
 
         while (elapsed < duration)
         {
             elapsed += Time.deltaTime;
-
-            if (pumpClicked)
+            cycleTimer += Time.deltaTime;
+            if (cycleTimer >= pulsePeriod)
             {
-                value = Mathf.Clamp01(value + pumpBumpAmount);
-                pumpClicked = false;
+                cycleTimer -= pulsePeriod;
+            }
+
+            float phase = cycleTimer / pulsePeriod;
+            pulseRingRect.localScale = Vector3.one * Mathf.Lerp(0.15f, 1f, phase);
+
+            if (furnaceTapped)
+            {
+                furnaceTapped = false;
+                PulseHitQuality hit = PulsePump.Judge(phase, penaltyActive ? 0.6f : 1f);
+
+                switch (hit)
+                {
+                    case PulseHitQuality.Clean:
+                        combo++;
+                        float mult = PulsePump.ComboMultiplier(combo);
+                        value = Mathf.Clamp01(value + cleanBump * mult);
+                        penaltyActive = false;
+                        ShowPop(combo > 1 ? "Clean! x" + combo : "Clean!", cleanPopColor);
+                        if (CameraFollow.Instance != null)
+                        {
+                            CameraFollow.Instance.Shake(0.08f, 0.08f);
+                        }
+                        break;
+                    case PulseHitQuality.Glancing:
+                        combo = 0;
+                        value = Mathf.Clamp01(value + glancingBump);
+                        ShowPop("Glancing", glancingPopColor);
+                        break;
+                    default:
+                        combo = 0;
+                        penaltyActive = true;
+                        ShowPop("Miss", missPopColor);
+                        break;
+                }
+
+                comboText.text = combo > 1 ? "x" + combo : "";
             }
             else
             {
@@ -276,6 +387,15 @@ public class CraftingMinigameUI : MonoBehaviour
 
             needleRect.anchoredPosition = new Vector2(value * barWidth, 0f);
 
+            if (popTimer > 0f)
+            {
+                popTimer -= Time.deltaTime;
+                if (popTimer <= 0f)
+                {
+                    popText.text = "";
+                }
+            }
+
             yield return null;
         }
 
@@ -294,6 +414,15 @@ public class CraftingMinigameUI : MonoBehaviour
         hammerGroup.SetActive(true);
         titleText.text = title;
         resultText.text = "";
+
+        for (int i = 0; i < hitMarks.Count; i++)
+        {
+            if (hitMarks[i] != null)
+            {
+                Destroy(hitMarks[i]);
+            }
+        }
+        hitMarks.Clear();
 
         float totalScore = 0f;
 
@@ -339,21 +468,32 @@ public class CraftingMinigameUI : MonoBehaviour
             int actualPercent = Mathf.RoundToInt(power * 100f);
             int diff = Mathf.Abs(actualPercent - targetPercent);
             float roundScore;
+            float shakeAmplitude;
 
             if (diff <= perfectTolerancePercent)
             {
                 roundScore = 1f;
+                shakeAmplitude = 0.16f;
                 resultText.text = "Perfect! (" + actualPercent + "%)";
+                SpawnHitMark();
             }
             else if (diff <= goodTolerancePercent)
             {
                 roundScore = 0.6f;
+                shakeAmplitude = 0.1f;
                 resultText.text = "Good (" + actualPercent + "%)";
+                SpawnHitMark();
             }
             else
             {
                 roundScore = 0.15f;
+                shakeAmplitude = 0f;
                 resultText.text = "Miss (" + actualPercent + "%)";
+            }
+
+            if (shakeAmplitude > 0f && CameraFollow.Instance != null)
+            {
+                CameraFollow.Instance.Shake(shakeAmplitude, 0.1f);
             }
 
             totalScore += roundScore;
@@ -367,5 +507,73 @@ public class CraftingMinigameUI : MonoBehaviour
         hammerGroup.SetActive(false);
         SetVisible(false);
         onComplete?.Invoke(quality);
+    }
+
+    private void SpawnHitMark()
+    {
+        var markGO = new GameObject("HitMark", typeof(RectTransform), typeof(Image));
+        markGO.transform.SetParent(bladeRect, false);
+        var rect = markGO.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = markerRect.anchoredPosition;
+        rect.sizeDelta = new Vector2(10f, 10f);
+        markGO.GetComponent<Image>().color = new Color(0.15f, 0.14f, 0.13f, 0.85f);
+        hitMarks.Add(markGO);
+    }
+
+    public IEnumerator ShowGradeResult(CraftGrade grade, int amount)
+    {
+        SetVisible(true);
+        titleText.text = "Complete!";
+        instructionText.text = "";
+        resultText.text = CraftGradeUtility.DisplayName(grade) + "!  x" + amount;
+        resultText.color = GradeColor(grade);
+
+        if (grade == CraftGrade.Masterwork)
+        {
+            yield return SparkleFlourish();
+        }
+        else
+        {
+            yield return new WaitForSeconds(0.8f);
+        }
+
+        resultText.color = Color.white;
+        SetVisible(false);
+    }
+
+    private IEnumerator SparkleFlourish()
+    {
+        Vector3 baseScale = resultText.transform.localScale;
+        float t = 0f;
+
+        while (t < 0.7f)
+        {
+            t += Time.deltaTime;
+            float s = 1f + Mathf.Sin(t * 14f) * 0.08f * (1f - t / 0.7f);
+            resultText.transform.localScale = baseScale * s;
+            yield return null;
+        }
+
+        resultText.transform.localScale = baseScale;
+    }
+
+    private static Color GradeColor(CraftGrade grade)
+    {
+        switch (grade)
+        {
+            case CraftGrade.Rough:
+                return new Color(0.75f, 0.72f, 0.68f);
+            case CraftGrade.Fine:
+                return new Color(0.55f, 0.85f, 0.6f);
+            case CraftGrade.Superior:
+                return new Color(0.5f, 0.7f, 0.95f);
+            case CraftGrade.Masterwork:
+                return new Color(0.95f, 0.8f, 0.35f);
+            default:
+                return Color.white;
+        }
     }
 }

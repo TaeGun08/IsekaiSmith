@@ -22,11 +22,13 @@ public class CraftingStation : MonoBehaviour
     [SerializeField] private float pulseStrength = 0.12f;
     [SerializeField] private float pulseSpeed = 10f;
 
-    [Header("Temperature Minigame (Melt) - click to pump, idle cools down")]
+    [Header("Smelting Minigame (Pulse Pump) - tap the furnace on the beat, timing matters")]
     [SerializeField] private float temperatureDuration = 4f;
     [SerializeField] private float sweetMin = 0.55f;
     [SerializeField] private float sweetMax = 0.75f;
-    [SerializeField] private float pumpBumpAmount = 0.14f;
+    [SerializeField] private float pulsePeriod = 1f;
+    [SerializeField] private float cleanBump = 0.22f;
+    [SerializeField] private float glancingBump = 0.08f;
     [SerializeField] private float coolRate = 0.35f;
     [SerializeField] private float overheatPenaltyMultiplier = 1.5f;
 
@@ -82,7 +84,7 @@ public class CraftingStation : MonoBehaviour
             InteractionPromptUI.Instance.Show(
                 stationTitle,
                 () => StartCoroutine(CraftWithSilhouetteAndMinigames()),
-                () => ApplyCraft(0.5f, 0));
+                () => ApplyCraft(0.5f, 0, out _));
             promptShown = true;
         }
     }
@@ -114,7 +116,7 @@ public class CraftingStation : MonoBehaviour
 
         float meltQuality = 0.5f;
         yield return CraftingMinigameUI.Instance.RunTemperature(
-            "Melting", temperatureDuration, sweetMin, sweetMax, pumpBumpAmount, coolRate, overheatPenaltyMultiplier,
+            "Melting", temperatureDuration, sweetMin, sweetMax, pulsePeriod, cleanBump, glancingBump, coolRate, overheatPenaltyMultiplier,
             q => meltQuality = q);
 
         float hammerQuality = 0.5f;
@@ -123,15 +125,18 @@ public class CraftingStation : MonoBehaviour
             q => hammerQuality = q);
 
         float quality = (meltQuality + hammerQuality) * 0.5f;
-        ApplyCraft(quality, manaSpent);
+        CraftGrade grade = ApplyCraft(quality, manaSpent, out int amount);
+        yield return CraftingMinigameUI.Instance.ShowGradeResult(grade, amount);
         isCrafting = false;
     }
 
-    private void ApplyCraft(float quality, int manaSpent)
+    private CraftGrade ApplyCraft(float quality, int manaSpent, out int amount)
     {
+        amount = 0;
+
         if (!HasEnoughInputs())
         {
-            return;
+            return CraftGrade.Rough;
         }
 
         ResourceBank.TrySpend(oreType, oreAmount);
@@ -143,18 +148,10 @@ public class CraftingStation : MonoBehaviour
             ResourceBank.TrySpend(manaStoneType, actualMana);
         }
 
-        int amount = outputAmount;
-
-        if (quality >= 0.85f)
-        {
-            amount += 1;
-        }
-        else if (quality >= 0.5f && Random.value < 0.5f)
-        {
-            amount += 1;
-        }
-
+        CraftGrade grade = CraftGradeUtility.GradeFor(quality);
+        amount = outputAmount + CraftGradeUtility.BonusAmount(grade);
         ResourceBank.Add(outputType, amount);
+        return grade;
     }
 
     private void UpdatePulse()

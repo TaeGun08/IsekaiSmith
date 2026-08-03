@@ -589,7 +589,9 @@ MonoBehaviour:
   temperatureDuration: 4
   sweetMin: 0.55
   sweetMax: 0.75
-  pumpBumpAmount: 0.14
+  pulsePeriod: 1
+  cleanBump: 0.22
+  glancingBump: 0.08
   coolRate: 0.35
   overheatPenaltyMultiplier: 1.5
   hammerRounds: 4
