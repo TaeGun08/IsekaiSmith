@@ -22,14 +22,14 @@ public class CraftingStation : MonoBehaviour
     [SerializeField] private float pulseStrength = 0.12f;
     [SerializeField] private float pulseSpeed = 10f;
 
-    [Header("Smelting Minigame (Pulse Pump) - tap the furnace on the beat, timing matters")]
-    [SerializeField] private float temperatureDuration = 4f;
+    [Header("Smelting Minigame (Bellows Pump) - hold to draw, release to pump; don't overdraw")]
+    [SerializeField] private float temperatureDuration = 5f;
     [SerializeField] private float sweetMin = 0.55f;
     [SerializeField] private float sweetMax = 0.75f;
-    [SerializeField] private float pulsePeriod = 1f;
-    [SerializeField] private float cleanBump = 0.22f;
-    [SerializeField] private float glancingBump = 0.08f;
-    [SerializeField] private float coolRate = 0.35f;
+    [SerializeField] private float chargeToFullDuration = 0.9f;
+    [SerializeField] private float cleanBumpMax = 0.3f;
+    [SerializeField] private float instabilityWindow = 0.6f;
+    [SerializeField] private float coolRate = 0.3f;
     [SerializeField] private float overheatPenaltyMultiplier = 1.5f;
 
     [Header("Hammering Minigame (Forge) - tap the blade when the shrinking ring matches the target")]
@@ -116,7 +116,7 @@ public class CraftingStation : MonoBehaviour
 
         float meltQuality = 0.5f;
         yield return CraftingMinigameUI.Instance.RunTemperature(
-            "Melting", temperatureDuration, sweetMin, sweetMax, pulsePeriod, cleanBump, glancingBump, coolRate, overheatPenaltyMultiplier,
+            "Melting", temperatureDuration, sweetMin, sweetMax, chargeToFullDuration, cleanBumpMax, instabilityWindow, coolRate, overheatPenaltyMultiplier,
             q => meltQuality = q);
 
         float hammerQuality = 0.5f;

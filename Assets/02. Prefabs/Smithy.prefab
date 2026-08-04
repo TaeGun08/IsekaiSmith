@@ -586,13 +586,13 @@ MonoBehaviour:
   anvilPulseVisual: {fileID: 440567680809466404}
   pulseStrength: 0.12
   pulseSpeed: 10
-  temperatureDuration: 4
+  temperatureDuration: 5
   sweetMin: 0.55
   sweetMax: 0.75
-  pulsePeriod: 1
-  cleanBump: 0.22
-  glancingBump: 0.08
-  coolRate: 0.35
+  chargeToFullDuration: 0.9
+  cleanBumpMax: 0.3
+  instabilityWindow: 0.6
+  coolRate: 0.3
   overheatPenaltyMultiplier: 1.5
   hammerRounds: 4
   ringShrinkDuration: 1.4

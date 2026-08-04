@@ -8,8 +8,8 @@ using UnityEngine.UI;
 // Self-contained: builds its own Canvas/UI in Awake so no scene wiring is needed.
 // CraftingStation calls CraftingMinigameUI.Instance.RunTemperature/RunHammering/ShowGradeResult.
 // Input is tap/hold (mouse or touch) - no keyboard dependency, mobile-friendly.
-// Timing/quality judgement itself lives in PulsePump / CraftGradeUtility (pure logic, no UI
-// dependency) - this class only renders and orchestrates, it doesn't decide what counts as good.
+// Grade/reward judgement lives in CraftGradeUtility (pure logic, no UI dependency) - this class
+// only renders and orchestrates, it doesn't decide what counts as good.
 public class CraftingMinigameUI : MonoBehaviour
 {
     private static CraftingMinigameUI instance;
@@ -34,21 +34,21 @@ public class CraftingMinigameUI : MonoBehaviour
     private TMP_Text instructionText;
     private TMP_Text resultText;
 
-    // Temperature phase widgets
+    // Temperature phase widgets - bellows lever: hold to draw air, release to pump a puff of
+    // heat. Holding well past a full charge makes the next puff's strength unpredictable, so
+    // "how long to hold" is a real decision each pump, not a free spam button.
     private GameObject tempGroup;
     private RectTransform sweetZoneRect;
     private RectTransform needleRect;
     private Image needleImage;
-    private RectTransform pulseRingRect;
-    private bool furnaceTapped;
-    private TMP_Text comboText;
-    private TMP_Text popText;
-    private float popTimer;
+    private Image crucibleImage;
+    private RectTransform chargeGaugeFillRect;
+    private PointerHoldTracker leverHoldTracker;
     private float barWidth = 460f;
 
-    private readonly Color cleanPopColor = new Color(0.95f, 0.82f, 0.35f);
-    private readonly Color glancingPopColor = new Color(0.75f, 0.8f, 0.85f);
-    private readonly Color missPopColor = new Color(0.7f, 0.35f, 0.32f);
+    private readonly Color crucibleCoolColor = new Color(0.45f, 0.2f, 0.14f);
+    private readonly Color crucibleHotColor = new Color(1f, 0.85f, 0.3f);
+    private readonly Color crucibleOverheatColor = new Color(1f, 0.35f, 0.25f);
 
     // Hammering phase widgets - direct tap on the blade, no separate hold button.
     private GameObject hammerGroup;
@@ -57,6 +57,7 @@ public class CraftingMinigameUI : MonoBehaviour
     private bool bladeTapped;
     private RectTransform targetRingRect;
     private RectTransform approachRingRect;
+    private RectTransform hammerIconRect;
     private readonly List<GameObject> hitMarks = new List<GameObject>();
 
     private void Awake()
@@ -169,51 +170,53 @@ public class CraftingMinigameUI : MonoBehaviour
         needleImage = needle.GetComponent<Image>();
         needleImage.color = Color.white;
 
-        // Furnace pulse-tap widget. NOTE: this mechanic is under review per player feedback
-        // ("이게 아니었어") - kept functional but flagged for a follow-up redesign pass rather
-        // than guessed at again blind. Only sizes here were enlarged to match the bigger panel.
+        // Bellows widget: crucible (color shifts with heat) + vertical charge gauge + hold lever.
         float centerX = barWidth * 0.5f;
-        float centerY = -280f;
+        float centerY = -260f;
 
-        var strikeRingGO = new GameObject("StrikeRing", typeof(RectTransform), typeof(Image));
-        strikeRingGO.transform.SetParent(tempGroup.transform, false);
-        var strikeRingRect = strikeRingGO.GetComponent<RectTransform>();
-        strikeRingRect.anchorMin = new Vector2(0f, 0.5f);
-        strikeRingRect.anchorMax = new Vector2(0f, 0.5f);
-        strikeRingRect.pivot = new Vector2(0.5f, 0.5f);
-        strikeRingRect.anchoredPosition = new Vector2(centerX, centerY);
-        strikeRingRect.sizeDelta = new Vector2(260f, 260f);
-        var strikeRingImage = strikeRingGO.GetComponent<Image>();
-        strikeRingImage.sprite = UIShapes.Circle();
-        strikeRingImage.color = new Color(1f, 1f, 1f, 0.3f);
+        var crucibleGO = new GameObject("Crucible", typeof(RectTransform), typeof(Image));
+        crucibleGO.transform.SetParent(tempGroup.transform, false);
+        var crucibleRect = crucibleGO.GetComponent<RectTransform>();
+        crucibleRect.anchorMin = new Vector2(0f, 0.5f);
+        crucibleRect.anchorMax = new Vector2(0f, 0.5f);
+        crucibleRect.pivot = new Vector2(0.5f, 0.5f);
+        crucibleRect.anchoredPosition = new Vector2(centerX, centerY);
+        crucibleRect.sizeDelta = new Vector2(220f, 220f);
+        crucibleImage = crucibleGO.GetComponent<Image>();
+        crucibleImage.sprite = UIShapes.Circle();
+        crucibleImage.color = crucibleCoolColor;
 
-        var pulseGO = new GameObject("PulseRing", typeof(RectTransform), typeof(Image));
-        pulseGO.transform.SetParent(tempGroup.transform, false);
-        pulseRingRect = pulseGO.GetComponent<RectTransform>();
-        pulseRingRect.anchorMin = new Vector2(0f, 0.5f);
-        pulseRingRect.anchorMax = new Vector2(0f, 0.5f);
-        pulseRingRect.pivot = new Vector2(0.5f, 0.5f);
-        pulseRingRect.anchoredPosition = new Vector2(centerX, centerY);
-        pulseRingRect.sizeDelta = new Vector2(260f, 260f);
-        var pulseImage = pulseGO.GetComponent<Image>();
-        pulseImage.sprite = UIShapes.Circle();
-        pulseImage.color = new Color(0.95f, 0.55f, 0.25f, 0.7f);
+        var chargeGaugeBg = new GameObject("ChargeGaugeBg", typeof(RectTransform), typeof(Image));
+        chargeGaugeBg.transform.SetParent(tempGroup.transform, false);
+        var chargeGaugeBgRect = chargeGaugeBg.GetComponent<RectTransform>();
+        chargeGaugeBgRect.anchorMin = new Vector2(0f, 0.5f);
+        chargeGaugeBgRect.anchorMax = new Vector2(0f, 0.5f);
+        chargeGaugeBgRect.pivot = new Vector2(0.5f, 0f);
+        chargeGaugeBgRect.anchoredPosition = new Vector2(centerX + 150f, centerY - 110f);
+        chargeGaugeBgRect.sizeDelta = new Vector2(28f, 220f);
+        chargeGaugeBg.GetComponent<Image>().color = new Color(0.22f, 0.2f, 0.18f);
 
-        var coreGO = new GameObject("FurnaceCore", typeof(RectTransform), typeof(Image), typeof(Button));
-        coreGO.transform.SetParent(tempGroup.transform, false);
-        var coreRect = coreGO.GetComponent<RectTransform>();
-        coreRect.anchorMin = new Vector2(0f, 0.5f);
-        coreRect.anchorMax = new Vector2(0f, 0.5f);
-        coreRect.pivot = new Vector2(0.5f, 0.5f);
-        coreRect.anchoredPosition = new Vector2(centerX, centerY);
-        coreRect.sizeDelta = new Vector2(170f, 170f);
-        coreGO.GetComponent<Image>().color = new Color(0.85f, 0.4f, 0.15f);
-        var furnaceButton = coreGO.GetComponent<Button>();
-        furnaceButton.onClick.AddListener(() => furnaceTapped = true);
-        MakeGroupText(coreGO.transform, "CoreLabel", 20, Vector2.zero, new Vector2(170f, 170f), Color.white).text = "TAP";
+        var chargeGaugeFillGO = new GameObject("ChargeGaugeFill", typeof(RectTransform), typeof(Image));
+        chargeGaugeFillGO.transform.SetParent(chargeGaugeBg.transform, false);
+        chargeGaugeFillRect = chargeGaugeFillGO.GetComponent<RectTransform>();
+        chargeGaugeFillRect.anchorMin = new Vector2(0f, 0f);
+        chargeGaugeFillRect.anchorMax = new Vector2(1f, 0f);
+        chargeGaugeFillRect.pivot = new Vector2(0.5f, 0f);
+        chargeGaugeFillRect.offsetMin = Vector2.zero;
+        chargeGaugeFillRect.sizeDelta = new Vector2(0f, 0f);
+        chargeGaugeFillGO.GetComponent<Image>().color = new Color(0.95f, 0.7f, 0.3f);
 
-        comboText = MakeGroupText(tempGroup.transform, "ComboText", 24, new Vector2(centerX + 150f, centerY + 140f), new Vector2(150f, 44f), cleanPopColor);
-        popText = MakeGroupText(tempGroup.transform, "PopText", 22, new Vector2(centerX, centerY + 190f), new Vector2(360f, 44f), Color.white);
+        var leverGO = new GameObject("BellowsLever", typeof(RectTransform), typeof(Image), typeof(PointerHoldTracker));
+        leverGO.transform.SetParent(tempGroup.transform, false);
+        var leverRect = leverGO.GetComponent<RectTransform>();
+        leverRect.anchorMin = new Vector2(0f, 0.5f);
+        leverRect.anchorMax = new Vector2(0f, 0.5f);
+        leverRect.pivot = new Vector2(0.5f, 0.5f);
+        leverRect.anchoredPosition = new Vector2(centerX, centerY - 190f);
+        leverRect.sizeDelta = new Vector2(300f, 84f);
+        leverGO.GetComponent<Image>().color = new Color(0.5f, 0.35f, 0.2f);
+        leverHoldTracker = leverGO.GetComponent<PointerHoldTracker>();
+        MakeGroupText(leverGO.transform, "LeverLabel", 16, Vector2.zero, new Vector2(300f, 84f), Color.white).text = "HOLD TO DRAW, RELEASE TO PUMP";
 
         tempGroup.SetActive(false);
     }
@@ -271,6 +274,18 @@ public class CraftingMinigameUI : MonoBehaviour
         targetRingGO.SetActive(false);
         approachRingGO.SetActive(false);
 
+        var hammerIconGO = new GameObject("HammerIcon", typeof(RectTransform), typeof(Image));
+        hammerIconGO.transform.SetParent(blade.transform, false);
+        hammerIconRect = hammerIconGO.GetComponent<RectTransform>();
+        hammerIconRect.anchorMin = new Vector2(0.5f, 0.5f);
+        hammerIconRect.anchorMax = new Vector2(0.5f, 0.5f);
+        hammerIconRect.pivot = new Vector2(0.5f, 1f);
+        hammerIconRect.sizeDelta = new Vector2(60f, 46f);
+        var hammerIconImage = hammerIconGO.GetComponent<Image>();
+        hammerIconImage.color = new Color(0.5f, 0.5f, 0.55f);
+        hammerIconImage.raycastTarget = false;
+        hammerIconGO.SetActive(false);
+
         hammerGroup.SetActive(false);
     }
 
@@ -279,22 +294,17 @@ public class CraftingMinigameUI : MonoBehaviour
         panel.SetActive(visible);
     }
 
-    private void ShowPop(string text, Color color)
-    {
-        popText.text = text;
-        popText.color = color;
-        popTimer = 0.5f;
-    }
-
-    public IEnumerator RunTemperature(string title, float duration, float sweetMin, float sweetMax, float pulsePeriod, float cleanBump, float glancingBump, float coolRate, float overheatPenaltyMultiplier, Action<float> onComplete)
+    // Bellows pump: hold the lever to draw air in (charge gauge fills over chargeToFullDuration),
+    // release to pump a puff of heat sized by how much was charged. Holding past a full charge
+    // makes the puff's strength unpredictable (instability window) instead of just bigger, so
+    // "release now or risk it" is a real decision on every single pump.
+    public IEnumerator RunTemperature(string title, float duration, float sweetMin, float sweetMax, float chargeToFullDuration, float cleanBumpMax, float instabilityWindow, float coolRate, float overheatPenaltyMultiplier, Action<float> onComplete)
     {
         SetVisible(true);
         tempGroup.SetActive(true);
         titleText.text = title;
         resultText.text = "";
-        instructionText.text = "Tap the furnace on the beat - stay in the green zone. Don't overheat!";
-        popText.text = "";
-        comboText.text = "";
+        instructionText.text = "Hold the lever to draw air, release to pump - don't overdraw it!";
 
         sweetZoneRect.anchoredPosition = new Vector2(sweetMin * barWidth, 0f);
         sweetZoneRect.sizeDelta = new Vector2((sweetMax - sweetMin) * barWidth, 30f);
@@ -303,86 +313,57 @@ public class CraftingMinigameUI : MonoBehaviour
         float elapsed = 0f;
         float timeInZone = 0f;
         float overheatTime = 0f;
-        float cycleTimer = 0f;
-        int combo = 0;
-        bool penaltyActive = false;
-        furnaceTapped = false;
-        popTimer = 0f;
+        bool wasHeld = false;
+        chargeGaugeFillRect.anchorMax = new Vector2(1f, 0f);
+        crucibleImage.color = crucibleCoolColor;
 
         while (elapsed < duration)
         {
             elapsed += Time.deltaTime;
-            cycleTimer += Time.deltaTime;
-            if (cycleTimer >= pulsePeriod)
+
+            bool isHeld = leverHoldTracker.IsHeld;
+            float heldTime = leverHoldTracker.HeldDuration;
+            float chargeLevel = Mathf.Clamp01(heldTime / chargeToFullDuration);
+            chargeGaugeFillRect.anchorMax = new Vector2(1f, isHeld ? chargeLevel : 0f);
+
+            if (wasHeld && leverHoldTracker.WasReleasedThisFrame)
             {
-                cycleTimer -= pulsePeriod;
-            }
+                float overheldTime = Mathf.Max(0f, heldTime - chargeToFullDuration);
+                float instability = Mathf.Clamp01(overheldTime / instabilityWindow);
+                float puff = chargeLevel * cleanBumpMax * UnityEngine.Random.Range(1f - instability * 0.6f, 1f + instability * 0.6f);
+                value = Mathf.Clamp01(value + Mathf.Max(0f, puff));
 
-            float phase = cycleTimer / pulsePeriod;
-            pulseRingRect.localScale = Vector3.one * Mathf.Lerp(0.15f, 1f, phase);
-
-            if (furnaceTapped)
-            {
-                furnaceTapped = false;
-                PulseHitQuality hit = PulsePump.Judge(phase, penaltyActive ? 0.6f : 1f);
-
-                switch (hit)
+                if (CameraFollow.Instance != null)
                 {
-                    case PulseHitQuality.Clean:
-                        combo++;
-                        float mult = PulsePump.ComboMultiplier(combo);
-                        value = Mathf.Clamp01(value + cleanBump * mult);
-                        penaltyActive = false;
-                        ShowPop(combo > 1 ? "Clean! x" + combo : "Clean!", cleanPopColor);
-                        if (CameraFollow.Instance != null)
-                        {
-                            CameraFollow.Instance.Shake(0.08f, 0.08f);
-                        }
-                        break;
-                    case PulseHitQuality.Glancing:
-                        combo = 0;
-                        value = Mathf.Clamp01(value + glancingBump);
-                        ShowPop("Glancing", glancingPopColor);
-                        break;
-                    default:
-                        combo = 0;
-                        penaltyActive = true;
-                        ShowPop("Miss", missPopColor);
-                        break;
+                    CameraFollow.Instance.Shake(0.07f, 0.08f);
                 }
-
-                comboText.text = combo > 1 ? "x" + combo : "";
             }
-            else
+            else if (!isHeld)
             {
                 value = Mathf.Clamp01(value - coolRate * Time.deltaTime);
             }
+
+            wasHeld = isHeld;
 
             if (value >= sweetMin && value <= sweetMax)
             {
                 timeInZone += Time.deltaTime;
                 needleImage.color = Color.white;
+                crucibleImage.color = Color.Lerp(crucibleCoolColor, crucibleHotColor, Mathf.Clamp01(value));
             }
             else if (value > sweetMax)
             {
                 overheatTime += Time.deltaTime;
                 needleImage.color = new Color(0.95f, 0.3f, 0.25f);
+                crucibleImage.color = crucibleOverheatColor;
             }
             else
             {
                 needleImage.color = new Color(0.6f, 0.75f, 0.95f);
+                crucibleImage.color = Color.Lerp(crucibleCoolColor, crucibleHotColor, Mathf.Clamp01(value));
             }
 
             needleRect.anchoredPosition = new Vector2(value * barWidth, 0f);
-
-            if (popTimer > 0f)
-            {
-                popTimer -= Time.deltaTime;
-                if (popTimer <= 0f)
-                {
-                    popText.text = "";
-                }
-            }
 
             yield return null;
         }
@@ -455,6 +436,7 @@ public class CraftingMinigameUI : MonoBehaviour
                 {
                     bladeTapped = false;
                     tapped = true;
+                    StartCoroutine(PlayHammerSwing(pos));
                 }
 
                 yield return null;
@@ -510,6 +492,39 @@ public class CraftingMinigameUI : MonoBehaviour
         hammerGroup.SetActive(false);
         SetVisible(false);
         onComplete?.Invoke(quality);
+    }
+
+    // Sells "I'm hitting this exact spot" - plays on every tap regardless of the round's
+    // judgement, so the click itself always reads as a real hammer strike.
+    private IEnumerator PlayHammerSwing(Vector2 position)
+    {
+        hammerIconRect.gameObject.SetActive(true);
+        Vector2 upPosition = position + new Vector2(0f, 130f);
+        hammerIconRect.anchoredPosition = upPosition;
+        hammerIconRect.localRotation = Quaternion.identity;
+
+        float t = 0f;
+        const float downDuration = 0.09f;
+        while (t < downDuration)
+        {
+            t += Time.deltaTime;
+            float p = Mathf.Clamp01(t / downDuration);
+            hammerIconRect.anchoredPosition = Vector2.Lerp(upPosition, position, p);
+            hammerIconRect.localRotation = Quaternion.Euler(0f, 0f, Mathf.Lerp(-25f, 0f, p));
+            yield return null;
+        }
+
+        t = 0f;
+        const float upDuration = 0.16f;
+        while (t < upDuration)
+        {
+            t += Time.deltaTime;
+            float p = Mathf.Clamp01(t / upDuration);
+            hammerIconRect.anchoredPosition = Vector2.Lerp(position, upPosition, p);
+            yield return null;
+        }
+
+        hammerIconRect.gameObject.SetActive(false);
     }
 
     private void SpawnHitMark(Vector2 position)
