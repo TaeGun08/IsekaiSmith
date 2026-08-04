@@ -77,7 +77,7 @@ public class CarryStack : MonoBehaviour
 
         Vector3 targetLocalPosition = new Vector3(0f, index * height, zOffset);
 
-        GameObject instance = Instantiate(itemPrefab, worldStartPosition, Quaternion.identity);
+        GameObject instance = GameObjectPool.Instance.Spawn(itemPrefab, worldStartPosition, Quaternion.identity);
         StartCoroutine(FlyToStack(instance.transform, worldStartPosition, targetLocalPosition, layer));
         return true;
     }
@@ -90,7 +90,8 @@ public class CarryStack : MonoBehaviour
         {
             if (items[i] != null)
             {
-                Destroy(items[i].gameObject);
+                items[i].SetParent(null, true);
+                GameObjectPool.Instance.Despawn(items[i].gameObject);
             }
         }
 
@@ -168,7 +169,7 @@ public class CarryStack : MonoBehaviour
 
         if (item != null)
         {
-            Destroy(item.gameObject);
+            GameObjectPool.Instance.Despawn(item.gameObject);
         }
     }
 
@@ -227,7 +228,7 @@ public class CarryStack : MonoBehaviour
 
         if (stackAnchor == null)
         {
-            Destroy(item.gameObject);
+            GameObjectPool.Instance.Despawn(item.gameObject);
             yield break;
         }
 

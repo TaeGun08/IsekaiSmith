@@ -29,6 +29,8 @@ public class WoodNode : MonoBehaviour
     [SerializeField] private float cameraShakeAmplitude = 0.12f;
     [SerializeField] private float cameraShakeDuration = 0.1f;
 
+    private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+
     private Collider triggerCollider;
     private Vector3 spawnPosition;
     private int currentHits;
@@ -37,6 +39,7 @@ public class WoodNode : MonoBehaviour
     private Coroutine hitShakeRoutine;
     private Color trunkBaseColor;
     private Vector3 foliageBaseScale;
+    private MaterialPropertyBlock propertyBlock;
 
     public bool IsAvailable => isAvailable;
 
@@ -52,7 +55,10 @@ public class WoodNode : MonoBehaviour
 
         if (trunkRenderer != null)
         {
-            trunkBaseColor = trunkRenderer.material.color;
+            // sharedMaterial (not .material) + MaterialPropertyBlock so per-tree damage tinting
+            // doesn't clone a unique Material instance for every tree in the field.
+            trunkBaseColor = trunkRenderer.sharedMaterial.color;
+            propertyBlock = new MaterialPropertyBlock();
         }
 
         if (foliage != null)
@@ -108,7 +114,7 @@ public class WoodNode : MonoBehaviour
 
         if (trunkRenderer != null)
         {
-            trunkRenderer.material.color = Color.Lerp(trunkBaseColor, trunkDamagedColor, stage);
+            SetTrunkColor(Color.Lerp(trunkBaseColor, trunkDamagedColor, stage));
         }
 
         if (foliage != null)
@@ -121,13 +127,20 @@ public class WoodNode : MonoBehaviour
     {
         if (trunkRenderer != null)
         {
-            trunkRenderer.material.color = trunkBaseColor;
+            SetTrunkColor(trunkBaseColor);
         }
 
         if (foliage != null)
         {
             foliage.localScale = foliageBaseScale;
         }
+    }
+
+    private void SetTrunkColor(Color color)
+    {
+        trunkRenderer.GetPropertyBlock(propertyBlock);
+        propertyBlock.SetColor(BaseColorId, color);
+        trunkRenderer.SetPropertyBlock(propertyBlock);
     }
 
     private void SpawnLeafChips()
@@ -141,7 +154,7 @@ public class WoodNode : MonoBehaviour
 
         for (int i = 0; i < leafChipCount; i++)
         {
-            GameObject chip = Instantiate(chipPrefab, origin, Random.rotation);
+            GameObject chip = GameObjectPool.Instance.Spawn(chipPrefab, origin, Random.rotation);
 
             Vector3 direction = Random.insideUnitSphere;
             direction.y = Mathf.Abs(direction.y) + 0.3f;
@@ -162,7 +175,7 @@ public class WoodNode : MonoBehaviour
 
         for (int i = 0; i < chipCount; i++)
         {
-            GameObject chip = Instantiate(chipPrefab, origin, Random.rotation);
+            GameObject chip = GameObjectPool.Instance.Spawn(chipPrefab, origin, Random.rotation);
 
             Vector3 direction = Random.insideUnitSphere;
             direction.y = Mathf.Abs(direction.y) + 0.3f;
@@ -194,7 +207,7 @@ public class WoodNode : MonoBehaviour
 
         if (chip != null)
         {
-            Destroy(chip.gameObject);
+            GameObjectPool.Instance.Despawn(chip.gameObject);
         }
     }
 

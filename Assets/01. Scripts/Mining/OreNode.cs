@@ -27,6 +27,8 @@ public class OreNode : MonoBehaviour
     [SerializeField] private float cameraShakeAmplitude = 0.12f;
     [SerializeField] private float cameraShakeDuration = 0.1f;
 
+    private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+
     private Collider triggerCollider;
     private Vector3 visualRestPosition;
     private int currentHits;
@@ -34,6 +36,7 @@ public class OreNode : MonoBehaviour
     private bool isAvailable = true;
     private Coroutine hitShakeRoutine;
     private Color rockBaseColor;
+    private MaterialPropertyBlock propertyBlock;
 
     public bool IsAvailable => isAvailable;
 
@@ -48,7 +51,10 @@ public class OreNode : MonoBehaviour
 
         if (rockRenderer != null)
         {
-            rockBaseColor = rockRenderer.material.color;
+            // sharedMaterial (not .material) + MaterialPropertyBlock so per-node damage tinting
+            // doesn't clone a unique Material instance for every ore node in the field.
+            rockBaseColor = rockRenderer.sharedMaterial.color;
+            propertyBlock = new MaterialPropertyBlock();
         }
     }
 
@@ -100,15 +106,22 @@ public class OreNode : MonoBehaviour
         }
 
         float stage = Mathf.Clamp01((float)hits / hitsToBreak);
-        rockRenderer.material.color = Color.Lerp(rockBaseColor, rockDamagedColor, stage);
+        SetRockColor(Color.Lerp(rockBaseColor, rockDamagedColor, stage));
     }
 
     private void ResetDamageVisual()
     {
         if (rockRenderer != null)
         {
-            rockRenderer.material.color = rockBaseColor;
+            SetRockColor(rockBaseColor);
         }
+    }
+
+    private void SetRockColor(Color color)
+    {
+        rockRenderer.GetPropertyBlock(propertyBlock);
+        propertyBlock.SetColor(BaseColorId, color);
+        rockRenderer.SetPropertyBlock(propertyBlock);
     }
 
     private void PlayHitShake()
@@ -199,7 +212,7 @@ public class OreNode : MonoBehaviour
 
         for (int i = 0; i < count; i++)
         {
-            GameObject fragment = Instantiate(fragmentPrefab, origin, Random.rotation);
+            GameObject fragment = GameObjectPool.Instance.Spawn(fragmentPrefab, origin, Random.rotation);
 
             Vector3 direction = Random.insideUnitSphere;
             direction.y = Mathf.Abs(direction.y) + 0.3f;
@@ -231,7 +244,7 @@ public class OreNode : MonoBehaviour
 
         if (fragment != null)
         {
-            Destroy(fragment.gameObject);
+            GameObjectPool.Instance.Despawn(fragment.gameObject);
         }
     }
 

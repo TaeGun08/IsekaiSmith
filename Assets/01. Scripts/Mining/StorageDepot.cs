@@ -8,6 +8,7 @@ public class StorageDepot : MonoBehaviour
 
     private int storedAmount;
     private float depositTimer;
+    private CarryStack playerCarryStack;
 
     public CarryLayer AcceptedLayer => acceptedLayer;
     public int StoredAmount => storedAmount;
@@ -31,12 +32,18 @@ public class StorageDepot : MonoBehaviour
             return;
         }
 
-        CarryStack carryStack = PlayerMotor.Instance.GetComponentInChildren<CarryStack>();
-        if (carryStack == null)
+        // Cached once - PlayerMotor.Instance is a singleton for the whole session, so its
+        // CarryStack child never changes; no need to re-resolve it every idle frame in range.
+        if (playerCarryStack == null)
         {
-            return;
+            playerCarryStack = PlayerMotor.Instance.GetComponentInChildren<CarryStack>();
+            if (playerCarryStack == null)
+            {
+                return;
+            }
         }
 
+        CarryStack carryStack = playerCarryStack;
         int amount = carryStack.GetCount(acceptedLayer);
         if (amount <= 0)
         {
