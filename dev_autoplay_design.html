@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>이세계 대장장이 - 개발자 자동 플레이 모드 기획</title>
+<style>
+  :root {
+    --ink: #2b2420; --paper: #f6f1e7; --card: #ffffff; --border: #dcd3c2; --accent: #b5651d;
+    --good: #4f8f5f; --warn: #c1440e; --blue: #4472a8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 20px 80px; background: var(--paper); color: var(--ink);
+    font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .doc { width: 100%; max-width: 1080px; }
+  h1 { font-size: 25px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 8px; color: #6b6155; font-size: 14px; }
+  p.pitch {
+    font-size: 15px; line-height: 1.75; background: var(--card); border: 1px solid var(--border);
+    border-left: 4px solid var(--accent); border-radius: 8px; padding: 16px 18px; margin: 16px 0 32px;
+  }
+  h2 { font-size: 19px; margin: 46px 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+  h2 .num { color: var(--accent); margin-right: 8px; }
+  h3 { font-size: 14.5px; margin: 20px 0 10px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); }
+  .note { font-size: 12.5px; color: #6b6155; line-height: 1.7; margin-top: 8px; }
+  .qa-list { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.9; }
+  .qa-list li b { color: var(--accent); }
+
+  .flow-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top: 12px; justify-content:center; }
+  .flow-step { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:12px; text-align:center; min-width: 100px; }
+  .flow-arrow { color: var(--accent); font-size:16px; }
+
+  .option-grid { display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-top:14px; }
+  @media (max-width: 760px) { .option-grid { grid-template-columns: 1fr; } }
+  .option-card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
+  .option-card.recommended { border: 2px solid var(--good); }
+  .option-title { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+  .option-title h4 { margin:0; font-size:14px; }
+  .rec-badge { font-size:10px; font-weight:bold; color:#fff; background:var(--good); border-radius:999px; padding:3px 9px; }
+  .option-card p { font-size:12px; line-height:1.7; margin:0; }
+
+  .phone { width: 220px; height: 390px; background: #1c1a18; border-radius: 22px; padding: 10px; box-shadow: 0 4px 14px rgba(0,0,0,0.25); margin: 0 auto; }
+  .phone-screen { width: 100%; height: 100%; background: #2f4a26; border-radius: 14px; position: relative; overflow: hidden; }
+  .toggle-btn { position:absolute; top:14px; left:14px; background:rgba(0,0,0,0.55); color:#7fd88f; font-size:10px; font-weight:bold; padding:6px 10px; border-radius:8px; border:1px solid #7fd88f; }
+  .toggle-btn.off { color:#cfc9c1; border-color:#6b6155; }
+  .bot-dot { position:absolute; width:14px; height:14px; border-radius:50%; background:#f2d16b; box-shadow:0 0 8px #f2d16b; }
+  .path-dash { position:absolute; border-top:2px dashed rgba(242,209,107,0.5); }
+  .log-box { position:absolute; bottom:14px; left:14px; right:14px; background:rgba(0,0,0,0.55); border-radius:8px; padding:8px; color:#cfe8cf; font-size:7.5px; line-height:1.6; }
+
+  table.spec { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12.5px; }
+  table.spec th, table.spec td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+  table.spec th { background: #efe8d9; font-size: 12px; width: 150px; }
+
+  footer { margin-top: 40px; font-size: 12px; color: #948a7c; text-align: center; }
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <h1>개발자 자동 플레이 모드 기획</h1>
+  <p class="sub">dev_autoplay_design.html · 테스트용 봇 설계</p>
+  <p class="pitch">
+    채집→보관→제작 루프를 매번 손으로 반복하지 않고, 특히 <b>등급 RNG 분포</b>와 이번에 넣은
+    <b>풀링/훅 시스템의 회귀 여부</b>를 빠르게 확인하기 위한 개발자 전용 자동 플레이 봇입니다.
+    출시 빌드에는 절대 포함되지 않도록 처음부터 조건부 컴파일로 격리합니다.
+  </p>
+
+  <h2><span class="num">1.</span> 전체 흐름</h2>
+  <div class="card">
+    <div class="flow-row">
+      <div class="flow-step">대기<br><span style="color:#6b6155; font-size:10px;">Idle</span></div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">목표 선정<br><span style="color:#6b6155; font-size:10px;">우선순위 판단</span></div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">이동<br><span style="color:#6b6155; font-size:10px;">가상 입력</span></div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">자동 상호작용<br><span style="color:#6b6155; font-size:10px;">채집/예치/제작</span></div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">로그 기록</div>
+    </div>
+    <p class="note" style="text-align:center;">한 사이클이 끝나면 다시 목표 선정으로 돌아가 반복 - 완전 자율 루프</p>
+  </div>
+
+  <h2><span class="num">2.</span> 목표 우선순위</h2>
+  <div class="card">
+    <ul class="qa-list">
+      <li>등에 짊어진 광물/목재가 가득 찼다 → <b>가장 가까운 보관함으로 이동해 예치</b></li>
+      <li>제작에 필요한 재료(광물 2 + 목재 1)를 이미 보유 중이다 → <b>대장간으로 이동해 제작</b></li>
+      <li>그 외 → <b>가장 가까운 미채집 나무/광석 중 하나로 이동해 채집</b></li>
+    </ul>
+    <p class="note">이동은 새 로직을 만들지 않고 실제 플레이어와 똑같이
+    <code>PlayerMotor.SetKeyboardInput()</code>에 목표 방향 벡터를 밀어넣는 방식으로 처리합니다.
+    이동/충돌/카메라 관련 버그도 같은 경로로 같이 검증됩니다.</p>
+  </div>
+
+  <h2><span class="num">3.</span> 제작 자동화 범위</h2>
+  <div class="option-grid">
+    <div class="option-card recommended">
+      <div class="option-title"><h4>A. 즉석 제작(QUICK CRAFT)만 자동화</h4><span class="rec-badge">추천</span></div>
+      <p><code>CraftingStation</code>에 테스트 전용 훅 <code>TryDevQuickCraft()</code> 하나만 추가해서
+      QUICK CRAFT 경로를 트리거합니다. 미니게임 로직 자체는 건드리지 않고, 자원 경제/등급 확률/풀링
+      회귀를 빠르게 대량으로 검증하는 데 집중합니다.</p>
+    </div>
+    <div class="option-card">
+      <div class="option-title"><h4>B. 미니게임까지 자동 플레이</h4></div>
+      <p>풀무질 홀드-릴리즈 타이밍, 망치 클릭 타이밍까지 흉내내는 시뮬레이션 로직이 별도로
+      필요합니다. 구현 비용이 높은데, 미니게임 자체의 손맛 검증은 어차피 사람이 직접 해봐야 해서
+      지금 당장의 이득은 적습니다. 필요해지면 나중에 추가.</p>
+    </div>
+  </div>
+
+  <h2><span class="num">4.</span> 켜고 끄는 방식</h2>
+  <div class="option-grid">
+    <div class="option-card recommended">
+      <div class="option-title"><h4>A. 화면 구석 토글 버튼</h4><span class="rec-badge">추천</span></div>
+      <p>좌상단에 작은 "AUTO PLAY" 버튼. 터치로 켜고 끌 수 있어서 <b>실기기 개발 빌드</b>에서도 확인
+      가능합니다 - 모바일 게임이라 결국 기기에서도 검증해야 하니 처음부터 이 방식이 낫습니다.</p>
+    </div>
+    <div class="option-card">
+      <div class="option-title"><h4>B. 에디터 전용 키 단축키</h4></div>
+      <p>예: F9. 구현은 더 간단하지만 에디터 안에서만 쓸 수 있고, 빌드된 기기에서는 켤 방법이 없습니다.</p>
+    </div>
+  </div>
+
+  <h2><span class="num">5.</span> 로그 &amp; 통계</h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.7;">매 제작마다 등급/수량을 콘솔에 로그로 남기고,
+    <b>N회마다 등급 분포 요약</b>(Rough~Legendary 각각 몇 번 나왔는지)을 찍어서 확률 밸런스를 눈으로
+    확인할 수 있게 합니다.</p>
+    <div class="phone"><div class="phone-screen">
+      <div class="toggle-btn">AUTO PLAY: ON</div>
+      <div class="bot-dot" style="top:180px; left:100px;"></div>
+      <div class="path-dash" style="top:190px; left:60px; width:120px; transform:rotate(-15deg);"></div>
+      <div class="log-box">
+        [12] Craft -&gt; Fine x1<br>
+        [13] Craft -&gt; Superior x2<br>
+        [14] Craft -&gt; Rough x1<br>
+        --- 50 crafts: Rough 9 / Common 14 / Fine 15 / Superior 8 / Exceptional 3 / Masterwork 1 / Legendary 0 ---
+      </div>
+    </div></div>
+    <p class="note" style="text-align:center;">화면 좌상단 토글, 노란 점 = 봇 목표 이동 경로, 하단 로그 박스에 최근 결과 + 주기적 등급 분포 요약</p>
+  </div>
+
+  <h2><span class="num">6.</span> 빌드 격리</h2>
+  <div class="card">
+    <table class="spec">
+      <tr><th>조건부 컴파일</th><td><code>#if UNITY_EDITOR || DEVELOPMENT_BUILD</code>로 클래스 전체를 감싸서
+      출시 빌드에는 코드 자체가 포함되지 않게 합니다.</td></tr>
+      <tr><th>기본 상태</th><td>토글은 항상 OFF로 시작 - 실수로 켜진 채 플레이하는 일이 없도록.</td></tr>
+      <tr><th>씬 배치</th><td>기존 UI 싱글톤들과 같은 패턴 - 별도 씬 배치 없이 최초 접근 시 자체 생성.</td></tr>
+    </table>
+  </div>
+
+  <h2><span class="num">7.</span> 확인 부탁드립니다</h2>
+  <div class="card">
+    <ul class="qa-list">
+      <li><b>Q1.</b> §3 제작 자동화 범위 - A(즉석 제작만) 먼저 만들고 미니게임 자동화는 나중으로 미뤄도 될까요?</li>
+      <li><b>Q2.</b> §4 토글 방식 - A(화면 버튼)로 확정해도 될까요?</li>
+      <li><b>Q3.</b> 배속(Time.timeScale)까지 지원해서 더 빠르게 여러 사이클을 돌리고 싶으신가요, 아니면
+      1배속으로 충분할까요?</li>
+    </ul>
+    <p class="note">답 주시면 바로 구현 들어가겠습니다.</p>
+  </div>
+
+  <footer>dev_autoplay_design.html v1 · 확인 후 구현에 들어가겠습니다.</footer>
+</div>
+</body>
+</html>
