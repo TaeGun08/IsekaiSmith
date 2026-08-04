@@ -533,12 +533,15 @@ public class CraftingMinigameUI : MonoBehaviour
         SetVisible(true);
         titleText.text = "Complete!";
         instructionText.text = "";
-        resultText.text = CraftGradeUtility.DisplayName(grade) + "!  x" + amount;
+
+        string trait = CraftGradeUtility.RollTrait(grade);
+        string traitSuffix = trait != null ? " (" + trait + ")" : "";
+        resultText.text = CraftGradeUtility.DisplayName(grade) + "!  x" + amount + traitSuffix;
         resultText.color = GradeColor(grade);
 
-        if (grade == CraftGrade.Masterwork)
+        if (grade == CraftGrade.Masterwork || grade == CraftGrade.Legendary)
         {
-            yield return SparkleFlourish();
+            yield return SparkleFlourish(grade == CraftGrade.Legendary ? 1.1f : 0.7f);
         }
         else
         {
@@ -549,15 +552,15 @@ public class CraftingMinigameUI : MonoBehaviour
         SetVisible(false);
     }
 
-    private IEnumerator SparkleFlourish()
+    private IEnumerator SparkleFlourish(float duration)
     {
         Vector3 baseScale = resultText.transform.localScale;
         float t = 0f;
 
-        while (t < 0.7f)
+        while (t < duration)
         {
             t += Time.deltaTime;
-            float s = 1f + Mathf.Sin(t * 14f) * 0.08f * (1f - t / 0.7f);
+            float s = 1f + Mathf.Sin(t * 14f) * 0.08f * (1f - t / duration);
             resultText.transform.localScale = baseScale * s;
             yield return null;
         }
@@ -571,12 +574,18 @@ public class CraftingMinigameUI : MonoBehaviour
         {
             case CraftGrade.Rough:
                 return new Color(0.75f, 0.72f, 0.68f);
+            case CraftGrade.Common:
+                return new Color(0.68f, 0.78f, 0.6f);
             case CraftGrade.Fine:
                 return new Color(0.55f, 0.85f, 0.6f);
             case CraftGrade.Superior:
                 return new Color(0.5f, 0.7f, 0.95f);
+            case CraftGrade.Exceptional:
+                return new Color(0.68f, 0.55f, 0.9f);
             case CraftGrade.Masterwork:
                 return new Color(0.95f, 0.8f, 0.35f);
+            case CraftGrade.Legendary:
+                return new Color(0.95f, 0.55f, 0.25f);
             default:
                 return Color.white;
         }
