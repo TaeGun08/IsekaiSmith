@@ -1,18 +1,18 @@
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-// Weapon-silhouette material assembly panel (replaces the old abstract slot grid).
-// Blade zone accepts Ore (required) + Mana Stone (optional, up to a cap) - dropping either
-// tints the blade. Handle zone accepts Wood (required) - tints the handle. FORGE enables once
-// both required zones are filled. Drag/drop works identically for mouse and touch.
+// Weapon-silhouette material assembly panel. Fixed slots (blade ore, up to 3 blade mana, handle
+// wood) are filled by tapping the slot then picking from a bottom sheet listing every owned
+// material in that slot's category (MaterialCategoryUtility) - no drag-and-drop. New ore
+// tiers/mana elements/wood types just show up in the sheet automatically since it's built from
+// the category, not a hardcoded chip list, and there's no small drop-zone to miss on a touch
+// screen (see crafting_design_v3.html §3/§7).
 public class CraftingSilhouetteUI : MonoBehaviour
 {
-    private const int ManaMax = 3;
+    private const int ManaSlotCount = 3;
 
     private static CraftingSilhouetteUI instance;
 
@@ -31,27 +31,41 @@ public class CraftingSilhouetteUI : MonoBehaviour
         }
     }
 
+    private class MaterialSlot
+    {
+        public MaterialCategory Category;
+        public ResourceType? Filled;
+        public Image SlotImage;
+        public TMP_Text SlotLabel;
+    }
+
     private GameObject panel;
     private TMP_Text titleText;
     private TMP_Text hintText;
 
     private Image bladeImage;
     private Image handleImage;
-    private TMP_Text bladeLabelText;
-    private TMP_Text handleLabelText;
     private readonly Color bladeBaseColor = new Color(0.3f, 0.32f, 0.36f);
     private readonly Color bladeOreColor = new Color(0.55f, 0.58f, 0.63f);
     private readonly Color bladeManaColor = new Color(0.6f, 0.3f, 0.55f);
     private readonly Color handleBaseColor = new Color(0.26f, 0.22f, 0.18f);
     private readonly Color handleWoodColor = new Color(0.55f, 0.4f, 0.24f);
 
-    private Transform tray;
+    private readonly Color slotEmptyColor = new Color(1f, 1f, 1f, 0.08f);
+    private readonly Color oreFilledColor = new Color(0.55f, 0.58f, 0.63f);
+    private readonly Color manaFilledColor = new Color(0.69f, 0.27f, 0.56f);
+    private readonly Color woodFilledColor = new Color(0.55f, 0.42f, 0.28f);
+
+    private MaterialSlot oreSlot;
+    private readonly MaterialSlot[] manaSlots = new MaterialSlot[ManaSlotCount];
+    private MaterialSlot woodSlot;
+
+    private GameObject sheet;
+    private TMP_Text sheetTitleText;
+    private Transform sheetGrid;
+
     private Button forgeButton;
     private Button cancelButton;
-
-    private bool oreFilled;
-    private bool woodFilled;
-    private int manaCount;
 
     private bool started;
     private bool cancelled;
@@ -86,62 +100,117 @@ public class CraftingSilhouetteUI : MonoBehaviour
 
         titleText = MakeText(panel.transform, "Title", 34, new Vector2(0f, -46f), new Vector2(880f, 48f));
         hintText = MakeText(panel.transform, "Hint", 20, new Vector2(0f, -104f), new Vector2(880f, 36f));
-        hintText.text = "Drag materials onto the blade and handle";
+        hintText.text = "Tap a slot to choose a material";
         hintText.color = new Color(0.75f, 0.72f, 0.68f);
 
-        // Blade zone (tall, upper)
-        var bladeGO = new GameObject("BladeZone", typeof(RectTransform), typeof(Image), typeof(CraftingDropZone));
+        float[] slotX = { -300f, -150f, 0f, 150f, 300f };
+        oreSlot = BuildSlot(panel.transform, MaterialCategory.Ore, slotX[0], -170f, "Ore");
+        manaSlots[0] = BuildSlot(panel.transform, MaterialCategory.ManaStone, slotX[1], -170f, "Mana");
+        manaSlots[1] = BuildSlot(panel.transform, MaterialCategory.ManaStone, slotX[2], -170f, "Mana");
+        manaSlots[2] = BuildSlot(panel.transform, MaterialCategory.ManaStone, slotX[3], -170f, "Mana");
+        woodSlot = BuildSlot(panel.transform, MaterialCategory.Wood, slotX[4], -170f, "Wood");
+
+        // Blade/handle silhouette - decorative, reflects what's been slotted in with a tint.
+        var bladeGO = new GameObject("BladeVisual", typeof(RectTransform), typeof(Image));
         bladeGO.transform.SetParent(panel.transform, false);
         var bladeRect = bladeGO.GetComponent<RectTransform>();
         bladeRect.anchorMin = new Vector2(0.5f, 1f);
         bladeRect.anchorMax = new Vector2(0.5f, 1f);
         bladeRect.pivot = new Vector2(0.5f, 1f);
-        bladeRect.anchoredPosition = new Vector2(0f, -170f);
-        bladeRect.sizeDelta = new Vector2(170f, 760f);
+        bladeRect.anchoredPosition = new Vector2(0f, -340f);
+        bladeRect.sizeDelta = new Vector2(170f, 700f);
         bladeImage = bladeGO.GetComponent<Image>();
         bladeImage.color = bladeBaseColor;
-        bladeGO.GetComponent<CraftingDropZone>().OnDropped = OnBladeDrop;
-        bladeLabelText = MakeText(bladeGO.transform, "Label", 20, new Vector2(0f, 30f), new Vector2(300f, 32f));
-        bladeLabelText.text = "BLADE (Ore)";
+        MakeText(bladeGO.transform, "Label", 18, new Vector2(0f, 24f), new Vector2(200f, 28f)).text = "BLADE";
 
-        // Guard bar (decorative)
         var guardGO = new GameObject("Guard", typeof(RectTransform), typeof(Image));
         guardGO.transform.SetParent(panel.transform, false);
         var guardRect = guardGO.GetComponent<RectTransform>();
         guardRect.anchorMin = new Vector2(0.5f, 1f);
         guardRect.anchorMax = new Vector2(0.5f, 1f);
         guardRect.pivot = new Vector2(0.5f, 1f);
-        guardRect.anchoredPosition = new Vector2(0f, -930f);
+        guardRect.anchoredPosition = new Vector2(0f, -1040f);
         guardRect.sizeDelta = new Vector2(300f, 22f);
         guardGO.GetComponent<Image>().color = new Color(0.4f, 0.33f, 0.22f);
 
-        // Handle zone (short, lower)
-        var handleGO = new GameObject("HandleZone", typeof(RectTransform), typeof(Image), typeof(CraftingDropZone));
+        var handleGO = new GameObject("HandleVisual", typeof(RectTransform), typeof(Image));
         handleGO.transform.SetParent(panel.transform, false);
         var handleRect = handleGO.GetComponent<RectTransform>();
         handleRect.anchorMin = new Vector2(0.5f, 1f);
         handleRect.anchorMax = new Vector2(0.5f, 1f);
         handleRect.pivot = new Vector2(0.5f, 1f);
-        handleRect.anchoredPosition = new Vector2(0f, -956f);
-        handleRect.sizeDelta = new Vector2(110f, 260f);
+        handleRect.anchoredPosition = new Vector2(0f, -1066f);
+        handleRect.sizeDelta = new Vector2(110f, 240f);
         handleImage = handleGO.GetComponent<Image>();
         handleImage.color = handleBaseColor;
-        handleGO.GetComponent<CraftingDropZone>().OnDropped = OnHandleDrop;
-        handleLabelText = MakeText(handleGO.transform, "Label", 20, new Vector2(0f, 30f), new Vector2(300f, 32f));
-        handleLabelText.text = "HANDLE (Wood)";
-
-        var trayGO = new GameObject("Tray", typeof(RectTransform));
-        trayGO.transform.SetParent(panel.transform, false);
-        var trayRect = trayGO.GetComponent<RectTransform>();
-        trayRect.anchorMin = new Vector2(0.5f, 0f);
-        trayRect.anchorMax = new Vector2(0.5f, 0f);
-        trayRect.pivot = new Vector2(0.5f, 0f);
-        trayRect.anchoredPosition = new Vector2(0f, 200f);
-        trayRect.sizeDelta = new Vector2(900f, 220f);
-        tray = trayGO.transform;
+        MakeText(handleGO.transform, "Label", 18, new Vector2(0f, 24f), new Vector2(200f, 28f)).text = "HANDLE";
 
         forgeButton = MakeButton(panel.transform, "ForgeButton", new Vector2(-160f, 60f), new Vector2(280f, 90f), "FORGE", new Color(0.35f, 0.6f, 0.35f));
         cancelButton = MakeButton(panel.transform, "CancelButton", new Vector2(160f, 60f), new Vector2(280f, 90f), "CANCEL", new Color(0.5f, 0.3f, 0.28f));
+
+        BuildSheet();
+        sheet.SetActive(false);
+    }
+
+    private void BuildSheet()
+    {
+        sheet = new GameObject("Sheet", typeof(RectTransform), typeof(Image));
+        sheet.transform.SetParent(panel.transform, false);
+        var sheetRect = sheet.GetComponent<RectTransform>();
+        sheetRect.anchorMin = new Vector2(0.5f, 0f);
+        sheetRect.anchorMax = new Vector2(0.5f, 0f);
+        sheetRect.pivot = new Vector2(0.5f, 0f);
+        sheetRect.anchoredPosition = Vector2.zero;
+        sheetRect.sizeDelta = new Vector2(980f, 480f);
+        sheet.GetComponent<Image>().color = new Color(0.12f, 0.11f, 0.09f, 0.98f);
+
+        sheetTitleText = MakeText(sheet.transform, "SheetTitle", 24, new Vector2(0f, -24f), new Vector2(880f, 40f));
+
+        var gridGO = new GameObject("Grid", typeof(RectTransform));
+        gridGO.transform.SetParent(sheet.transform, false);
+        var gridRect = gridGO.GetComponent<RectTransform>();
+        gridRect.anchorMin = new Vector2(0.5f, 1f);
+        gridRect.anchorMax = new Vector2(0.5f, 1f);
+        gridRect.pivot = new Vector2(0.5f, 1f);
+        gridRect.anchoredPosition = new Vector2(0f, -84f);
+        gridRect.sizeDelta = new Vector2(900f, 300f);
+        sheetGrid = gridGO.transform;
+
+        var closeButton = MakeButton(sheet.transform, "SheetClose", new Vector2(0f, 30f), new Vector2(220f, 64f), "CLOSE", new Color(0.4f, 0.38f, 0.34f));
+        closeButton.onClick.AddListener(CloseSheet);
+    }
+
+    private MaterialSlot BuildSlot(Transform parent, MaterialCategory category, float x, float y, string label)
+    {
+        var go = new GameObject("Slot_" + category, typeof(RectTransform), typeof(Image), typeof(Button));
+        go.transform.SetParent(parent, false);
+        var rect = go.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0.5f, 1f);
+        rect.anchorMax = new Vector2(0.5f, 1f);
+        rect.pivot = new Vector2(0.5f, 1f);
+        rect.anchoredPosition = new Vector2(x, y);
+        rect.sizeDelta = new Vector2(130f, 130f);
+        var image = go.GetComponent<Image>();
+        image.color = slotEmptyColor;
+
+        var text = MakeText(go.transform, "Label", 16, Vector2.zero, new Vector2(130f, 130f));
+        var textRect = text.GetComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.pivot = new Vector2(0.5f, 0.5f);
+        textRect.anchoredPosition = Vector2.zero;
+        text.text = label;
+
+        var slot = new MaterialSlot
+        {
+            Category = category,
+            Filled = null,
+            SlotImage = image,
+            SlotLabel = text
+        };
+
+        go.GetComponent<Button>().onClick.AddListener(() => OpenSheet(slot));
+        return slot;
     }
 
     private TMP_Text MakeText(Transform parent, string name, int fontSize, Vector2 anchoredPos, Vector2 size)
@@ -184,59 +253,25 @@ public class CraftingSilhouetteUI : MonoBehaviour
         return go.GetComponent<Button>();
     }
 
-    private GameObject BuildChip(ResourceType type, string label, Vector2 anchoredPos)
-    {
-        var go = new GameObject("Chip_" + type, typeof(RectTransform), typeof(Image), typeof(CanvasGroup), typeof(CraftingDragChip));
-        go.transform.SetParent(tray, false);
-        var rect = go.GetComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0.5f, 1f);
-        rect.anchorMax = new Vector2(0.5f, 1f);
-        rect.pivot = new Vector2(0.5f, 1f);
-        rect.anchoredPosition = anchoredPos;
-        rect.sizeDelta = new Vector2(190f, 150f);
-
-        Color chipColor = type == ResourceType.Ore ? new Color(0.48f, 0.46f, 0.43f)
-            : type == ResourceType.ManaStone ? new Color(0.69f, 0.27f, 0.56f)
-            : new Color(0.55f, 0.42f, 0.28f);
-        go.GetComponent<Image>().color = chipColor;
-
-        var text = MakeText(go.transform, "Label", 20, Vector2.zero, new Vector2(190f, 150f));
-        var textRect = text.GetComponent<RectTransform>();
-        textRect.anchorMin = Vector2.zero;
-        textRect.anchorMax = Vector2.one;
-        textRect.pivot = new Vector2(0.5f, 0.5f);
-        textRect.anchoredPosition = Vector2.zero;
-        text.text = label;
-
-        go.GetComponent<CraftingDragChip>().ResourceType = type;
-        return go;
-    }
-
     public IEnumerator RunSilhouette(string title, Action<bool, int> onComplete)
     {
         titleText.text = title;
         started = false;
         cancelled = false;
-        oreFilled = false;
-        woodFilled = false;
-        manaCount = 0;
 
-        bladeImage.color = bladeBaseColor;
-        handleImage.color = handleBaseColor;
-        bladeLabelText.text = "BLADE (Ore)";
-        handleLabelText.text = "HANDLE (Wood)";
-
-        foreach (Transform child in tray)
+        AssignSlot(oreSlot, null);
+        AssignSlot(woodSlot, null);
+        for (int i = 0; i < manaSlots.Length; i++)
         {
-            Destroy(child.gameObject);
+            AssignSlot(manaSlots[i], null);
         }
 
-        BuildChip(ResourceType.Ore, "Ore\nx" + ResourceBank.Get(ResourceType.Ore), new Vector2(-280f, -20f));
-        BuildChip(ResourceType.ManaStone, "Mana Stone\nx" + ResourceBank.Get(ResourceType.ManaStone), new Vector2(0f, -20f));
-        BuildChip(ResourceType.Wood, "Wood\nx" + ResourceBank.Get(ResourceType.Wood), new Vector2(280f, -20f));
+        sheet.SetActive(false);
+        forgeButton.gameObject.SetActive(true);
+        cancelButton.gameObject.SetActive(true);
 
         forgeButton.onClick.RemoveAllListeners();
-        forgeButton.onClick.AddListener(() => { if (oreFilled && woodFilled) started = true; });
+        forgeButton.onClick.AddListener(() => { if (oreSlot.Filled.HasValue && woodSlot.Filled.HasValue) started = true; });
 
         cancelButton.onClick.RemoveAllListeners();
         cancelButton.onClick.AddListener(() => cancelled = true);
@@ -245,34 +280,128 @@ public class CraftingSilhouetteUI : MonoBehaviour
 
         while (!started && !cancelled)
         {
-            forgeButton.interactable = oreFilled && woodFilled;
+            forgeButton.interactable = oreSlot.Filled.HasValue && woodSlot.Filled.HasValue;
             yield return null;
         }
 
         panel.SetActive(false);
-        onComplete?.Invoke(started, manaCount);
+        onComplete?.Invoke(started, CountFilledMana());
     }
 
-    private void OnBladeDrop(ResourceType type)
+    private void OpenSheet(MaterialSlot slot)
     {
-        if (type == ResourceType.Ore && !oreFilled && ResourceBank.Get(ResourceType.Ore) > 0)
+        sheetTitleText.text = "Choose " + MaterialCategoryUtility.DisplayName(slot.Category);
+
+        foreach (Transform child in sheetGrid)
         {
-            oreFilled = true;
-            UpdateBladeVisual();
+            Destroy(child.gameObject);
         }
-        else if (type == ResourceType.ManaStone && manaCount < ManaMax && ResourceBank.Get(ResourceType.ManaStone) > manaCount)
+
+        const int chipsPerRow = 4;
+        const float chipSize = 190f;
+        const float chipGap = 20f;
+        const float rowHeight = 130f;
+        float rowWidth = chipsPerRow * chipSize + (chipsPerRow - 1) * chipGap;
+        float startX = -rowWidth * 0.5f + chipSize * 0.5f;
+        int index = 0;
+
+        if (slot.Filled.HasValue)
         {
-            manaCount++;
-            UpdateBladeVisual();
+            BuildSheetChip(index, startX, chipSize, chipGap, rowHeight, chipsPerRow, "Remove", new Color(0.45f, 0.24f, 0.22f),
+                () => { AssignSlot(slot, null); CloseSheet(); });
+            index++;
+        }
+
+        foreach (ResourceType type in MaterialCategoryUtility.AllInCategory(slot.Category))
+        {
+            int owned = ResourceBank.Get(type);
+            if (owned <= 0 && slot.Filled != type)
+            {
+                continue;
+            }
+
+            ResourceType capturedType = type;
+            string label = MaterialCategoryUtility.DisplayName(type) + "\nx" + owned;
+            BuildSheetChip(index, startX, chipSize, chipGap, rowHeight, chipsPerRow, label, ChipColor(slot.Category),
+                () => { AssignSlot(slot, capturedType); CloseSheet(); });
+            index++;
+        }
+
+        forgeButton.gameObject.SetActive(false);
+        cancelButton.gameObject.SetActive(false);
+        sheet.SetActive(true);
+    }
+
+    private void BuildSheetChip(int index, float startX, float chipSize, float chipGap, float rowHeight, int chipsPerRow, string label, Color color, Action onClick)
+    {
+        int row = index / chipsPerRow;
+        int col = index % chipsPerRow;
+        float x = startX + col * (chipSize + chipGap);
+        float y = -row * rowHeight;
+
+        var go = new GameObject("Chip", typeof(RectTransform), typeof(Image), typeof(Button));
+        go.transform.SetParent(sheetGrid, false);
+        var rect = go.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0.5f, 1f);
+        rect.anchorMax = new Vector2(0.5f, 1f);
+        rect.pivot = new Vector2(0.5f, 1f);
+        rect.anchoredPosition = new Vector2(x, y);
+        rect.sizeDelta = new Vector2(chipSize, rowHeight - chipGap);
+        go.GetComponent<Image>().color = color;
+
+        var text = MakeText(go.transform, "Label", 18, Vector2.zero, new Vector2(chipSize, rowHeight - chipGap));
+        var textRect = text.GetComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.pivot = new Vector2(0.5f, 0.5f);
+        textRect.anchoredPosition = Vector2.zero;
+        text.text = label;
+
+        go.GetComponent<Button>().onClick.AddListener(() => onClick());
+    }
+
+    private void CloseSheet()
+    {
+        sheet.SetActive(false);
+        forgeButton.gameObject.SetActive(true);
+        cancelButton.gameObject.SetActive(true);
+        forgeButton.interactable = oreSlot.Filled.HasValue && woodSlot.Filled.HasValue;
+    }
+
+    private void AssignSlot(MaterialSlot slot, ResourceType? type)
+    {
+        slot.Filled = type;
+        UpdateSlotVisual(slot);
+        UpdateBladeVisual();
+        UpdateHandleVisual();
+    }
+
+    private void UpdateSlotVisual(MaterialSlot slot)
+    {
+        if (slot.Filled.HasValue)
+        {
+            slot.SlotImage.color = ChipColor(slot.Category);
+            slot.SlotLabel.text = MaterialCategoryUtility.DisplayName(slot.Filled.Value);
+        }
+        else
+        {
+            slot.SlotImage.color = slotEmptyColor;
+            slot.SlotLabel.text = MaterialCategoryUtility.DisplayName(slot.Category);
         }
     }
 
-    private void OnHandleDrop(ResourceType type)
+    private Color ChipColor(MaterialCategory category)
     {
-        if (type == ResourceType.Wood && !woodFilled && ResourceBank.Get(ResourceType.Wood) > 0)
+        switch (category)
         {
-            woodFilled = true;
-            UpdateHandleVisual();
+            case MaterialCategory.Ore:
+                return oreFilledColor;
+            case MaterialCategory.ManaStone:
+                return manaFilledColor;
+            case MaterialCategory.Wood:
+                return woodFilledColor;
+            default:
+                return Color.white;
         }
     }
 
@@ -280,114 +409,37 @@ public class CraftingSilhouetteUI : MonoBehaviour
     {
         Color color = bladeBaseColor;
 
-        if (oreFilled)
+        if (oreSlot.Filled.HasValue)
         {
             color = bladeOreColor;
         }
 
+        int manaCount = CountFilledMana();
         if (manaCount > 0)
         {
-            color = Color.Lerp(color, bladeManaColor, Mathf.Clamp01(manaCount / (float)ManaMax) * 0.7f);
+            color = Color.Lerp(color, bladeManaColor, Mathf.Clamp01(manaCount / (float)ManaSlotCount) * 0.7f);
         }
 
         bladeImage.color = color;
-        bladeLabelText.text = oreFilled ? "BLADE - READY" : "BLADE (Ore)";
     }
 
     private void UpdateHandleVisual()
     {
-        handleImage.color = woodFilled ? handleWoodColor : handleBaseColor;
-        handleLabelText.text = woodFilled ? "HANDLE - READY" : "HANDLE (Wood)";
-    }
-}
-
-public class CraftingDragChip : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
-{
-    public ResourceType ResourceType;
-
-    private RectTransform rect;
-    private CanvasGroup canvasGroup;
-    private Canvas canvas;
-    private Vector2 originalAnchoredPosition;
-
-    private void Awake()
-    {
-        rect = GetComponent<RectTransform>();
-        canvasGroup = GetComponent<CanvasGroup>();
-        canvas = GetComponentInParent<Canvas>();
+        handleImage.color = woodSlot.Filled.HasValue ? handleWoodColor : handleBaseColor;
     }
 
-    public void OnBeginDrag(PointerEventData eventData)
+    private int CountFilledMana()
     {
-        originalAnchoredPosition = rect.anchoredPosition;
-        canvasGroup.blocksRaycasts = false;
-    }
+        int count = 0;
 
-    public void OnDrag(PointerEventData eventData)
-    {
-        float scale = canvas != null ? canvas.scaleFactor : 1f;
-        rect.anchoredPosition += eventData.delta / scale;
-    }
-
-    public void OnEndDrag(PointerEventData eventData)
-    {
-        canvasGroup.blocksRaycasts = true;
-        rect.anchoredPosition = originalAnchoredPosition;
-    }
-}
-
-// Enlarged, forgiving drop target with a highlight ring that lights up while a compatible-looking
-// drag is hovering over it, so the player gets live feedback before releasing (not just a silent
-// miss if the drop lands a few pixels outside).
-public class CraftingDropZone : MonoBehaviour, IDropHandler, IPointerEnterHandler, IPointerExitHandler
-{
-    public Action<ResourceType> OnDropped;
-
-    private Image highlightImage;
-    private static readonly Color HighlightOn = new Color(1f, 0.9f, 0.5f, 0.55f);
-    private static readonly Color HighlightOff = new Color(1f, 0.9f, 0.5f, 0f);
-
-    private void Awake()
-    {
-        var go = new GameObject("Highlight", typeof(RectTransform), typeof(Image));
-        go.transform.SetParent(transform, false);
-        var rect = go.GetComponent<RectTransform>();
-        rect.anchorMin = Vector2.zero;
-        rect.anchorMax = Vector2.one;
-        rect.offsetMin = new Vector2(-16f, -16f);
-        rect.offsetMax = new Vector2(16f, 16f);
-        highlightImage = go.GetComponent<Image>();
-        highlightImage.color = HighlightOff;
-        highlightImage.raycastTarget = false;
-    }
-
-    public void OnPointerEnter(PointerEventData eventData)
-    {
-        if (eventData.dragging)
+        for (int i = 0; i < manaSlots.Length; i++)
         {
-            highlightImage.color = HighlightOn;
-        }
-    }
-
-    public void OnPointerExit(PointerEventData eventData)
-    {
-        highlightImage.color = HighlightOff;
-    }
-
-    public void OnDrop(PointerEventData eventData)
-    {
-        highlightImage.color = HighlightOff;
-
-        if (eventData.pointerDrag == null)
-        {
-            return;
+            if (manaSlots[i].Filled.HasValue)
+            {
+                count++;
+            }
         }
 
-        var chip = eventData.pointerDrag.GetComponent<CraftingDragChip>();
-
-        if (chip != null)
-        {
-            OnDropped?.Invoke(chip.ResourceType);
-        }
+        return count;
     }
 }
