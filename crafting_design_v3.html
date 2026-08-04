@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>이세계 대장장이 - 크래프팅 시스템 통합 기획서</title>
+<style>
+  :root {
+    --ink: #2b2420; --paper: #f6f1e7; --card: #ffffff; --border: #dcd3c2; --accent: #b5651d;
+    --good: #4f8f5f; --warn: #c1440e; --gold: #d9a441; --blue: #4472a8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 20px 80px; background: var(--paper); color: var(--ink);
+    font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .doc { width: 100%; max-width: 1100px; }
+  h1 { font-size: 25px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 8px; color: #6b6155; font-size: 14px; }
+  p.pitch {
+    font-size: 15px; line-height: 1.75; background: var(--card); border: 1px solid var(--border);
+    border-left: 4px solid var(--accent); border-radius: 8px; padding: 16px 18px; margin: 16px 0 32px;
+  }
+  h2 { font-size: 19px; margin: 48px 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+  h2 .num { color: var(--accent); margin-right: 8px; }
+  h3 { font-size: 14.5px; margin: 22px 0 10px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); }
+  .note { font-size: 12.5px; color: #6b6155; line-height: 1.7; margin-top: 8px; }
+  .qa-list { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.9; }
+  .qa-list li b { color: var(--accent); }
+
+  .thesis {
+    font-size: 16px; line-height: 1.8; text-align:center; padding: 22px 24px; margin: 10px 0 0;
+    background: linear-gradient(160deg,#2b2420,#40352b); color:#f6f1e7; border-radius: 12px;
+  }
+  .thesis b { color: var(--gold); }
+
+  .flow-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top: 14px; justify-content:center; }
+  .flow-step { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:10px 12px; font-size:12px; text-align:center; min-width: 86px; }
+  .flow-step.branch { border: 2px dashed var(--accent); }
+  .flow-arrow { color: var(--accent); font-size:16px; }
+
+  .layer-row { display:flex; gap:0; margin-top:14px; border-radius:10px; overflow:hidden; border:1px solid var(--border); }
+  .layer-col { flex:1; padding:16px; }
+  .layer-col.casual { background:#eef3ea; }
+  .layer-col.core { background:#f3ece0; }
+  .layer-col h4 { margin:0 0 8px; font-size:14px; }
+  .layer-col ul { margin:0; padding-left:18px; font-size:12px; line-height:1.8; }
+
+  .path-row { display:flex; gap:14px; flex-wrap:wrap; margin-top:14px; }
+  .path-card { flex:1; min-width:230px; border-radius:10px; padding:16px; color:#fff; }
+  .path-card h4 { margin:0 0 4px; font-size:15px; }
+  .path-card .sub2 { font-size:11px; opacity:0.85; margin-bottom:10px; }
+  .path-card ul { margin:0; padding-left:18px; font-size:11.5px; line-height:1.75; }
+  .path1 { background: linear-gradient(160deg,#d98a3f,#a3541a); }
+  .path2 { background: linear-gradient(160deg,#8a8478,#5c574c); }
+  .path3 { background: linear-gradient(160deg,#4472a8,#2c4d73); }
+
+  .phone { width: 220px; height: 390px; background: #1c1a18; border-radius: 22px; padding: 10px; box-shadow: 0 4px 14px rgba(0,0,0,0.25); margin: 0 auto; }
+  .phone-screen { width: 100%; height: 100%; background: #241f1a; border-radius: 14px; position: relative; overflow: hidden; }
+  .scr-title { position:absolute; top:12px; left:0; right:0; text-align:center; color:#fff; font-size:11px; font-weight:bold; }
+  .scr-hint { position:absolute; bottom:12px; left:0; right:0; text-align:center; color:#a89f92; font-size:7.5px; padding:0 10px; }
+
+  .slot-row { position:absolute; top:34px; left:0; right:0; display:flex; justify-content:center; gap:8px; }
+  .slot-box { width:38px; height:38px; border-radius:7px; border:2px dashed #6b6155; display:flex; align-items:center; justify-content:center; font-size:13px; }
+  .slot-box.filled { border-style:solid; border-color:#f2d16b; background:rgba(242,209,107,0.15); }
+  .sheet-mock { position:absolute; left:0; right:0; bottom:0; height:130px; background:#2b2622; border-radius:16px 16px 0 0; padding:10px; }
+  .sheet-handle { width:34px; height:4px; border-radius:2px; background:#6b6155; margin:0 auto 8px; }
+  .sheet-grid { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; }
+  .sheet-chip { width:52px; height:48px; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:7px; text-align:center; }
+
+  .slider-track { position:absolute; left:34px; right:34px; top:170px; height:10px; background:#3a352e; border-radius:6px; }
+  .slider-handle { position:absolute; top:156px; width:32px; height:32px; border-radius:50%; background:#d98a3f; }
+  .needle-bar-bg { position:absolute; left:20px; right:20px; top:170px; height:18px; background:#3a352e; border-radius:9px; }
+  .needle-bar-zone { position:absolute; top:170px; height:18px; background:rgba(111,153,85,0.7); border-radius:6px; }
+  .needle-mark { position:absolute; top:158px; width:4px; height:42px; background:#fff; }
+
+  .glow-bg { position:absolute; inset:0; background: radial-gradient(circle at 50% 30%, rgba(224,122,63,0.35), transparent 65%); }
+
+  .mood-row { display:flex; gap:12px; flex-wrap:wrap; margin-top:10px; }
+  .mood-card { flex:1; min-width:220px; border-radius:10px; padding:14px 15px; color:#fff; }
+  .mood-card h4 { margin:0 0 6px; font-size:13px; }
+  .mood-card .stage { display:inline-block; font-size:9.5px; font-weight:bold; background:rgba(0,0,0,0.25); border-radius:4px; padding:2px 7px; margin-bottom:6px; }
+  .mood-card p { margin:0; font-size:11.5px; line-height:1.65; }
+  .m1 { background: linear-gradient(160deg,#8a6a3f,#5c4527); }
+  .m2 { background: linear-gradient(160deg,#c1440e,#7a2a0a); }
+  .m3 { background: linear-gradient(160deg,#4472a8,#2c4d73); }
+  .m4 { background: linear-gradient(160deg,#7c67ad,#4d3f78); }
+
+  table.grade { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12.5px; }
+  table.grade th, table.grade td { border: 1px solid var(--border); padding: 9px 10px; text-align: left; }
+  table.grade th { background: #efe8d9; font-size: 12px; }
+  .grade-chip { display:inline-block; font-size:11px; font-weight:bold; color:#fff; border-radius:5px; padding:2px 9px; }
+  .grade-chip.rough { background:#8a8478; }
+  .grade-chip.fine { background:#4f8f5f; }
+  .grade-chip.superior { background:#3a6fa8; }
+  .grade-chip.master { background: linear-gradient(120deg,#c98b2e,#8a4fae); }
+
+  footer { margin-top: 40px; font-size: 12px; color: #948a7c; text-align: center; }
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <h1>크래프팅 시스템 통합 기획서</h1>
+  <p class="sub">crafting_design_v3.html · "부분적으로 덧붙이지 말고 전체를 다시" 요청에 따라 처음부터 하나로 통합해서 재작성</p>
+  <p class="pitch">
+    이전 문서는 "확정된 것 + 새로 추가할 3가지 주제"로 나눠서 다뤘는데, 원하신 건 그렇게 쪼개는 게 아니라
+    <b>제작 시스템 전체를 하나의 설계로 다시 짜는 것</b>이었습니다. 이번엔 재료 선택·제련·단조·등급·
+    자동생산·대장장이 정체성·캐주얼-코어를 각각 따로 보지 않고, 하나의 설계 철학 아래 왜 그렇게
+    맞물리는지를 처음부터 다시 풀어씁니다.
+  </p>
+
+  <h2><span class="num">1.</span> 설계 철학 - 이 시스템을 관통하는 한 문장</h2>
+  <p class="thesis">"<b>부담 없이 반복해도 되는 캐주얼한 리듬</b> 위에,<br>
+  <b>정확함과 신중함이 눈에 보이게 보상받는 코어한 깊이</b>를 얹는다.<br>
+  그 리듬은 실제 대장장이의 손동작 - 재료를 고르고, 불에 달구고, 두드리는 - 을 그대로 재현하고,<br>
+  물량이 필요한 반복은 <b>자동 생산</b>이 흡수해서 미니게임은 절대 강제 노동으로 느껴지지 않는다."</p>
+  <p class="note">아래 모든 절은 이 한 문장에서 갈라져 나온 결정들입니다. 개별 미니게임 규칙 하나하나가
+  아니라, 이 철학에 맞는지가 판단 기준입니다.</p>
+
+  <h2><span class="num">2.</span> 전체 구조 한눈에</h2>
+  <div class="card">
+    <div class="flow-row">
+      <div class="flow-step">채집 &amp; 보관</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step branch">대장간 도착<br><span style="color:#6b6155; font-size:10px;">3갈래 분기</span></div>
+    </div>
+    <div class="flow-row">
+      <div class="flow-step" style="background:#f3ece0;">수동 제작<br><span style="color:#6b6155; font-size:10px;">코어</span></div>
+      <div class="flow-step" style="background:#eef0f2;">즉석 제작<br><span style="color:#6b6155; font-size:10px;">캐주얼</span></div>
+      <div class="flow-step" style="background:#eaf0f7;">자동 생산<br><span style="color:#6b6155; font-size:10px;">방치</span></div>
+    </div>
+    <div class="flow-row">
+      <div class="flow-step">재료 선택<br>(실루엣)</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">제련<br>(화력 밸런스)</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">단조<br>(리듬 탭)</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">등급 결과<br>Rough~Masterwork</div>
+    </div>
+    <p class="note" style="text-align:center;">수동 제작만 재료선택→제련→단조 전 과정을 거칩니다. 즉석/자동은 이
+    과정을 건너뛰는 대신 품질 상한이 낮습니다 (§6).</p>
+  </div>
+
+  <h2><span class="num">3.</span> 재료 선택 (무기/도구 실루엣) - 왜 이 방식을 끝까지 가져가는가</h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;">완성될 무기의 실루엣이 먼저 뜨고, 그 위에
+    재료를 채워 넣는 방식은 <b>"장인이 설계도를 보며 재료를 고른다"</b>는 서사를 가장 직접적으로
+    표현합니다. §1의 철학 중 "재료를 고르는" 첫 손동작이 여기 해당하고, 이후 모든 티어/속성 확장도
+    이 틀 위에서 이뤄지므로 계속 유지합니다.</p>
+    <ul class="qa-list">
+      <li><b>확장성</b> - 재료는 카테고리(광물/목재/마석)로 관리되어, 광물 티어나 마석 속성이 늘어나도
+      트레이가 자동으로 대응합니다.</li>
+      <li><b>모바일 조작</b> - 드래그 대신 <b>"빈 슬롯 탭 → 하단 시트에서 스크롤로 선택"</b>. 정밀한
+      드래그가 필요 없어 오조작이 구조적으로 사라집니다.</li>
+    </ul>
+    <div class="phone"><div class="phone-screen">
+      <div class="scr-title">Forge: Sword</div>
+      <div class="slot-row">
+        <div class="slot-box filled">⛏</div>
+        <div class="slot-box">🔥</div>
+        <div class="slot-box">🔥</div>
+        <div class="slot-box">🔥</div>
+        <div class="slot-box">🪵</div>
+      </div>
+      <div class="sheet-mock">
+        <div class="sheet-handle"></div>
+        <div class="sheet-grid">
+          <div class="sheet-chip" style="background:#8a8478;">Iron x9</div>
+          <div class="sheet-chip" style="background:#5c6a78;">Steel x3</div>
+          <div class="sheet-chip" style="background:#2f9c95;">Mithril x1</div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+  <h2><span class="num">4.</span> 제련 - 화력 밸런스 (지속 드래그)</h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;">가로 슬라이더를 <b>계속 드래그</b>해서
+    화력을 그린존에 맞춰 유지합니다. 왜 이 방식인지를 철학과 연결하면:</p>
+    <ul class="qa-list">
+      <li><b>정체성</b> - 탭이 아니라 지속적인 손 조작이라 "불을 계속 다스리고 있다"는 대장장이 특유의
+      감각을 가장 직접적으로 표현합니다.</li>
+      <li><b>캐주얼-코어</b> - 그린존 폭을 넓게 잡으면 몇 초 안에 캐주얼하게 끝나고, 광물 등급이
+      오를수록 존이 좁아지고 화력 변화가 빨라져서 코어 플레이어에게는 진짜 밸런스 감각이 필요해집니다.</li>
+      <li><b>반복 피로 대응</b> - 재료(광물 티어)마다 그린존 폭/화력 변화 속도가 달라지는 파라미터
+      변주로, 같은 규칙이지만 매번 다른 손맛을 줍니다.</li>
+    </ul>
+    <div class="phone"><div class="phone-screen">
+      <div class="glow-bg"></div>
+      <div class="scr-title">Melting</div>
+      <div class="slider-track"></div>
+      <div class="slider-handle" style="left:90px;"></div>
+      <div class="needle-bar-zone" style="top:170px; left:90px; width:40px; height:10px; opacity:0.6;"></div>
+      <div class="scr-hint" style="bottom:60px;">손잡이를 드래그해서 화력을 초록 구간에 유지</div>
+    </div></div>
+    <p class="note" style="text-align:center;">화면 전체를 물들이는 은은한 주황 글로우(§7 정체성 장치 ①)가 이 단계에 적용됩니다.</p>
+  </div>
+
+  <h2><span class="num">5.</span> 단조 - 좌우 요동 바늘 (리듬 탭)</h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;">칼날 아래 바늘이 좌우로 계속 움직이고,
+    초록 구간을 지나갈 때 <b>칼날을 탭</b>하면 정타입니다. 제련과 조작 방식(지속 드래그 vs 탭 타이밍)이
+    달라서 한 크래프트 안에서 같은 걸 두 번 반복하는 문제가 없습니다.</p>
+    <ul class="qa-list">
+      <li><b>정체성</b> - 탭 하나하나가 "탕" 하는 타격이고, 성공할 때마다 칼날에 자국이 남아 누적됩니다
+      (§7 정체성 장치 ②). 4라운드가 끝나면 그 자국들 자체가 "내가 두들긴 흔적"이 됩니다.</li>
+      <li><b>캐주얼-코어</b> - 자동 생산이 반복 물량을 흡수해주기 때문에, 수동 단조는 캐주얼 눈치를
+      덜 보고 코어 스킬 표현에 더 집중할 수 있습니다. 연속 정타 콤보 보너스(판정 폭 소폭 확장)를
+      얹어서 "리듬을 놓치지 않고 계속 맞추는" 숙련도를 확실히 보상합니다.</li>
+    </ul>
+    <div class="phone"><div class="phone-screen">
+      <div class="scr-title">Forging - Hit 2/4</div>
+      <div style="position:absolute; top:36px; left:50%; transform:translateX(-50%); width:34px; height:130px; background:#454a52; border-radius:4px;">
+        <div style="position:absolute; top:30px; left:8px; width:6px; height:6px; border-radius:50%; background:#2b2d31;"></div>
+      </div>
+      <div class="needle-bar-bg" style="top:200px;"></div>
+      <div class="needle-bar-zone" style="top:200px; left:80px; width:40px;"></div>
+      <div class="needle-mark" style="top:188px; left:110px;"></div>
+      <div class="scr-hint" style="bottom:60px;">바늘이 초록 구간일 때 칼날을 탭</div>
+    </div></div>
+  </div>
+
+  <h2><span class="num">6.</span> 등급 &amp; 제작 경로 - 캐주얼과 코어가 갈라지는 지점</h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;">§4~5의 미니게임 결과는 품질(0~100%)로
+    합산되고, 4단계 등급으로 완성품에 반영됩니다. <b>이 등급 체계 하나가 캐주얼과 코어를 가르는 축이자,
+    수동/즉석/자동 세 제작 경로를 가르는 축이기도 합니다</b> - 별개의 두 시스템이 아니라 같은 걸 두
+    각도에서 보는 것입니다.</p>
+    <table class="grade">
+      <tr><th style="width:130px;">등급</th><th style="width:110px;">품질</th><th>보상</th></tr>
+      <tr><td><span class="grade-chip rough">Rough</span></td><td>0 ~ 39%</td><td>기본 수량</td></tr>
+      <tr><td><span class="grade-chip fine">Fine</span></td><td>40 ~ 69%</td><td>기본 수량 (즉석/자동 제작의 상한)</td></tr>
+      <tr><td><span class="grade-chip superior">Superior</span></td><td>70 ~ 89%</td><td>+1개 확정 보너스 (수동 제작만 도달 가능)</td></tr>
+      <tr><td><span class="grade-chip master">Masterwork</span></td><td>90 ~ 100%</td><td>+1~2개 + 완성 시 반짝임 연출 (수동 제작만 도달 가능)</td></tr>
+    </table>
+
+    <h3>이 등급 축 위에서 세 경로가 어떻게 갈라지는가</h3>
+    <div class="layer-row">
+      <div class="layer-col casual">
+        <h4>캐주얼 쪽</h4>
+        <ul>
+          <li><b>즉석 제작</b> - 미니게임 스킵, 즉시 Fine 고정 1개</li>
+          <li><b>자동 생산</b> - 여러 개 예약, 시간이 지나면 완성, Rough~Fine만 (§6-1)</li>
+          <li>실패해도 손해가 없고, 부담 없이 계속 눌러도 됨</li>
+        </ul>
+      </div>
+      <div class="layer-col core">
+        <h4>코어 쪽</h4>
+        <ul>
+          <li><b>수동 제작</b>만 Superior/Masterwork에 도달 가능</li>
+          <li>재료 등급이 오를수록 미니게임 파라미터가 빡빡해져서 진짜 숙련이 드러남</li>
+          <li>연속 콤보, 최고 등급 기록 등 계측 가능한 목표 (추후 확장)</li>
+        </ul>
+      </div>
+    </div>
+    <p class="note">즉 "캐주얼-코어 이중 재미"는 별도 시스템이 아니라, <b>이 등급표 하나를 서로 다른
+    진입 경로(수동/즉석/자동)로 접근하게 만든 결과</b>입니다.</p>
+  </div>
+
+  <h3 style="margin-top:26px;">6-1. 자동 생산(대량생산) - 반복을 흡수하는 장치</h3>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;">대장간에서 <b>레시피 선택 → 수량 지정
+    → 생산 슬롯에 등록</b>하면, 실시간으로 시간이 지나며 자동으로 완성됩니다(슬롯당 진행 바). 그 사이
+    플레이어는 채집/사냥 등 다른 걸 자유롭게 할 수 있습니다. 처음엔 슬롯 1개, 대장간 성장에 따라
+    슬롯이 늘어나는 진행 요소로 활용합니다.</p>
+    <p style="margin:0; font-size:13px; line-height:1.75;"><b>품질은 Rough~Fine으로 상한이 고정</b>됩니다 -
+    "진짜 좋은 무기는 반드시 손으로 만들어야 한다"는 수동 제작의 존재 이유를 지키는 핵심 밸런스
+    포인트이자, §6의 등급표가 세 경로 전체를 하나로 묶어주는 근거이기도 합니다.</p>
+  </div>
+
+  <h2><span class="num">7.</span> 대장장이 정체성 장치 - 각 단계에 실제로 어디 적용되는지</h2>
+  <div class="mood-row">
+    <div class="mood-card m1"><span class="stage">§4 제련</span><h4>① 대장간의 빛</h4><p>용광로 불빛이
+    화면 전체 톤을 은은하게 물들이는 앰비언트 글로우. 화력이 오를수록 더 밝고 뜨겁게.</p></div>
+    <div class="mood-card m2"><span class="stage">§5 단조</span><h4>② 손에 남는 흔적</h4><p>성공한 타격마다
+    칼날에 자국이 쌓임 - 라운드가 끝날 때쯤엔 "내가 두들긴 흔적"이 눈에 보임.</p></div>
+    <div class="mood-card m3"><span class="stage">전체 흐름</span><h4>③ 명확한 4박자 리듬</h4><p>선택 →
+    달굼 → 두드림 → 완성. 이 리듬 자체가 반복될수록 손에 익어서, 진짜 손기술을 배우는 듯한 감각을 줍니다.</p></div>
+    <div class="mood-card m4"><span class="stage">§6 등급 결과</span><h4>④ 완성의 무게감</h4><p>등급을
+    숫자가 아니라 "얼마나 잘 만들어졌는지 한눈에 보이는 완성품"으로 - Masterwork의 반짝임, 향후 손님의
+    감탄 리액션 등으로 계속 확장 가능.</p></div>
+  </div>
+
+  <h2><span class="num">8.</span> 확인 부탁드립니다</h2>
+  <div class="card">
+    <ul class="qa-list">
+      <li><b>Q1.</b> 이렇게 하나로 통합된 흐름(§2)과 그 위의 철학(§1)이 원하시던 "전체 기획"의 방향이
+      맞을까요?</li>
+      <li><b>Q2.</b> §4 제련(화력 밸런스) / §5 단조(좌우 바늘) 조합, 계속 이 방향으로 확정해도 될까요?</li>
+      <li><b>Q3.</b> §6-1 자동 생산의 세부 수치(생산 시간, 슬롯 해금 조건, Rough/Fine 확률)를 다음
+      라운드에서 구체적으로 잡아도 될까요?</li>
+    </ul>
+    <p class="note">답 주시면 이번엔 정말로 확정된 통합안으로 구현에 들어가겠습니다.</p>
+  </div>
+
+  <footer>crafting_design_v3.html v1 · crafting_design_v2.html 파기 후 전체 통합 재작성 · 확인 후 구현에 들어가겠습니다.</footer>
+</div>
+</body>
+</html>
