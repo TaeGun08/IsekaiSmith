@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>이세계 대장장이 - 크래프팅 기반 기획서 v2</title>
+<style>
+  :root {
+    --ink: #2b2420; --paper: #f6f1e7; --card: #ffffff; --border: #dcd3c2; --accent: #b5651d;
+    --good: #4f8f5f; --warn: #c1440e; --gold: #d9a441; --blue: #4472a8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 20px 80px; background: var(--paper); color: var(--ink);
+    font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .doc { width: 100%; max-width: 1100px; }
+  h1 { font-size: 25px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 8px; color: #6b6155; font-size: 14px; }
+  p.pitch {
+    font-size: 15px; line-height: 1.75; background: var(--card); border: 1px solid var(--border);
+    border-left: 4px solid var(--accent); border-radius: 8px; padding: 16px 18px; margin: 16px 0 32px;
+  }
+  h2 { font-size: 19px; margin: 48px 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+  h2 .num { color: var(--accent); margin-right: 8px; }
+  h3 { font-size: 14.5px; margin: 22px 0 10px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); }
+  .note { font-size: 12.5px; color: #6b6155; line-height: 1.7; margin-top: 8px; }
+  .qa-list { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.9; }
+  .qa-list li b { color: var(--accent); }
+
+  .confirmed-row { display:flex; gap:12px; flex-wrap:wrap; margin-top:10px; }
+  .confirmed-card { flex:1; min-width:220px; background:#f2ede0; border:1px solid var(--border); border-radius:8px; padding:12px 14px; }
+  .confirmed-card .tag { display:inline-block; font-size:10px; font-weight:bold; color:#fff; background:var(--good); border-radius:4px; padding:2px 7px; margin-bottom:6px; }
+  .confirmed-card p { margin:0; font-size:12px; line-height:1.7; }
+
+  .mood-row { display:flex; gap:12px; flex-wrap:wrap; margin-top:10px; }
+  .mood-card { flex:1; min-width:220px; border-radius:10px; padding:14px 15px; color:#fff; }
+  .mood-card h4 { margin:0 0 6px; font-size:13px; }
+  .mood-card p { margin:0; font-size:11.5px; line-height:1.65; }
+  .m1 { background: linear-gradient(160deg,#c1440e,#7a2a0a); }
+  .m2 { background: linear-gradient(160deg,#8a6a3f,#5c4527); }
+  .m3 { background: linear-gradient(160deg,#4472a8,#2c4d73); }
+  .m4 { background: linear-gradient(160deg,#7c67ad,#4d3f78); }
+
+  .layer-row { display:flex; gap:0; margin-top:14px; border-radius:10px; overflow:hidden; border:1px solid var(--border); }
+  .layer-col { flex:1; padding:16px; }
+  .layer-col.casual { background:#eef3ea; }
+  .layer-col.core { background:#f3ece0; }
+  .layer-col h4 { margin:0 0 8px; font-size:14px; }
+  .layer-col ul { margin:0; padding-left:18px; font-size:12px; line-height:1.8; }
+
+  .path-row { display:flex; gap:14px; flex-wrap:wrap; margin-top:14px; }
+  .path-card { flex:1; min-width:250px; border-radius:10px; padding:16px; color:#fff; }
+  .path-card h4 { margin:0 0 4px; font-size:15px; }
+  .path-card .sub2 { font-size:11px; opacity:0.85; margin-bottom:10px; }
+  .path-card ul { margin:0; padding-left:18px; font-size:11.5px; line-height:1.75; }
+  .path1 { background: linear-gradient(160deg,#d98a3f,#a3541a); }
+  .path2 { background: linear-gradient(160deg,#8a8478,#5c574c); }
+  .path3 { background: linear-gradient(160deg,#4472a8,#2c4d73); }
+
+  .phone { width: 230px; height: 408px; background: #1c1a18; border-radius: 22px; padding: 10px; box-shadow: 0 4px 14px rgba(0,0,0,0.25); margin: 0 auto; }
+  .phone-screen { width: 100%; height: 100%; background: #241f1a; border-radius: 14px; position: relative; overflow: hidden; }
+  .scr-title { position:absolute; top:12px; left:0; right:0; text-align:center; color:#fff; font-size:11px; font-weight:bold; }
+  .scr-hint { position:absolute; bottom:12px; left:0; right:0; text-align:center; color:#a89f92; font-size:7.5px; padding:0 10px; }
+
+  .tab-row { position:absolute; top:34px; left:10px; right:10px; display:flex; gap:4px; }
+  .tab-item { flex:1; text-align:center; font-size:8px; color:#cfc9c1; padding:8px 4px; border-radius:6px 6px 0 0; background:#332c25; }
+  .tab-item.active { background:#3e372d; color:#f2d16b; font-weight:bold; }
+
+  .recipe-row { position:absolute; top:74px; left:10px; right:10px; background:#332c25; border-radius:8px; padding:10px; display:flex; gap:8px; align-items:center; }
+  .recipe-icon { width:36px; height:36px; border-radius:6px; background:#6b7680; }
+  .recipe-info { flex:1; font-size:8px; color:#e6e3e0; line-height:1.6; }
+  .qty-stepper { display:flex; align-items:center; gap:4px; }
+  .qty-btn { width:20px; height:20px; border-radius:4px; background:#4a443e; color:#fff; font-size:10px; text-align:center; line-height:20px; }
+  .qty-val { font-size:9px; color:#fff; width:16px; text-align:center; }
+
+  .slot-progress-row { position:absolute; top:150px; left:10px; right:10px; display:flex; flex-direction:column; gap:8px; }
+  .slot-item { background:#332c25; border-radius:8px; padding:8px; }
+  .slot-item .label { font-size:7.5px; color:#cfc9c1; margin-bottom:4px; }
+  .slot-bar-bg { height:10px; background:#221d18; border-radius:5px; overflow:hidden; }
+  .slot-bar-fill { height:100%; background:linear-gradient(90deg,#8a8478,#c1440e); }
+
+  .start-btn { position:absolute; bottom:44px; left:10px; right:10px; background:#4472a8; color:#fff; text-align:center; padding:10px 0; border-radius:8px; font-size:9px; font-weight:bold; }
+
+  footer { margin-top: 40px; font-size: 12px; color: #948a7c; text-align: center; }
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <h1>크래프팅 기반 기획서 v2</h1>
+  <p class="sub">crafting_design_v2.html · crafting_design.html 파기 후 새로 작성</p>
+  <p class="pitch">
+    이전 문서(crafting_design.html)는 여러 번 덧붙이면서 길어졌는데, 이번엔 <b>제작 시스템의 기반
+    골격을 새로 짜는 것</b>이라 이어붙이는 대신 문서를 새로 시작합니다. 실루엣에 재료를 넣는 방식은
+    끝까지 가져가기로 확정하고, 그 위에 <b>① 대장장이라는 직업의 정체성, ② 캐주얼하면서도 코어한
+    재미, ③ 반복 작업을 대신할 자동 생산(대량생산)</b> 세 가지를 이번 문서의 중심으로 다룹니다.
+  </p>
+
+  <h2><span class="num">1.</span> 이전 문서에서 확정된 것 (재검토 없이 유지)</h2>
+  <div class="confirmed-row">
+    <div class="confirmed-card">
+      <span class="tag">확정</span>
+      <p><b>무기/도구 실루엣 조립</b>은 크래프팅의 핵심 방식으로 끝까지 유지합니다. 완성될 실루엣이
+      먼저 뜨고, 부위(칼날/손잡이 등)에 맞는 재료를 꽂아 넣는 방식 자체는 더 이상 재검토하지 않습니다.</p>
+    </div>
+    <div class="confirmed-card">
+      <span class="tag">확정</span>
+      <p>재료는 <b>카테고리(Ore/Wood/ManaStone)</b>로 관리되어 트레이가 보유량만큼 자동 생성됩니다.
+      재료가 늘어나도 코드를 다시 짤 필요 없음.</p>
+    </div>
+    <div class="confirmed-card">
+      <span class="tag">확정</span>
+      <p>재료 선택은 드래그가 아니라 <b>"빈 슬롯 탭 → 하단 시트에서 스크롤로 선택"</b> 방식. 모바일에서
+      드래그 정밀도 문제(작은 드롭존을 놓치는 버그)를 구조적으로 없앱니다.</p>
+    </div>
+    <div class="confirmed-card">
+      <span class="tag">확정</span>
+      <p>미니게임은 <b>제련 = 화력 밸런스(지속 드래그)</b>, <b>단조 = 좌우 요동 바늘(탭 타이밍)</b>으로
+      확정. 서로 조작 방식이 달라 한 크래프트 안에서 같은 걸 두 번 반복하지 않습니다.</p>
+    </div>
+  </div>
+  <p class="note">이 문서는 위 네 가지를 전제로, 그 위에 새로 요청하신 세 가지 주제(대장장이 정체성 /
+  캐주얼-코어 이중 재미 / 자동 생산)를 다룹니다.</p>
+
+  <h2><span class="num">2.</span> "대장장이 느낌" - 전체 톤을 관통하는 4가지 장치</h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.7;">개별 미니게임 연출을 넘어서, 게임을 켤 때마다
+    "나는 대장장이다"라는 감각을 계속 상기시켜주는 장치들입니다.</p>
+    <div class="mood-row">
+      <div class="mood-card m1"><h4>① 대장간의 빛</h4><p>용광로 불빛이 화면 전체 분위기(주변 톤,
+      그림자 색)를 은은하게 물들이는 앰비언트 라이팅. 제작 중일수록 공방이 더 밝고 뜨겁게 느껴지도록.</p></div>
+      <div class="mood-card m2"><h4>② 손에 남는 흔적</h4><p>지금도 있는 타격 자국 누적, 재료별로 물드는
+      실루엣 색처럼, <b>내가 만들고 있다는 흔적이 눈에 계속 쌓이는</b> 연출을 다른 단계에도 확장
+      (예: 제련 중 칼날 색이 온도에 따라 실시간으로 변함).</p></div>
+      <div class="mood-card m3"><h4>③ 명확한 4박자 리듬</h4><p>모든 제작이 <b>선택 → 달굼 → 두드림 →
+      완성</b>이라는 같은 4단 흐름을 갖습니다. 이 리듬 자체가 반복될수록 "대장장이의 손동작을 몸으로
+      익히는" 느낌을 줍니다 - 흔들리지 않는 뼈대이자 정체성.</p></div>
+      <div class="mood-card m4"><h4>④ 완성의 무게감</h4><p>등급 결과 연출(Masterwork 반짝임 등)을
+      "숫자 등급"이 아니라 <b>"이 무기가 얼마나 잘 만들어졌는지 한눈에 보이는 완성품"</b>으로 느끼게
+      - 나중에 손님이 감탄하는 리액션, 진열대에 전시되는 연출 등으로 계속 확장 가능한 지점입니다.</p></div>
+    </div>
+  </div>
+
+  <h2><span class="num">3.</span> 캐주얼 x 코어 - 이중 레이어 설계</h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.7;">핵심 원칙: <b>코어 유저를 위한 깊이가
+    캐주얼 유저에게 강제되면 안 됩니다.</b> 표면(캐주얼)은 누구나 부담 없이 즐기고, 그 아래 선택적으로
+    파고들 수 있는 깊이(코어)를 깔아두는 구조입니다.</p>
+    <div class="layer-row">
+      <div class="layer-col casual">
+        <h4>표면 - 캐주얼</h4>
+        <ul>
+          <li>재료 넣고 몇 초짜리 미니게임만 해도 아이템은 나온다 (실패해도 최소 Rough는 보장)</li>
+          <li>미니게임이 귀찮으면 즉석 제작(Quick Craft)으로 스킵 가능</li>
+          <li>대량으로 필요하면 자동 생산(§5)에 맡기고 다른 걸 하면 됨</li>
+        </ul>
+      </div>
+      <div class="layer-col core">
+        <h4>깊이 - 코어</h4>
+        <ul>
+          <li>등급 체계(Rough~Masterwork), 정확한 타이밍/밸런스 조작으로 최고 등급 노리기</li>
+          <li>재료별로 미니게임 파라미터가 달라 광물 티어가 오를수록 진짜 숙련이 필요해짐</li>
+          <li>개인 기록(연속 Masterwork, 최고 등급 달성 무기 등) 같은 계측 가능한 목표 (추후 확장)</li>
+        </ul>
+      </div>
+    </div>
+    <p class="note">즉 "재미"는 하나의 방식이 아니라 <b>플레이어가 지금 원하는 만큼만 관여도를 고를 수
+    있는 구조</b>에서 나옵니다. 아래 §5의 자동 생산이 바로 이 원칙을 제작 시스템 전체에 적용한 결과물입니다.</p>
+  </div>
+
+  <h2><span class="num">4.</span> 제작 경로 3단 구조</h2>
+  <div class="path-row">
+    <div class="path-card path1">
+      <h4>수동 제작 (Manual)</h4>
+      <div class="sub2">코어 플레이어의 길</div>
+      <ul>
+        <li>실루엣 조립 + 제련 + 단조 미니게임 전부 진행</li>
+        <li>Rough ~ Masterwork까지 전 등급 도달 가능</li>
+        <li>시간/집중이 필요하지만 결과가 가장 좋음</li>
+      </ul>
+    </div>
+    <div class="path-card path2">
+      <h4>즉석 제작 (Quick Craft)</h4>
+      <div class="sub2">지금 이미 있는 기능</div>
+      <ul>
+        <li>미니게임 전부 스킵, 즉시 완성</li>
+        <li>품질 고정 (Fine 하한 보장)</li>
+        <li>재료 1세트 -> 즉시 1개, 딱 한 번 빠르게 필요할 때</li>
+      </ul>
+    </div>
+    <div class="path-card path3">
+      <h4>자동 생산 (Auto-Craft)</h4>
+      <div class="sub2">신규 - 반복 작업의 대체재</div>
+      <ul>
+        <li>여러 개를 한 번에 예약, 시간이 지나면 자동 완성</li>
+        <li>품질 상한 낮음 (Superior/Masterwork 불가)</li>
+        <li>그 사이 플레이어는 채집/사냥 등 다른 걸 할 수 있음</li>
+      </ul>
+    </div>
+  </div>
+  <p class="note">세 경로는 서로를 대체하지 않고 <b>상황에 따라 골라 쓰는 도구</b>입니다. "질 좋은 무기 하나"는
+  수동, "지금 급한 것 하나"는 즉석, "재고를 쌓아둬야 할 때"는 자동 생산.</p>
+
+  <h2><span class="num">5.</span> 자동 생산(대량생산) 시스템 상세</h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.7;">반복 피로 문제(이전 문서 §8)에 대한
+    가장 근본적인 해법이라고 생각합니다. <b>"매번 미니게임을 반복해야 한다"는 압박 자체를 없애고</b>,
+    미니게임은 "더 잘 만들고 싶을 때 선택하는 것"으로 성격이 바뀝니다.</p>
+
+    <h3>동작 방식</h3>
+    <ul class="qa-list">
+      <li>대장간에서 <b>"자동 생산"</b> 탭을 선택 → 레시피 선택 → 수량 지정(보유 재료 한도 내) → 시작</li>
+      <li><b>생산 슬롯</b> 개념 도입 - 처음엔 1슬롯(동시에 1개 레시피만 큐잉 가능), 나중에 대장간을
+      업그레이드하면 슬롯이 늘어나는 성장 요소로 활용 가능</li>
+      <li>슬롯당 <b>1개 생산에 실시간으로 일정 시간</b>이 걸리고(예: 몇십 초~몇 분, 수치는 추후 밸런싱),
+      진행 중에도 플레이어는 자유롭게 채집/사냥 등 다른 활동 가능 - 이 게임이 이미 검토 중인 "필드
+      난이도가 스테이지 진행과 함께 서서히 오르는" 아이디어와 같은 결의 유휴형(idle) 리듬</li>
+      <li>시작 시 필요한 재료를 <b>수량만큼 즉시 차감</b>(다른 곳에 못 쓰게 락) - "생산을 걸어둔 만큼은
+      확정적으로 소모된다"는 걸 명확히 함</li>
+    </ul>
+
+    <h3>품질 밸런스 (제일 중요한 결정)</h3>
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.7;">자동 생산은 <b>Rough~Fine 등급만
+    나오도록 상한을 낮게 고정</b>합니다. Superior/Masterwork는 절대 나오지 않습니다. 이렇게 해야
+    "진짜 좋은 무기는 반드시 손으로 직접 만들어야 한다"는 수동 제작의 존재 이유가 지켜지고, 자동화가
+    수동 제작을 완전히 대체해버리는 걸 막을 수 있습니다.</p>
+
+    <div class="phone"><div class="phone-screen">
+      <div class="scr-title">Smithy</div>
+      <div class="tab-row">
+        <div class="tab-item">Manual</div>
+        <div class="tab-item">Quick</div>
+        <div class="tab-item active">Auto</div>
+      </div>
+      <div class="recipe-row">
+        <div class="recipe-icon"></div>
+        <div class="recipe-info">Sword<br>Ore x2, Wood x1<br>~Fine grade only</div>
+        <div class="qty-stepper">
+          <div class="qty-btn">-</div>
+          <div class="qty-val">5</div>
+          <div class="qty-btn">+</div>
+        </div>
+      </div>
+      <div class="slot-progress-row">
+        <div class="slot-item">
+          <div class="label">Slot 1 - Sword x5</div>
+          <div class="slot-bar-bg"><div class="slot-bar-fill" style="width:62%;"></div></div>
+        </div>
+        <div class="slot-item">
+          <div class="label">Slot 2 - Empty</div>
+          <div class="slot-bar-bg"><div class="slot-bar-fill" style="width:0%; background:#3a352e;"></div></div>
+        </div>
+      </div>
+      <div class="start-btn">START PRODUCTION</div>
+    </div></div>
+    <p class="note" style="text-align:center;">Manual/Quick/Auto 3개 탭으로 진입 방식을 고름 · 레시피 선택 후
+    수량 스테퍼로 개수 지정 · 슬롯별로 진행 바가 채워지며 실시간 생산, 슬롯이 늘어나면 동시에 여러 레시피
+    생산 가능</p>
+
+    <p class="note">세부 수치(생산 시간, 슬롯 해금 조건, Rough/Fine 확률 분포)는 지금 정하지 않고 §7 질문으로
+    남겨둡니다 - 방향에 동의하시면 다음 라운드에서 구체적인 숫자를 잡겠습니다.</p>
+  </div>
+
+  <h2><span class="num">6.</span> 반복 피로 문제 - 최신 결론</h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.7;">이전 문서에서 재료별 파라미터 변주,
+    짧게 끝내기 같은 미니게임 내부 해법을 다뤘는데, <b>자동 생산 경로가 생기면서 더 근본적으로
+    풀립니다.</b> "물량이 필요한 반복 작업"과 "잘 만들고 싶어서 하는 도전"이 아예 다른 경로로
+    분리되기 때문에, 미니게임은 억지로 반복하는 게 아니라 <b>플레이어가 원할 때 선택하는 행위</b>가
+    됩니다. 이전 문서의 파라미터 변주/짧게 끝내기 원칙은 수동 제작 경로에 그대로 적용해서 보조
+    장치로 유지합니다.</p>
+  </div>
+
+  <h2><span class="num">7.</span> 확인 부탁드립니다</h2>
+  <div class="card">
+    <ul class="qa-list">
+      <li><b>Q1.</b> §4~5 "수동/즉석/자동" 3단 제작 경로 구조로 진행해도 될까요?</li>
+      <li><b>Q2.</b> §5 자동 생산의 품질 상한(Rough~Fine만, Superior/Masterwork 불가) 방향에 동의하시나요?</li>
+      <li><b>Q3.</b> 자동 생산이 <b>실시간으로 시간이 걸리는 방식</b>(슬롯 진행 바) 괜찮으신가요, 아니면
+      즉시 일괄 완성되는 방식을 선호하시나요?</li>
+      <li><b>Q4.</b> §2 대장장이 정체성 4가지 장치, §3 캐주얼-코어 이중 레이어 방향에 더 추가하고 싶은
+      아이디어가 있으신가요?</li>
+    </ul>
+    <p class="note">답 주시면 이번 결정 사항들을 기준으로 세부 수치(생산 시간, 확률 등)까지 잡아서
+    구현에 들어가겠습니다.</p>
+  </div>
+
+  <footer>crafting_design_v2.html v1 · crafting_design.html 파기 후 새로 작성 · 확인 후 구현에 들어가겠습니다.</footer>
+</div>
+</body>
+</html>
