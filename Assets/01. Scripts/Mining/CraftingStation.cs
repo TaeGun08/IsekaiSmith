@@ -99,6 +99,13 @@ public class CraftingStation : MonoBehaviour
     // now without duplicating the recipe check.
     public bool CanCraft => !isCrafting && HasEnoughInputs();
 
+    // Which input the recipe is still short on - lets DevAutoPlayController target gathering by
+    // actual need instead of "whichever resource node happens to be physically closer", which
+    // can get stuck looping on one resource type forever if its field is nearer to the player's
+    // usual path than the other.
+    public bool NeedsOre => ResourceBank.Get(oreType) < oreAmount;
+    public bool NeedsWood => ResourceBank.Get(woodType) < woodAmount;
+
     // Bypasses the silhouette/minigame flow and applies the same fixed-quality result as the
     // QUICK CRAFT button. Used by DevAutoPlayController for automated loop testing.
     public bool TryDevQuickCraft(out CraftGrade grade, out int amount)

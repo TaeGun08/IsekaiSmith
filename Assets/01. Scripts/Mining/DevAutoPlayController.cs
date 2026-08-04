@@ -321,7 +321,8 @@ public class DevAutoPlayController : MonoBehaviour
             }
         }
 
-        CraftingStation smithy = FindNearest(FindObjectsByType<CraftingStation>(FindObjectsSortMode.None), s => s.CanCraft, s => s.transform.position);
+        CraftingStation[] stations = FindObjectsByType<CraftingStation>(FindObjectsSortMode.None);
+        CraftingStation smithy = FindNearest(stations, s => s.CanCraft, s => s.transform.position);
         if (smithy != null)
         {
             currentGoal = Goal.Smithy;
@@ -333,14 +334,17 @@ public class DevAutoPlayController : MonoBehaviour
             return;
         }
 
+        // Which type to gather is driven by what the recipe still needs, not by which node is
+        // physically nearer - picking "just whichever is closer" can get stuck looping on one
+        // resource type forever if its field sits closer to the player's usual path than the
+        // other (e.g. always chopping wood because the lumber camp is nearer than the quarry).
+        CraftingStation referenceStation = FindNearest(stations, s => true, s => s.transform.position);
+        bool wantOre = referenceStation == null || referenceStation.NeedsOre;
+
         OreNode ore = FindNearest(FindObjectsByType<OreNode>(FindObjectsSortMode.None), n => n.IsAvailable, n => n.transform.position);
         WoodNode wood = FindNearest(FindObjectsByType<WoodNode>(FindObjectsSortMode.None), n => n.IsAvailable, n => n.transform.position);
 
-        Vector3 origin = PlayerMotor.Instance.transform.position;
-        float oreDist = ore != null ? (ore.transform.position - origin).sqrMagnitude : float.MaxValue;
-        float woodDist = wood != null ? (wood.transform.position - origin).sqrMagnitude : float.MaxValue;
-
-        if (ore != null && oreDist <= woodDist)
+        if (wantOre && ore != null)
         {
             currentGoal = Goal.Resource;
             targetOre = ore;
@@ -357,6 +361,17 @@ public class DevAutoPlayController : MonoBehaviour
             targetDepot = null;
             targetSmithy = null;
             targetTransform = wood.transform;
+        }
+        else if (ore != null)
+        {
+            // Wanted wood but none is available right now (mid-respawn) - mine ore instead of
+            // idling, rather than waiting.
+            currentGoal = Goal.Resource;
+            targetOre = ore;
+            targetWood = null;
+            targetDepot = null;
+            targetSmithy = null;
+            targetTransform = ore.transform;
         }
         else
         {
