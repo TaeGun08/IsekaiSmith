@@ -276,14 +276,18 @@ public class DevAutoPlayController : MonoBehaviour
         switch (currentGoal)
         {
             case Goal.Resource:
+                // Also bail out once the relevant layer fills up mid-gather - otherwise the bot
+                // keeps standing at the node (auto-mining/chopping wastes every hit once
+                // CarryStack.TryAdd starts silently failing) instead of noticing it's full and
+                // heading to the depot.
                 if (targetOre != null)
                 {
-                    return targetOre.IsAvailable;
+                    return targetOre.IsAvailable && !cachedCarryStack.IsFull(CarryLayer.Ore);
                 }
 
                 if (targetWood != null)
                 {
-                    return targetWood.IsAvailable;
+                    return targetWood.IsAvailable && !cachedCarryStack.IsFull(CarryLayer.Wood);
                 }
 
                 return false;
