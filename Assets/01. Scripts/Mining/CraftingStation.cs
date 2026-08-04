@@ -94,6 +94,27 @@ public class CraftingStation : MonoBehaviour
         return ResourceBank.Get(oreType) >= oreAmount && ResourceBank.Get(woodType) >= woodAmount;
     }
 
+    // Public read of the same eligibility check Update() uses for the interaction prompt -
+    // lets other systems (e.g. DevAutoPlayController) know whether a craft would succeed right
+    // now without duplicating the recipe check.
+    public bool CanCraft => !isCrafting && HasEnoughInputs();
+
+    // Bypasses the silhouette/minigame flow and applies the same fixed-quality result as the
+    // QUICK CRAFT button. Used by DevAutoPlayController for automated loop testing.
+    public bool TryDevQuickCraft(out CraftGrade grade, out int amount)
+    {
+        grade = CraftGrade.Rough;
+        amount = 0;
+
+        if (!CanCraft)
+        {
+            return false;
+        }
+
+        grade = ApplyCraft(0.5f, 0, out amount);
+        return true;
+    }
+
     private IEnumerator CraftWithSilhouetteAndMinigames()
     {
         isCrafting = true;
