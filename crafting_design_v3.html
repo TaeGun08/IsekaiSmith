@@ -107,9 +107,12 @@
   table.grade th { background: #efe8d9; font-size: 12px; }
   .grade-chip { display:inline-block; font-size:11px; font-weight:bold; color:#fff; border-radius:5px; padding:2px 9px; }
   .grade-chip.rough { background:#8a8478; }
+  .grade-chip.common { background:#6f7d5c; }
   .grade-chip.fine { background:#4f8f5f; }
   .grade-chip.superior { background:#3a6fa8; }
+  .grade-chip.exceptional { background:#5c4fa8; }
   .grade-chip.master { background: linear-gradient(120deg,#c98b2e,#8a4fae); }
+  .grade-chip.legendary { background: linear-gradient(120deg,#e0a83f,#c1440e,#8a4fae); }
 
   footer { margin-top: 40px; font-size: 12px; color: #948a7c; text-align: center; }
 </style>
@@ -277,16 +280,24 @@
   <h2><span class="num">6.</span> 등급 &amp; 제작 경로 - 캐주얼과 코어가 갈라지는 지점</h2>
   <div class="card">
     <p style="margin:0 0 10px; font-size:13px; line-height:1.75;">§4~5의 미니게임 결과는 품질(0~100%)로
-    합산되고, 4단계 등급으로 완성품에 반영됩니다. <b>이 등급 체계 하나가 캐주얼과 코어를 가르는 축이자,
+    합산되고, 등급으로 완성품에 반영됩니다. <b>이 등급 체계 하나가 캐주얼과 코어를 가르는 축이자,
     수동/즉석/자동 세 제작 경로를 가르는 축이기도 합니다</b> - 별개의 두 시스템이 아니라 같은 걸 두
-    각도에서 보는 것입니다.</p>
+    각도에서 보는 것입니다. 이전엔 4단계였는데, <b>등급 사이 폭이 너무 넓어서(예: 70%와 89%가 똑같이
+    Superior) 다양성이 부족하다는 지적을 반영해 7단계로 세분화</b>합니다.</p>
     <table class="grade">
-      <tr><th style="width:130px;">등급</th><th style="width:110px;">품질</th><th>보상</th></tr>
-      <tr><td><span class="grade-chip rough">Rough</span></td><td>0 ~ 39%</td><td>기본 수량</td></tr>
-      <tr><td><span class="grade-chip fine">Fine</span></td><td>40 ~ 69%</td><td>기본 수량 (즉석/자동 제작의 상한)</td></tr>
-      <tr><td><span class="grade-chip superior">Superior</span></td><td>70 ~ 89%</td><td>+1개 확정 보너스 (수동 제작만 도달 가능)</td></tr>
-      <tr><td><span class="grade-chip master">Masterwork</span></td><td>90 ~ 100%</td><td>+1~2개 + 완성 시 반짝임 연출 (수동 제작만 도달 가능)</td></tr>
+      <tr><th style="width:150px;">등급</th><th style="width:100px;">품질</th><th>보상</th></tr>
+      <tr><td><span class="grade-chip rough">Rough</span></td><td>0 ~ 24%</td><td>기본 수량</td></tr>
+      <tr><td><span class="grade-chip common">Common</span></td><td>25 ~ 44%</td><td>기본 수량</td></tr>
+      <tr><td><span class="grade-chip fine">Fine</span></td><td>45 ~ 59%</td><td>기본 수량 (즉석/자동 제작의 상한)</td></tr>
+      <tr><td><span class="grade-chip superior">Superior</span></td><td>60 ~ 74%</td><td>+1개 확정 보너스 (수동 제작만 도달 가능)</td></tr>
+      <tr><td><span class="grade-chip exceptional">Exceptional</span></td><td>75 ~ 89%</td><td>+1개 확정 + 스탯 보정 상향 (수동 제작만 도달 가능)</td></tr>
+      <tr><td><span class="grade-chip master">Masterwork</span></td><td>90 ~ 97%</td><td>+1~2개 + 완성 시 반짝임 연출 (수동 제작만 도달 가능)</td></tr>
+      <tr><td><span class="grade-chip legendary">Legendary</span></td><td>98 ~ 100%</td><td>+2개 확정 + 특성 롤 100% + 전용 완성 연출 (극히 드묾, 수동 제작만 도달 가능)</td></tr>
     </table>
+    <p class="note">7단계 전부를 매번 다르게 그릴 필요는 없습니다 - 등급명/색은 7단계로 세분화하되,
+    시각 연출은 상위 3단계(Exceptional/Masterwork/Legendary)에서만 뚜렷이 달라지게 해서 개발 부담은
+    낮게 유지합니다. 하위 4단계(Rough~Superior)는 색상 배지만 바뀌어도 "품질이 촘촘하게 갈린다"는
+    체감은 충분합니다.</p>
 
     <h3>품질을 더 다양하게 - 등급 하나로는 부족합니다</h3>
     <p style="margin:0 0 10px; font-size:13px; line-height:1.7;">지금은 등급 4단계가 "완성 수량 보너스"
@@ -299,10 +310,11 @@
       <div class="stat-split-card s2"><h4>단조 점수 → 정밀 계열</h4><p>치명타율 / 내구도 등 정교함 관련
       스탯에 반영. "얼마나 정확하게 두드렸는지"가 무기의 완성도/정밀함을 결정합니다.</p></div>
     </div>
-    <p style="margin:10px 0 0; font-size:13px; line-height:1.7;">여기에 <b>Superior 이상에서는 낮은 확률로
-    특성(트레잇)을 하나 더 얹습니다</b> (예: "묵직함 - 공격력 소폭 추가", "예리함 - 치명타 소폭 추가").
-    같은 Masterwork 검이라도 어떤 걸 만들었느냐에 따라 조금씩 다른 무기가 나와서, 등급 하나로
-    뭉뚱그려지지 않는 다양성이 생깁니다.</p>
+    <p style="margin:10px 0 0; font-size:13px; line-height:1.7;">여기에 <b>Superior 이상부터 특성(트레잇)이
+    붙을 확률이 열리고, 등급이 오를수록 그 확률도 같이 올라갑니다</b> (예: "묵직함 - 공격력 소폭 추가",
+    "예리함 - 치명타 소폭 추가") - Legendary는 100% 확정으로 반드시 하나가 붙습니다. 같은 Masterwork
+    검이라도 어떤 걸 만들었느냐에 따라 조금씩 다른 무기가 나와서, 등급 하나로 뭉뚱그려지지 않는
+    다양성이 생깁니다.</p>
     <p class="note">이렇게 하면 플레이어가 "이번엔 제련에 더 집중해서 힘 좋은 검을 만들어보자" 같은
     의도적인 선택도 가능해집니다 - 무작위 다양성이 아니라 실력으로 방향을 고르는 다양성입니다.</p>
 
@@ -319,7 +331,7 @@
       <div class="layer-col core">
         <h4>코어 쪽</h4>
         <ul>
-          <li><b>수동 제작</b>만 Superior/Masterwork에 도달 가능</li>
+          <li><b>수동 제작</b>만 Superior 이상(Superior/Exceptional/Masterwork/Legendary)에 도달 가능</li>
           <li>재료 등급이 오를수록 미니게임 파라미터가 빡빡해져서 진짜 숙련이 드러남</li>
           <li>연속 콤보, 최고 등급 기록 등 계측 가능한 목표 (추후 확장)</li>
         </ul>
@@ -360,8 +372,8 @@
       <li><b>Q2.</b> §4 제련(홀드-릴리즈 풀무질 + 녹는 도가니 연출) - 이 방향이 원하시던 "잭스미스를
       우리 방식으로 해석한" 느낌에 맞을까요?</li>
       <li><b>Q3.</b> §5 단조(칼날 직접 클릭 + 망치 스윙 연출로 복귀) - 이 방향이 맞을까요?</li>
-      <li><b>Q4.</b> §6 제련→위력 / 단조→정밀 스탯 분리 + Superior 이상 특성 롤 - 품질 다양화 방향으로
-      괜찮을까요?</li>
+      <li><b>Q4.</b> §6 등급 4단계 → 7단계(Rough/Common/Fine/Superior/Exceptional/Masterwork/Legendary)
+      세분화 + 제련→위력/단조→정밀 스탯 분리 + 등급별 특성 롤 확률 - 품질 다양화 방향으로 괜찮을까요?</li>
       <li><b>Q5.</b> §6-1 자동 생산 세부 수치(생산 시간, 슬롯 해금 조건, Rough/Fine 확률) - 구체적으로
       잡아도 된다고 하셨으니, 다음 라운드에서 실제 수치를 정하고 바로 구현에 들어가겠습니다.</li>
     </ul>
@@ -369,7 +381,7 @@
     한 번에 진행하겠습니다.</p>
   </div>
 
-  <footer>crafting_design_v3.html v2 · 제련(풀무질)·단조(직접 타격+망치 연출)·품질 다양화(스탯 분리+특성) 보완 · 확인 후 구현에 들어가겠습니다.</footer>
+  <footer>crafting_design_v3.html v3 · 등급 4단계 -> 7단계 세분화 반영 · 확인 후 구현에 들어가겠습니다.</footer>
 </div>
 </body>
 </html>
