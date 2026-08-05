@@ -23,7 +23,7 @@ public class CraftingStation : MonoBehaviour
     [SerializeField] private float pulseSpeed = 10f;
 
     [Header("Smelting Minigame (Bellows Pump) - hold to draw, release to pump; don't overdraw")]
-    [SerializeField] private float temperatureDuration = 5f;
+    [SerializeField] private float temperatureDuration = 9f;
     [SerializeField] private float sweetMin = 0.55f;
     [SerializeField] private float sweetMax = 0.75f;
     [SerializeField] private float chargeToFullDuration = 0.9f;

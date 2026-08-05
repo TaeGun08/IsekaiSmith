@@ -586,7 +586,7 @@ MonoBehaviour:
   anvilPulseVisual: {fileID: 440567680809466404}
   pulseStrength: 0.12
   pulseSpeed: 10
-  temperatureDuration: 5
+  temperatureDuration: 9
   sweetMin: 0.55
   sweetMax: 0.75
   chargeToFullDuration: 0.9

@@ -324,7 +324,10 @@ public class CraftingMinigameUI : MonoBehaviour
             bool isHeld = leverHoldTracker.IsHeld;
             float heldTime = leverHoldTracker.HeldDuration;
             float chargeLevel = Mathf.Clamp01(heldTime / chargeToFullDuration);
-            chargeGaugeFillRect.anchorMax = new Vector2(1f, isHeld ? chargeLevel : 0f);
+            // Always shows chargeLevel (not gated on isHeld) so the gauge holds its peak value
+            // for a beat right at release instead of snapping to 0 the instant you let go -
+            // heldTime itself doesn't reset until the next press anyway.
+            chargeGaugeFillRect.anchorMax = new Vector2(1f, chargeLevel);
 
             if (wasHeld && leverHoldTracker.WasReleasedThisFrame)
             {
