@@ -181,9 +181,12 @@
     이 틀 위에서 이뤄지므로 계속 유지합니다.</p>
     <ul class="qa-list">
       <li><b>확장성</b> - 재료는 카테고리(광물/목재/마석)로 관리되어, 광물 티어나 마석 속성이 늘어나도
-      트레이가 자동으로 대응합니다.</li>
-      <li><b>모바일 조작</b> - 드래그 대신 <b>"빈 슬롯 탭 → 하단 시트에서 스크롤로 선택"</b>. 정밀한
-      드래그가 필요 없어 오조작이 구조적으로 사라집니다.</li>
+      트레이가 자동으로 대응합니다. 이건 계속 유지합니다.</li>
+      <li><b>모바일 조작 - 다시 드래그로</b> - "슬롯 탭 → 하단 시트에서 선택" 방식은 클릭 판정이 정확한
+      위치에서 잘 안 된다는 피드백을 받아 <b>다시 드래그 앤 드롭으로 되돌립니다.</b> 트레이에 뜬 재료
+      칩을 손가락으로 끌어서 해당 슬롯에 직접 놓는 방식입니다. 예전 드래그 방식이 드롭존이 좁아서
+      놓치는 문제가 있었으니, 이번엔 <b>슬롯 자체를 크게 잡고, 드래그 중 슬롯 위에 올라가면 밝게
+      하이라이트</b>되게 해서 같은 문제가 반복되지 않게 합니다.</li>
     </ul>
     <div class="phone"><div class="phone-screen">
       <div class="scr-title">Forge: Sword</div>
@@ -202,7 +205,10 @@
           <div class="sheet-chip" style="background:#2f9c95;">Mithril x1</div>
         </div>
       </div>
+      <div class="scr-hint" style="bottom:150px;">아래 트레이의 칩을 위 슬롯으로 드래그 - 슬롯 위에서 밝게 하이라이트</div>
     </div></div>
+    <p class="note">이전에 드래그로 만들었을 때 드롭존이 좁아서 놓치는 버그가 있었던 걸 반영해,
+    이번엔 슬롯 크기와 히트 영역을 넉넉하게 잡고 갑니다.</p>
   </div>
 
   <h2><span class="num">4.</span> 제련 - 진짜 펌프질 (위아래 드래그 왕복 + 압력 게이지)</h2>
@@ -227,8 +233,9 @@
 
     <h3>시각화 - 압력 게이지</h3>
     <p style="margin:0 0 10px; font-size:13px; line-height:1.7;">막대바 + 초록 구간 대신, <b>시계/속도계처럼
-    생긴 원형 다이얼</b>을 씁니다. 다이얼 전체가 붉은 톤 그라데이션(뜨거운 열기 느낌)이고, 바늘이
-    압력이 오를수록 시계방향으로 돌아갑니다. 목표 구간(적정 온도)은 <b>다이얼 위 밝은 금색 마커</b>로
+    생긴 원형 다이얼</b>을 씁니다. <b>바늘은 왼쪽 아래(0%)에서 시작해서 위쪽 정점을 지나 오른쪽
+    아래(100%)까지</b> 시계방향으로 도는, 실제 압력계/속도계와 똑같은 궤적입니다. 다이얼 전체가
+    붉은 톤 그라데이션(뜨거운 열기 느낌)이고, 목표 구간(적정 온도)은 <b>다이얼 위 밝은 금색 마커</b>로
     표시합니다 - 초록색 막대 대신 "이 압력계 자체가 뜨겁다"는 톤을 계속 유지합니다.</p>
 
     <div class="phone"><div class="phone-screen">
@@ -237,14 +244,14 @@
       <div class="gauge-face"></div>
       <div class="gauge-fill-arc"></div>
       <div class="gauge-target-arc"></div>
-      <div class="gauge-needle" style="transform: translateX(-50%) rotate(35deg);"></div>
+      <div class="gauge-needle" style="transform: translateX(-50%) rotate(-55deg);"></div>
       <div class="gauge-hub"></div>
       <div class="pump-track"></div>
       <div class="pump-handle" style="bottom:70px;">↕</div>
       <div class="scr-hint" style="bottom:20px;">손잡이를 위/아래로 반복 드래그 - 왕복 한 번마다 압력 상승, 가만히 있으면 계속 하락</div>
     </div></div>
-    <p class="note" style="text-align:center;">원형 다이얼 = 붉은 톤 압력계 · 흰 바늘 = 현재 온도 · 다이얼 위 금색 마커 = 목표 구간 ·
-    하단 손잡이 = 위/아래로 드래그하는 실제 펌프 동작</p>
+    <p class="note" style="text-align:center;">원형 다이얼 = 붉은 톤 압력계 · 흰 바늘 = 왼쪽 아래(0%)→위(50%)→오른쪽 아래(100%)로 시계방향 회전 ·
+    다이얼 위 금색 마커 = 목표 구간 · 하단 손잡이 = 위/아래로 드래그하는 실제 펌프 동작</p>
 
     <ul class="qa-list" style="margin-top:14px;">
       <li><b>정체성</b> - 손가락이 실제로 위아래로 왕복하는 제스처 자체가 풀무를 밟는 손동작과
@@ -260,36 +267,43 @@
 
   <h2><span class="num">5.</span> 단조 - 칼날 직접 타격 (목표 링 매칭)</h2>
   <div class="card">
-    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;"><b>바로 이전 안(좌우 요동 바늘)은
-    걷어냅니다.</b> 바늘은 화면 아무 데나 있는 추상적인 바를 보고 타이밍만 맞추는 거라 "내가 이
-    부위를 직접 내려찍는다"는 느낌이 없었습니다. 대신 <b>칼날 위 실제 타격 지점을 직접 클릭</b>하는
-    방식으로 되돌립니다 - 매 라운드 칼날 위 랜덤한 위치에 목표 링이 뜨고, 접근 링이 줄어들며 그
-    자리에 맞춰지는 순간 <b>그 자리(칼날)를 클릭</b>하면 정타입니다. 위치도, 타이밍도 매번 그
-    칼날이라는 실제 대상 위에서 벌어지는 일이라 "내가 여기를 때리고 있다"가 분명하게 느껴집니다.</p>
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;"><b>접근 링이 목표 링에 맞춰지는 순간을
+    노리는 방식(시간 맞추기)은 결국 리듬 게임에 가깝다는 피드백을 받아, <b>파워 기반</b>으로 바꿉니다.</b>
+    "언제 클릭하느냐"가 아니라 "얼마나 세게(오래) 눌렀다가 놓느냐"가 핵심이 되도록 하되, <b>칼날 위
+    실제 타격 지점을 직접 누른다는 정체성(§5 이전 안에서 확인된 방향)은 그대로 유지</b>합니다.</p>
 
-    <h3>타격감을 눈으로 - 망치 스윙 연출 추가</h3>
-    <p style="margin:0 0 10px; font-size:13px; line-height:1.7;">지금까지는 클릭해도 판정 텍스트만 뜨고
-    끝나서 "정말 내려찍었다"는 느낌이 약했습니다. 클릭하는 순간 <b>망치 실루엣이 위에서 내려와 그
-    자리를 때리는 짧은 스윙 애니메이션</b> + 타격 지점에 스파크 + 카메라 흔들림(이미 구현됨)을 묶어서,
-    클릭 한 번이 곧바로 "쾅" 하는 타격으로 보이게 만듭니다. 이건 나중 폴리싱이 아니라 이번에 같이
-    넣는 걸로 합니다 - "지금은 아무것도 없다"는 지적이 정확히 이 부분이었습니다.</p>
+    <h3>동작</h3>
+    <ul class="qa-list">
+      <li>매 라운드 칼날 위 <b>랜덤한 위치에 타격 지점</b>이 뜨고, 그 옆에 <b>목표 파워 %</b>(예:
+      "Target: 62%")가 같이 표시됩니다.</li>
+      <li>그 타격 지점을 <b>누른 채로 홀드</b>하면 지점을 감싸는 <b>원형 파워 링이 0→100%로 차오릅니다.</b></li>
+      <li>목표 %에 최대한 가깝다고 판단되는 순간 <b>손을 뗍니다(릴리즈)</b> - 목표와의 오차가 작을수록
+      Perfect, 클수록 Good/Miss.</li>
+      <li>릴리즈 시 망치가 그 자리를 실제로 내려찍는 <b>스윙 애니메이션</b>(§5 이전 안에서 추가한 연출)은
+      그대로 유지합니다 - 클릭=스윙=자국이 한 프레임에 이어지는 감각은 그대로 살립니다.</li>
+    </ul>
 
     <div class="phone"><div class="phone-screen">
       <div class="scr-title">Forging - Hit 2/4</div>
       <div style="position:absolute; top:36px; left:50%; transform:translateX(-50%); width:34px; height:230px; background:#454a52; border-radius:4px;">
         <div style="position:absolute; top:60px; left:8px; width:6px; height:6px; border-radius:50%; background:#2b2d31;"></div>
       </div>
-      <div class="strike-effect" style="top:100px; left:60px;"></div>
-      <div class="hammer-icon2" style="top:60px; left:78px;">🔨</div>
-      <div class="scr-hint" style="bottom:60px;">접근 링이 목표 링과 맞는 순간 칼날을 클릭 -> 망치가 실제로 내려찍는 연출</div>
+      <div class="gauge-fill-arc" style="width:80px; height:80px; top:70px; left:80px;"></div>
+      <div class="gauge-target-arc" style="width:80px; height:80px; top:70px; left:80px;"></div>
+      <div class="strike-effect" style="top:82px; left:92px; width:56px; height:56px;"></div>
+      <div style="position:absolute; top:52px; left:100px; color:#f2d16b; font-size:9px; font-weight:bold;">Target: 62%</div>
+      <div class="hammer-icon2" style="top:40px; left:110px;">🔨</div>
+      <div class="scr-hint" style="bottom:60px;">타격 지점을 홀드 -> 파워 링이 목표 %에 가까울 때 릴리즈 -> 망치가 실제로 내려찍는 연출</div>
     </div></div>
+    <p class="note" style="text-align:center;">노란 링 = 홀드 중 차오르는 파워(0~100%) · 밝은 마커 = 목표 % 위치 ·
+    §4의 압력 게이지와 같은 "원형 링이 채워진다"는 시각 언어를 공유해서 두 미니게임이 한 세트처럼 느껴집니다.</p>
 
     <ul class="qa-list" style="margin-top:14px;">
-      <li><b>정체성</b> - 클릭 = 망치 스윙 = 칼날 위 실제 자국. 세 가지가 한 프레임 안에서 바로
-      연결되어 "손으로 두드리고 있다"는 감각을 가장 직접적으로 줍니다. 성공한 타격마다 자국이 쌓이는
-      것(§7 정체성 장치 ②)도 유지합니다.</li>
+      <li><b>정체성</b> - 위치(어디를 누르는지)와 파워(얼마나 세게 내려치는지) 둘 다 내 손의 감각으로
+      직접 조절하는 것이라 "때리고 있다"는 느낌이 유지됩니다. 성공한 타격마다 자국이 쌓이는
+      것(§7 정체성 장치 ②)도 그대로 유지합니다.</li>
       <li><b>캐주얼-코어</b> - 자동 생산이 반복 물량을 흡수해주므로, 수동 단조는 캐주얼 눈치를 덜 보고
-      위치+타이밍을 동시에 요구하는 코어 난이도를 유지합니다. 연속 정타 콤보 보너스(판정 폭 소폭 확장)도
+      위치+파워를 동시에 요구하는 코어 난이도를 유지합니다. 연속 정타 콤보 보너스(판정 폭 소폭 확장)도
       유지합니다.</li>
     </ul>
   </div>
@@ -385,20 +399,19 @@
   <h2><span class="num">8.</span> 확인 부탁드립니다</h2>
   <div class="card">
     <ul class="qa-list">
-      <li><b>완료됨</b> - §1/§2 통합 구조, §5 단조(칼날 직접 클릭+망치 스윙), §6 등급 7단계+특성 롤은
-      이미 확인받아 구현 완료했습니다.</li>
-      <li><b>Q1(신규).</b> §4 제련(위/아래 드래그 왕복 펌프 + 원형 압력 게이지 + 항상 하락하는 온도) -
-      이번 방향이 원하시던 "진짜 펌프질" 느낌에 맞을까요?</li>
-      <li><b>Q2(신규).</b> 압력 게이지의 색 톤 - 다이얼 전체를 붉은 톤으로, 목표 구간만 금색 마커로
-      구분하는 걸 제안드렸는데, 이 배색이 맞을까요? (목표 구간까지 빨간색이면 "위험 구간"과
-      헷갈릴 수 있어서 목표 구간은 금색으로 구분했습니다.)</li>
-      <li><b>Q3.</b> §6-1 자동 생산 세부 수치(생산 시간, 슬롯 해금 조건, Rough/Fine 확률) - 아직 미정,
+      <li><b>완료됨</b> - §1/§2 통합 구조, §6 등급 7단계+특성 롤은 이미 확인받아 구현 완료했습니다.</li>
+      <li><b>Q1.</b> §4 제련 - 바늘이 왼쪽 아래(0%)→위→오른쪽 아래(100%)로 도는 궤적, 항상 하락하는
+      온도, 붉은 톤 다이얼 + 금색 목표 마커 - 이 방향이 맞을까요?</li>
+      <li><b>Q2.</b> §3 재료 선택 - 탭+시트 방식을 걷어내고 드래그 앤 드롭으로 되돌리는 방향, 맞을까요?</li>
+      <li><b>Q3.</b> §5 단조 - 목표 링 타이밍 매칭을 걷어내고, 타격 지점을 홀드해서 파워 링을 채운 뒤
+      목표 %에 맞춰 릴리즈하는 파워 기반 방식으로 변경 - 맞을까요?</li>
+      <li><b>Q4.</b> §6-1 자동 생산 세부 수치(생산 시간, 슬롯 해금 조건, Rough/Fine 확률) - 아직 미정,
       다음에 구체적으로 잡고 구현하겠습니다.</li>
     </ul>
-    <p class="note">Q1~Q2에 답 주시면 §4를 확정안으로 구현하겠습니다.</p>
+    <p class="note">Q1~Q3에 답 주시면 §3/§4/§5를 전부 확정안으로 구현하겠습니다.</p>
   </div>
 
-  <footer>crafting_design_v3.html v4 · 제련을 드래그 왕복 펌프 + 원형 압력 게이지로 재설계 · 확인 후 구현에 들어가겠습니다.</footer>
+  <footer>crafting_design_v3.html v5 · 재료선택 드래그 복귀 + 압력게이지 궤적 수정 + 단조 파워 기반 재설계 · 확인 후 구현에 들어가겠습니다.</footer>
 </div>
 </body>
 </html>
