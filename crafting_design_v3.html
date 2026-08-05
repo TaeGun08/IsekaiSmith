@@ -82,6 +82,17 @@
   .charge-gauge-fill { position:absolute; bottom:0; left:0; right:0; height:55%; background:linear-gradient(180deg,#f2d16b,#c1440e); border-radius:14px; }
   .lever-icon { position:absolute; bottom:36px; left:50%; transform:translateX(-50%); width:150px; padding:10px 0; text-align:center; background:#5c4527; color:#fff; font-size:9px; font-weight:bold; border-radius:10px; }
 
+  /* pressure-gauge (circular dial) mockup */
+  .gauge-face { position:absolute; top:36px; left:50%; transform:translateX(-50%); width:180px; height:180px; border-radius:50%; background:radial-gradient(circle at 50% 55%, #3a1c12, #1c0e08 75%); border:6px solid #2a1a12; box-shadow: inset 0 0 20px rgba(0,0,0,0.6); }
+  .gauge-tick { position:absolute; width:3px; height:14px; background:#8a5a42; left:50%; top:6px; transform-origin:50% 84px; }
+  .gauge-target-arc { position:absolute; width:180px; height:180px; border-radius:50%; top:0; left:0; background: conic-gradient(from 205deg, transparent 0deg, transparent 30deg, #f2d16b 30deg, #f2d16b 50deg, transparent 50deg, transparent 360deg); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 14px), #000 calc(100% - 14px)); mask: radial-gradient(farthest-side, transparent calc(100% - 14px), #000 calc(100% - 14px)); }
+  .gauge-fill-arc { position:absolute; width:180px; height:180px; border-radius:50%; top:0; left:0; background: conic-gradient(from 205deg, #c1440e 0deg, #ff7a3d 130deg, transparent 130deg 360deg); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 14px), #000 calc(100% - 14px)); mask: radial-gradient(farthest-side, transparent calc(100% - 14px), #000 calc(100% - 14px)); opacity:0.85; }
+  .gauge-needle { position:absolute; width:4px; height:78px; background:#f6f1e7; left:50%; top:50%; transform-origin:50% 100%; border-radius:2px; box-shadow:0 0 4px rgba(0,0,0,0.6); }
+  .gauge-hub { position:absolute; width:16px; height:16px; border-radius:50%; background:#f6f1e7; left:50%; top:50%; transform:translate(-50%,-50%); }
+  .pump-track { position:absolute; bottom:20px; left:50%; transform:translateX(-50%); width:16px; height:120px; background:#2a2621; border-radius:8px; }
+  .pump-handle { position:absolute; width:70px; height:34px; background:#5c4527; border-radius:8px; left:50%; transform:translateX(-50%); display:flex; align-items:center; justify-content:center; color:#fff; font-size:14px; }
+  .pump-arrow { position:absolute; left:50%; transform:translateX(-50%); color:#c9a876; font-size:14px; }
+
   .strike-effect { position:absolute; width:70px; height:70px; border-radius:50%; border:3px solid #f2d16b; opacity:0.7; }
   .hammer-icon2 { position:absolute; font-size:26px; }
 
@@ -152,7 +163,7 @@
     <div class="flow-row">
       <div class="flow-step">재료 선택<br>(실루엣)</div>
       <span class="flow-arrow">→</span>
-      <div class="flow-step">제련<br>(풀무질)</div>
+      <div class="flow-step">제련<br>(드래그 펌프)</div>
       <span class="flow-arrow">→</span>
       <div class="flow-step">단조<br>(직접 타격)</div>
       <span class="flow-arrow">→</span>
@@ -194,51 +205,57 @@
     </div></div>
   </div>
 
-  <h2><span class="num">4.</span> 제련 - 풀무질 (홀드-릴리즈 펌프)</h2>
+  <h2><span class="num">4.</span> 제련 - 진짜 펌프질 (위아래 드래그 왕복 + 압력 게이지)</h2>
   <div class="card">
-    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;"><b>화력 밸런스(지속 드래그)는 원하시던
-    느낌이 아니라고 하셔서 걷어냅니다.</b> 원하신 건 잭스미스처럼 직접 풀무질을 해서 온도를 맞추고,
-    광물이 녹는 걸 지켜보고, 그걸 조심스레 다루는 감각이었죠. 잭스미스의 단계를 그대로 옮기는 대신,
-    <b>"홀드해서 바람을 모았다가, 놓는 순간 훅 불어넣는"</b> 하나의 동작으로 저희만의 방식으로
-    재해석했습니다.</p>
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;"><b>홀드-릴리즈 펌프(누르고 있다가 떼는 방식)도
+    걷어냅니다.</b> 플레이해보니 이것도 "누르고 있다가 떼는" 추상적인 동작이라, 실제 풀무를 <b>손으로
+    위아래로 움직이는</b> 물리적 느낌이 없었습니다. 이번엔 손잡이를 잡은 채로 <b>진짜 손으로 펌프질하듯
+    위/아래로 반복해서 드래그</b>하는 방식으로 바꾸고, 게이지도 막대바 대신 <b>압력계/속도계 같은
+    원형 다이얼</b>로 교체합니다.</p>
 
     <h3>동작</h3>
     <ul class="qa-list">
-      <li><b>풀무 손잡이를 누르고 있으면</b> - 바람을 모으는 중, 세로 게이지가 차오릅니다.</li>
-      <li><b>손을 떼는 순간</b> - 모은 만큼 훅 불어넣어서 온도가 상승합니다. 짧게 눌렀다 떼면 약한 바람
-      (효율 낮음), 적당히 모았다 떼면 확실한 상승.</li>
-      <li><b>너무 오래 붙잡고 있으면</b> - 바람이 과해져서 다음 훅이 불안정해집니다(상승폭이 들쭉날쭉
-      해짐) - 무조건 오래 참는 게 정답이 아니라, <b>매번 "지금 놓을까 말까"를 판단</b>해야 합니다.
-      이게 "조심스레 다룬다"는 감각의 핵심입니다.</li>
-      <li>이 훅을 여러 번 반복해서 온도를 그린존에 맞추고, 그 안에 머무르게 유지합니다. 그린존을
-      넘기면(과열) 기존처럼 품질에 페널티가 붙습니다.</li>
+      <li><b>손잡이를 누른 채로 위/아래로 드래그</b> - 화면에 뜬 손잡이가 손가락을 따라 세로 트랙 위에서
+      움직입니다.</li>
+      <li><b>맨 아래까지 밀었다가 다시 맨 위로 당기면 "펌프질 한 번" 완성</b> - 그 순간 압력이 훅
+      올라갑니다. 왕복이 빠를수록 더 자주 펌프질할 수 있어서 <b>손을 얼마나 리드미컬하게 움직이는지</b>가
+      그대로 결과에 반영됩니다.</li>
+      <li><b>온도는 펌프질 여부와 상관없이 항상 서서히 떨어집니다</b> - 손을 떼고 있을 때는 물론이고,
+      느긋하게 왕복하는 동안에도 계속 떨어집니다. 오직 <b>펌프질을 반복하는 것만이</b> 이 하락을
+      이겨내는 유일한 방법이라, 잠깐이라도 손을 놓으면 바로 티가 납니다.</li>
     </ul>
 
-    <h3>녹는 느낌 - 시각적으로 보여주기</h3>
-    <p style="margin:0 0 10px; font-size:13px; line-height:1.7;">광물이 담긴 도가니가 화면 중앙에 있고,
-    온도가 오를수록 <b>색이 붉은색 → 주황 → 노랑으로 바뀌고, 표면이 흐물흐물해지는 연출</b>이 실시간
-    으로 진행됩니다. 그린존에 들어서면 안정적으로 빛나고, 과열되면 넘칠 듯 출렁이는 경고 연출로
-    "지금 위험하다"가 눈으로 보이게 합니다.</p>
+    <h3>시각화 - 압력 게이지</h3>
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.7;">막대바 + 초록 구간 대신, <b>시계/속도계처럼
+    생긴 원형 다이얼</b>을 씁니다. 다이얼 전체가 붉은 톤 그라데이션(뜨거운 열기 느낌)이고, 바늘이
+    압력이 오를수록 시계방향으로 돌아갑니다. 목표 구간(적정 온도)은 <b>다이얼 위 밝은 금색 마커</b>로
+    표시합니다 - 초록색 막대 대신 "이 압력계 자체가 뜨겁다"는 톤을 계속 유지합니다.</p>
 
     <div class="phone"><div class="phone-screen">
       <div class="glow-bg"></div>
       <div class="scr-title">Melting</div>
-      <div class="crucible"></div>
-      <div class="charge-gauge-bg"><div class="charge-gauge-fill"></div></div>
-      <div class="lever-icon">HOLD TO DRAW, RELEASE TO PUMP</div>
-      <div class="scr-hint" style="bottom:190px;">홀드로 바람을 모았다가 놓는 순간 훅 - 너무 오래 참으면 불안정</div>
+      <div class="gauge-face"></div>
+      <div class="gauge-fill-arc"></div>
+      <div class="gauge-target-arc"></div>
+      <div class="gauge-needle" style="transform: translateX(-50%) rotate(35deg);"></div>
+      <div class="gauge-hub"></div>
+      <div class="pump-track"></div>
+      <div class="pump-handle" style="bottom:70px;">↕</div>
+      <div class="scr-hint" style="bottom:20px;">손잡이를 위/아래로 반복 드래그 - 왕복 한 번마다 압력 상승, 가만히 있으면 계속 하락</div>
     </div></div>
-    <p class="note" style="text-align:center;">도가니(위) = 온도에 따라 색과 질감이 변하는 광물 · 세로 게이지 = 홀드 중
-    모이는 바람의 양 · 손잡이를 놓는 순간이 실제 "펌프질" 동작</p>
+    <p class="note" style="text-align:center;">원형 다이얼 = 붉은 톤 압력계 · 흰 바늘 = 현재 온도 · 다이얼 위 금색 마커 = 목표 구간 ·
+    하단 손잡이 = 위/아래로 드래그하는 실제 펌프 동작</p>
 
     <ul class="qa-list" style="margin-top:14px;">
-      <li><b>정체성</b> - 버튼을 그냥 누르는 게 아니라 "모았다가 놓는" 하나의 물리적 동작이라 풀무를
-      직접 조작하는 감각이 살아있습니다.</li>
-      <li><b>캐주얼-코어</b> - 대충 눌렀다 떼도 어느 정도는 오르니 캐주얼하게 진행 가능하고, 광물
-      등급이 오를수록 "불안정해지는 시점"이 빨라져서 코어 플레이어에겐 정교한 타이밍 판단이 필요해집니다.</li>
-      <li><b>반복 피로 대응</b> - 재료(광물 티어)마다 그린존 폭/불안정 임계점이 달라지는 파라미터 변주로
-      매번 다른 손맛을 줍니다.</li>
+      <li><b>정체성</b> - 손가락이 실제로 위아래로 왕복하는 제스처 자체가 풀무를 밟는 손동작과
+      가장 가깝습니다. 압력계 비주얼도 "용광로 = 뜨거운 압력 장치"라는 톤을 계속 유지시켜줍니다.</li>
+      <li><b>지속 압박감</b> - 항상 떨어지는 온도 때문에 잠깐의 방심도 바로 표시가 나서, §1 철학의
+      "신중함이 보상받는" 부분이 더 분명해집니다.</li>
+      <li><b>캐주얼-코어</b> - 대충 왕복해도 어느 정도는 유지되지만, 광물 등급이 오를수록 하락 속도가
+      빨라지고 목표 구간(금색 마커)이 좁아져서 코어 플레이어에겐 더 빠르고 정확한 왕복이 필요해집니다.</li>
     </ul>
+    <p class="note">세부 동작(왕복 판정 임계값, 하락 속도, 목표 구간 폭)은 §7 확인 후 실제 수치로
+    맞춰서 구현하겠습니다.</p>
   </div>
 
   <h2><span class="num">5.</span> 단조 - 칼날 직접 타격 (목표 링 매칭)</h2>
@@ -368,20 +385,20 @@
   <h2><span class="num">8.</span> 확인 부탁드립니다</h2>
   <div class="card">
     <ul class="qa-list">
-      <li><b>Q1.</b> §1/§2 통합 구조 - 확정 (이미 답변 주심).</li>
-      <li><b>Q2.</b> §4 제련(홀드-릴리즈 풀무질 + 녹는 도가니 연출) - 이 방향이 원하시던 "잭스미스를
-      우리 방식으로 해석한" 느낌에 맞을까요?</li>
-      <li><b>Q3.</b> §5 단조(칼날 직접 클릭 + 망치 스윙 연출로 복귀) - 이 방향이 맞을까요?</li>
-      <li><b>Q4.</b> §6 등급 4단계 → 7단계(Rough/Common/Fine/Superior/Exceptional/Masterwork/Legendary)
-      세분화 + 제련→위력/단조→정밀 스탯 분리 + 등급별 특성 롤 확률 - 품질 다양화 방향으로 괜찮을까요?</li>
-      <li><b>Q5.</b> §6-1 자동 생산 세부 수치(생산 시간, 슬롯 해금 조건, Rough/Fine 확률) - 구체적으로
-      잡아도 된다고 하셨으니, 다음 라운드에서 실제 수치를 정하고 바로 구현에 들어가겠습니다.</li>
+      <li><b>완료됨</b> - §1/§2 통합 구조, §5 단조(칼날 직접 클릭+망치 스윙), §6 등급 7단계+특성 롤은
+      이미 확인받아 구현 완료했습니다.</li>
+      <li><b>Q1(신규).</b> §4 제련(위/아래 드래그 왕복 펌프 + 원형 압력 게이지 + 항상 하락하는 온도) -
+      이번 방향이 원하시던 "진짜 펌프질" 느낌에 맞을까요?</li>
+      <li><b>Q2(신규).</b> 압력 게이지의 색 톤 - 다이얼 전체를 붉은 톤으로, 목표 구간만 금색 마커로
+      구분하는 걸 제안드렸는데, 이 배색이 맞을까요? (목표 구간까지 빨간색이면 "위험 구간"과
+      헷갈릴 수 있어서 목표 구간은 금색으로 구분했습니다.)</li>
+      <li><b>Q3.</b> §6-1 자동 생산 세부 수치(생산 시간, 슬롯 해금 조건, Rough/Fine 확률) - 아직 미정,
+      다음에 구체적으로 잡고 구현하겠습니다.</li>
     </ul>
-    <p class="note">Q2~Q4에 답 주시면 §4/§5/§6을 전부 확정안으로 구현하고, Q5 수치까지 같이 잡아서
-    한 번에 진행하겠습니다.</p>
+    <p class="note">Q1~Q2에 답 주시면 §4를 확정안으로 구현하겠습니다.</p>
   </div>
 
-  <footer>crafting_design_v3.html v3 · 등급 4단계 -> 7단계 세분화 반영 · 확인 후 구현에 들어가겠습니다.</footer>
+  <footer>crafting_design_v3.html v4 · 제련을 드래그 왕복 펌프 + 원형 압력 게이지로 재설계 · 확인 후 구현에 들어가겠습니다.</footer>
 </div>
 </body>
 </html>
