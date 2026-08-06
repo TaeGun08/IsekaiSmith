@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>이세계 대장장이 - 손님 주문(판매) 시스템 기획서</title>
+<style>
+  :root {
+    --ink: #2b2420; --paper: #f6f1e7; --card: #ffffff; --border: #dcd3c2; --accent: #b5651d;
+    --good: #4f8f5f; --warn: #c1440e; --gold: #d9a441; --blue: #4472a8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 20px 80px; background: var(--paper); color: var(--ink);
+    font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .doc { width: 100%; max-width: 1080px; }
+  h1 { font-size: 25px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 8px; color: #6b6155; font-size: 14px; }
+  p.pitch {
+    font-size: 15px; line-height: 1.75; background: var(--card); border: 1px solid var(--border);
+    border-left: 4px solid var(--accent); border-radius: 8px; padding: 16px 18px; margin: 16px 0 32px;
+  }
+  h2 { font-size: 19px; margin: 46px 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+  h2 .num { color: var(--accent); margin-right: 8px; }
+  h3 { font-size: 14.5px; margin: 20px 0 10px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); }
+  .note { font-size: 12.5px; color: #6b6155; line-height: 1.7; margin-top: 8px; }
+  .qa-list { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.9; }
+  .qa-list li b { color: var(--accent); }
+
+  .scope-row { display:flex; gap:0; margin-top:14px; border-radius:10px; overflow:hidden; border:1px solid var(--border); }
+  .scope-col { flex:1; padding:16px; }
+  .scope-col.in { background:#eef3ea; }
+  .scope-col.out { background:#f3ece0; }
+  .scope-col h4 { margin:0 0 8px; font-size:14px; }
+  .scope-col ul { margin:0; padding-left:18px; font-size:12px; line-height:1.8; }
+
+  .flow-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top: 12px; justify-content:center; }
+  .flow-step { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:10px 12px; font-size:12px; text-align:center; min-width: 96px; }
+  .flow-arrow { color: var(--accent); font-size:16px; }
+
+  table.spec { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12.5px; }
+  table.spec th, table.spec td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+  table.spec th { background: #efe8d9; font-size: 12px; }
+
+  .phone { width: 230px; height: 408px; background: #1c1a18; border-radius: 22px; padding: 10px; box-shadow: 0 4px 14px rgba(0,0,0,0.25); margin: 0 auto; }
+  .phone-screen { width: 100%; height: 100%; background: #2f4a26; border-radius: 14px; position: relative; overflow: hidden; }
+  .scr-title { position:absolute; top:12px; left:0; right:0; text-align:center; color:#fff; font-size:11px; font-weight:bold; }
+  .scr-hint { position:absolute; bottom:12px; left:0; right:0; text-align:center; color:#a89f92; font-size:7.5px; padding:0 10px; }
+
+  .ticket-stack { position:absolute; top:36px; left:10px; right:10px; display:flex; flex-direction:column; gap:8px; }
+  .ticket-mock { background:#fbf3e6; border:2px solid #8a6a3f; border-radius:8px; padding:8px; color:#2b2420; }
+  .ticket-mock .head { font-size:9px; font-weight:bold; }
+  .ticket-mock .item { font-size:8px; margin:2px 0; }
+  .ticket-mock .grade-chip { display:inline-block; font-size:7px; font-weight:bold; color:#fff; border-radius:4px; padding:1px 6px; margin-bottom:4px; }
+  .ticket-mock .patience-bg { height:8px; background:#e0d7c3; border-radius:4px; overflow:hidden; margin-top:4px; }
+  .ticket-mock .patience-fill { height:100%; background:#6f9955; }
+  .ticket-mock .pay { font-size:7.5px; color:#6b6155; margin-top:3px; }
+
+  .rep-row { position:absolute; top:250px; left:10px; right:10px; background:rgba(0,0,0,0.5); border-radius:8px; padding:8px; color:#fff; font-size:8px; }
+  .rep-bar-bg { height:10px; background:#3a352e; border-radius:5px; overflow:hidden; margin-top:4px; }
+  .rep-bar-fill { height:100%; background:linear-gradient(90deg,#c98a3f,#f2d16b); }
+
+  footer { margin-top: 40px; font-size: 12px; color: #948a7c; text-align: center; }
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <h1>손님 주문(판매) 시스템 기획서</h1>
+  <p class="sub">customer_order_design.html · game_design_doc.html §5/§6/§7/§10을 실제 구현 상태에 맞춰 구체화</p>
+  <p class="pitch">
+    핵심 루프(§1)의 <b>"사냥→보관→제작"까지는 이번에 완성됐고, 다음은 "판매→골드→재투자"</b>
+    차례입니다. 기존 기획서(game_design_doc.html)는 손님 주문의 큰 그림만 있었는데, 이번 문서는
+    <b>지금 실제로 구현된 것</b>(ResourceType, CraftGrade 7단계, ResourceBank)을 전제로 바로 만들 수
+    있는 수준까지 구체화합니다.
+  </p>
+
+  <h2><span class="num">1.</span> 이번 범위 - 어디까지 하고 어디는 미룰까</h2>
+  <div class="scope-row">
+    <div class="scope-col in">
+      <h4>이번에 포함</h4>
+      <ul>
+        <li>골드 시스템 (신규 - 지금 프로젝트엔 화폐 개념이 아예 없음)</li>
+        <li>등급별 재고 관리 (완제품을 등급 구분 없이 개수로만 세던 것 보완)</li>
+        <li>손님 주문 큐(대기줄) + 주문서 UI + 인내심 게이지</li>
+        <li>납품 처리 + 지급액 계산(등급 기본가 + 속도 보너스)</li>
+        <li>평판 시스템(주문 실패 시 판매 수익 % 감소)</li>
+      </ul>
+    </div>
+    <div class="scope-col out">
+      <h4>이번엔 미룸 (나중 별도 작업)</h4>
+      <ul>
+        <li>손님 3D 캐릭터/워크 애니메이션 - 이번엔 주문서 UI 큐로만 표현 (§3 참고)</li>
+        <li>암시장 상인(§5, 재료 매입/매출) - 판매 루프가 먼저 자리잡은 뒤</li>
+        <li>필드/스테이지/던전 사냥터 확장, 전투 - §2/§9, 별도 라운드</li>
+        <li>대장간 성장(시각적 재투자) - §8, 맵 디자인 영역이라 범위 밖</li>
+        <li>무기/도구 종류 다양화 - 지금은 검(Tool) 하나뿐이라 주문도 "Tool + 최소 등급"까지만</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2><span class="num">2.</span> 구조적으로 먼저 풀어야 하는 문제 - 등급별 재고</h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;">지금 <code>ResourceBank</code>는
+    완제품(Tool)을 <b>등급 구분 없이 그냥 개수로만</b> 셉니다. 그런데 손님 주문은 "강철 등급 이상"처럼
+    <b>최소 등급 조건</b>이 있어야 재미있는 시스템이라(game_design_doc.html §6), 지금 구조로는 "내가
+    가진 Tool 3개 중 어떤 게 Masterwork이고 어떤 게 Rough인지" 구분이 안 됩니다.</p>
+    <p style="margin:0; font-size:13px; line-height:1.75;">그래서 <b>재료용 <code>ResourceBank</code>와는
+    분리된, 완제품 전용 <code>ToolInventory</code></b>를 새로 둡니다 - 등급별로 개수를 세는 아주 작은
+    클래스입니다(예: Rough 2개, Fine 5개, Superior 1개...). 아이템 하나하나에 고유 ID나 실제 스탯을
+    붙이는 "진짜 인벤토리 시스템"까지는 아직 안 가고, <b>딱 주문 매칭에 필요한 만큼만</b> 확장합니다 -
+    모듈화 원칙대로 재료 은행과 완제품 재고는 성격이 다르니 억지로 한 클래스에 합치지 않습니다.</p>
+    <table class="spec">
+      <tr><th style="width:160px;">기존</th><td><code>ResourceBank.Get(ResourceType.Tool)</code> - 등급 무관, 그냥 총 개수</td></tr>
+      <tr><th>변경 후</th><td><code>ToolInventory.Get(CraftGrade grade)</code> - 등급별 개수 /
+      <code>ToolInventory.TrySpendAtLeast(CraftGrade minGrade)</code> - 조건을 만족하는 가장 낮은
+      등급부터 소모(고등급은 더 좋은 주문을 위해 아껴둠)</td></tr>
+    </table>
+  </div>
+
+  <h2><span class="num">3.</span> 손님 표현 방식 - 이번엔 "주문서 큐"로 단순화</h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;">실제 손님 캐릭터가 거리에 나타나
+    걸어와서 줄을 서는 것(game_design_doc.html 원안)은 캐릭터 애니메이션/경로탐색이 새로 필요해서
+    범위가 커집니다. <b>이번 1차는 판매대 근처에 서면 뜨는 "주문서 큐" UI로 손님을 대신</b>합니다 -
+    로직(등급 매칭, 인내심, 지급액, 평판)은 완전히 동일하고, 나중에 손님 캐릭터를 추가할 때도 이
+    로직은 그대로 재사용하고 겉모습만 캐릭터로 바꾸면 됩니다.</p>
+    <div class="phone"><div class="phone-screen">
+      <div class="scr-title">Sales Counter</div>
+      <div class="ticket-stack">
+        <div class="ticket-mock">
+          <div class="head">Order #014</div>
+          <span class="grade-chip" style="background:#3a6fa8;">Superior+</span>
+          <div class="item">Tool</div>
+          <div class="patience-bg"><div class="patience-fill" style="width:70%;"></div></div>
+          <div class="pay">Pay: 42 G (+speed bonus)</div>
+        </div>
+        <div class="ticket-mock">
+          <div class="head">Order #015</div>
+          <span class="grade-chip" style="background:#8a8478;">Rough+</span>
+          <div class="item">Tool</div>
+          <div class="patience-bg"><div class="patience-fill" style="width:30%; background:#c1440e;"></div></div>
+          <div class="pay">Pay: 12 G</div>
+        </div>
+      </div>
+      <div class="rep-row">
+        Reputation 82%
+        <div class="rep-bar-bg"><div class="rep-bar-fill" style="width:82%;"></div></div>
+      </div>
+      <div class="scr-hint">주문서를 탭 -> 조건을 만족하는 완제품이 있으면 즉시 납품</div>
+    </div></div>
+    <p class="note" style="text-align:center;">판매대 근처에서 대기 중인 주문서 목록 · 각 주문서를 탭하면 조건에 맞는
+    완제품이 있는지 확인 후 즉시 납품 · 하단에 평판 게이지 상시 표시</p>
+  </div>
+
+  <h2><span class="num">4.</span> 주문 흐름</h2>
+  <div class="card">
+    <div class="flow-row">
+      <div class="flow-step">일정 주기로<br>주문서 생성</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">큐에 대기<br>(최대 N개)</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">인내심 감소<br>(등급 높을수록 김)</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">납품 or 시간초과</div>
+    </div>
+    <ul class="qa-list" style="margin-top:14px;">
+      <li><b>주문 생성</b> - 판매대 근처에 있을 때 일정 주기(예: 20~40초 랜덤)로 새 주문서가 큐에
+      추가됩니다. 큐가 가득 차면(예: 최대 4개) 새 주문이 더 안 생깁니다.</li>
+      <li><b>등급 조건</b> - "이 등급 이상"으로 판정합니다. 강철 주문에 미스릴을 납품하면 받아주되
+      등급 초과분 보너스는 없음(재고 관리 실수 여지를 줄이기 위함, game_design_doc.html §6 그대로 계승).</li>
+      <li><b>인내심</b> - 등급이 높은 주문일수록 인내심 시간이 깁니다(어차피 그만큼 만드는 데 오래
+      걸리니까). 시간 초과 시 주문서가 사라지고 평판이 깎입니다.</li>
+      <li><b>납품</b> - 주문서를 탭하면 <code>ToolInventory.TrySpendAtLeast(minGrade)</code>로 조건을
+      만족하는 가장 낮은 등급부터 자동 소모하고 즉시 골드 지급.</li>
+    </ul>
+  </div>
+
+  <h2><span class="num">5.</span> 지급액 계산</h2>
+  <div class="card">
+    <table class="spec">
+      <tr><th style="width:200px;">기본가 (등급별)</th><td>Rough 10G / Common 16G / Fine 24G / Superior 36G /
+      Exceptional 54G / Masterwork 80G / Legendary 150G - 실제로 <b>납품한 아이템의 등급 기준</b>으로
+      지급(주문이 요구한 최소 등급이 아니라, 실제로 건넨 물건의 등급).</td></tr>
+      <tr><th>속도 보너스</th><td>남은 인내심 비율에 비례해 최대 +50% 추가 (인내심 가득 찬 상태에서
+      바로 납품하면 최대 보너스, 거의 다 되어갈 때 납품하면 보너스 거의 없음).</td></tr>
+      <tr><th>평판 배율</th><td>§6의 평판 게이지가 최종 지급액에 곱해짐 (100%=정상, 60%=수익 -20%).</td></tr>
+      <tr><th>최종 공식</th><td><code>지급액 = 기본가(등급) × (1 + 속도보너스) × 평판배율</code></td></tr>
+    </table>
+    <p class="note">기본가 수치는 초기값이라 실제 플레이해보고 조정합니다(자동 생산/즉석 제작으로
+    쉽게 나오는 Fine 이하와, 수동 제작으로만 나오는 Superior 이상 사이에 확실한 소득 차이를 두는 게
+    목표).</p>
+  </div>
+
+  <h2><span class="num">6.</span> 평판 시스템</h2>
+  <div class="card">
+    <ul class="qa-list">
+      <li>시작값 100%. 주문을 <b>놓치면(시간 초과)</b> 일정량 감소(예: -8%p), <b>연속 성공</b>하면
+      서서히 회복(예: 성공 3회당 +2%p).</li>
+      <li>게임오버 없이 <b>"요즘 장사가 잘 안 된다"는 체감</b>으로만 이어지는 가벼운 페널티
+      (game_design_doc.html 확정 사항 그대로).</li>
+      <li>하한선을 둬서(예: 최소 40%) 한 번 크게 미끄러져도 회복 불가능한 상태로는 안 빠지게 합니다.</li>
+    </ul>
+  </div>
+
+  <h2><span class="num">7.</span> 확인 부탁드립니다</h2>
+  <div class="card">
+    <ul class="qa-list">
+      <li><b>Q1.</b> §3 손님을 이번엔 캐릭터 없이 "주문서 큐" UI로만 표현하는 방향 - 괜찮을까요?
+      (나중에 캐릭터를 붙일 때도 이 로직은 그대로 재사용됩니다.)</li>
+      <li><b>Q2.</b> §2 등급별 재고(<code>ToolInventory</code>) 신설 - 재료 은행과 분리해서 관리하는
+      방향, 맞을까요?</li>
+      <li><b>Q3.</b> §5 지급액 수치(등급별 기본가, 속도 보너스 최대 +50%) - 일단 이 값으로 시작해서
+      플레이해보고 조정하는 방향으로 진행해도 될까요?</li>
+      <li><b>Q4.</b> §4 주문 생성 주기(20~40초)·큐 최대 개수(4개)·평판 하한(40%) - 초기값으로 이대로
+      괜찮을까요?</li>
+    </ul>
+    <p class="note">답 주시면 바로 구현 들어가겠습니다.</p>
+  </div>
+
+  <footer>customer_order_design.html v1 · 확인 후 구현에 들어가겠습니다.</footer>
+</div>
+</body>
+</html>
