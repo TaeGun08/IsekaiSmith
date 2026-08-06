@@ -2,14 +2,15 @@ using System;
 using System.Collections;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 // Weapon-silhouette material assembly panel. Fixed slots (blade ore, up to 3 blade mana, handle
-// wood) are filled by tapping the slot then picking from a bottom sheet listing every owned
-// material in that slot's category (MaterialCategoryUtility) - no drag-and-drop. New ore
-// tiers/mana elements/wood types just show up in the sheet automatically since it's built from
-// the category, not a hardcoded chip list, and there's no small drop-zone to miss on a touch
-// screen (see crafting_design_v3.html §3/§7).
+// wood) are filled by tapping the slot to open a bottom sheet listing every owned material in
+// that slot's category (MaterialCategoryUtility), then dragging the desired chip upward to place
+// it - no hardcoded chip list (new ore tiers/mana elements/wood types just show up), and no small
+// drop-zone to hunt for since the sheet only ever targets the one slot that opened it (see
+// crafting_design_v3.html §3).
 public class CraftingSilhouetteUI : MonoBehaviour
 {
     private const int ManaSlotCount = 3;
@@ -165,6 +166,9 @@ public class CraftingSilhouetteUI : MonoBehaviour
         sheet.GetComponent<Image>().color = new Color(0.12f, 0.11f, 0.09f, 0.98f);
 
         sheetTitleText = MakeText(sheet.transform, "SheetTitle", 24, new Vector2(0f, -24f), new Vector2(880f, 40f));
+        var sheetHintText = MakeText(sheet.transform, "SheetHint", 16, new Vector2(0f, -56f), new Vector2(880f, 28f));
+        sheetHintText.text = "Drag a material upward to place it";
+        sheetHintText.color = new Color(0.75f, 0.72f, 0.68f);
 
         var gridGO = new GameObject("Grid", typeof(RectTransform));
         gridGO.transform.SetParent(sheet.transform, false);
@@ -172,8 +176,8 @@ public class CraftingSilhouetteUI : MonoBehaviour
         gridRect.anchorMin = new Vector2(0.5f, 1f);
         gridRect.anchorMax = new Vector2(0.5f, 1f);
         gridRect.pivot = new Vector2(0.5f, 1f);
-        gridRect.anchoredPosition = new Vector2(0f, -84f);
-        gridRect.sizeDelta = new Vector2(900f, 300f);
+        gridRect.anchoredPosition = new Vector2(0f, -100f);
+        gridRect.sizeDelta = new Vector2(900f, 280f);
         sheetGrid = gridGO.transform;
 
         var closeButton = MakeButton(sheet.transform, "SheetClose", new Vector2(0f, 30f), new Vector2(220f, 64f), "CLOSE", new Color(0.4f, 0.38f, 0.34f));
@@ -332,14 +336,17 @@ public class CraftingSilhouetteUI : MonoBehaviour
         sheet.SetActive(true);
     }
 
-    private void BuildSheetChip(int index, float startX, float chipSize, float chipGap, float rowHeight, int chipsPerRow, string label, Color color, Action onClick)
+    // Chips in the sheet are dragged (not tapped) upward to confirm - the sheet is already
+    // scoped to a single slot's category, so there's no separate drop-target to aim for; any
+    // sufficiently large upward drag just confirms placement into that slot.
+    private void BuildSheetChip(int index, float startX, float chipSize, float chipGap, float rowHeight, int chipsPerRow, string label, Color color, Action onConfirm)
     {
         int row = index / chipsPerRow;
         int col = index % chipsPerRow;
         float x = startX + col * (chipSize + chipGap);
         float y = -row * rowHeight;
 
-        var go = new GameObject("Chip", typeof(RectTransform), typeof(Image), typeof(Button));
+        var go = new GameObject("Chip", typeof(RectTransform), typeof(Image), typeof(CanvasGroup), typeof(SheetChipDragHandler));
         go.transform.SetParent(sheetGrid, false);
         var rect = go.GetComponent<RectTransform>();
         rect.anchorMin = new Vector2(0.5f, 1f);
@@ -357,7 +364,7 @@ public class CraftingSilhouetteUI : MonoBehaviour
         textRect.anchoredPosition = Vector2.zero;
         text.text = label;
 
-        go.GetComponent<Button>().onClick.AddListener(() => onClick());
+        go.GetComponent<SheetChipDragHandler>().OnConfirm = onConfirm;
     }
 
     private void CloseSheet()
@@ -441,5 +448,51 @@ public class CraftingSilhouetteUI : MonoBehaviour
         }
 
         return count;
+    }
+}
+
+// Drag a sheet chip upward past a threshold to confirm it - the sheet only ever has one valid
+// target (the slot that opened it), so a distance-based gesture is enough; there's no separate
+// drop-zone to hit precisely.
+public class SheetChipDragHandler : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
+{
+    private const float ConfirmDragDistance = 90f;
+
+    public Action OnConfirm;
+
+    private RectTransform rect;
+    private CanvasGroup canvasGroup;
+    private Canvas canvas;
+    private Vector2 originalAnchoredPosition;
+
+    private void Awake()
+    {
+        rect = GetComponent<RectTransform>();
+        canvasGroup = GetComponent<CanvasGroup>();
+        canvas = GetComponentInParent<Canvas>();
+    }
+
+    public void OnBeginDrag(PointerEventData eventData)
+    {
+        originalAnchoredPosition = rect.anchoredPosition;
+        canvasGroup.blocksRaycasts = false;
+    }
+
+    public void OnDrag(PointerEventData eventData)
+    {
+        float scale = canvas != null ? canvas.scaleFactor : 1f;
+        rect.anchoredPosition += eventData.delta / scale;
+    }
+
+    public void OnEndDrag(PointerEventData eventData)
+    {
+        canvasGroup.blocksRaycasts = true;
+        float draggedUp = rect.anchoredPosition.y - originalAnchoredPosition.y;
+        rect.anchoredPosition = originalAnchoredPosition;
+
+        if (draggedUp > ConfirmDragDistance)
+        {
+            OnConfirm?.Invoke();
+        }
     }
 }

@@ -22,19 +22,17 @@ public class CraftingStation : MonoBehaviour
     [SerializeField] private float pulseStrength = 0.12f;
     [SerializeField] private float pulseSpeed = 10f;
 
-    [Header("Smelting Minigame (Bellows Pump) - hold to draw, release to pump; don't overdraw")]
+    [Header("Smelting Minigame (Drag Pump) - drag the handle up/down; heat always fades")]
     [SerializeField] private float temperatureDuration = 9f;
     [SerializeField] private float sweetMin = 0.55f;
     [SerializeField] private float sweetMax = 0.75f;
-    [SerializeField] private float chargeToFullDuration = 0.9f;
-    [SerializeField] private float cleanBumpMax = 0.3f;
-    [SerializeField] private float instabilityWindow = 0.6f;
-    [SerializeField] private float coolRate = 0.3f;
+    [SerializeField] private float strokeBump = 0.22f;
+    [SerializeField] private float coolRate = 0.15f;
     [SerializeField] private float overheatPenaltyMultiplier = 1.5f;
 
-    [Header("Hammering Minigame (Forge) - tap the blade when the shrinking ring matches the target")]
+    [Header("Hammering Minigame (Forge) - hold the marker, release on the target power %")]
     [SerializeField] private int hammerRounds = 4;
-    [SerializeField] private float ringShrinkDuration = 1.4f;
+    [SerializeField] private float chargeDuration = 1.4f;
     [SerializeField] private float perfectTolerancePercent = 10f;
     [SerializeField] private float goodTolerancePercent = 30f;
 
@@ -144,12 +142,12 @@ public class CraftingStation : MonoBehaviour
 
         float meltQuality = 0.5f;
         yield return CraftingMinigameUI.Instance.RunTemperature(
-            "Melting", temperatureDuration, sweetMin, sweetMax, chargeToFullDuration, cleanBumpMax, instabilityWindow, coolRate, overheatPenaltyMultiplier,
+            "Melting", temperatureDuration, sweetMin, sweetMax, strokeBump, coolRate, overheatPenaltyMultiplier,
             q => meltQuality = q);
 
         float hammerQuality = 0.5f;
         yield return CraftingMinigameUI.Instance.RunHammering(
-            "Forging", hammerRounds, ringShrinkDuration, perfectTolerancePercent, goodTolerancePercent,
+            "Forging", hammerRounds, chargeDuration, perfectTolerancePercent, goodTolerancePercent,
             q => hammerQuality = q);
 
         float quality = (meltQuality + hammerQuality) * 0.5f;

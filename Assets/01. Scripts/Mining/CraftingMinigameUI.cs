@@ -3,11 +3,12 @@ using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 // Self-contained: builds its own Canvas/UI in Awake so no scene wiring is needed.
 // CraftingStation calls CraftingMinigameUI.Instance.RunTemperature/RunHammering/ShowGradeResult.
-// Input is tap/hold (mouse or touch) - no keyboard dependency, mobile-friendly.
+// Input is tap/hold/drag (mouse or touch) - no keyboard dependency, mobile-friendly.
 // Grade/reward judgement lives in CraftGradeUtility (pure logic, no UI dependency) - this class
 // only renders and orchestrates, it doesn't decide what counts as good.
 public class CraftingMinigameUI : MonoBehaviour
@@ -29,35 +30,43 @@ public class CraftingMinigameUI : MonoBehaviour
         }
     }
 
+    // Needle sweeps from bottom-left (value 0) through top (0.5) to bottom-right (value 1),
+    // matching a real pressure gauge/speedometer.
+    private const float DialSweepAngle = 120f;
+
     private GameObject panel;
     private TMP_Text titleText;
     private TMP_Text instructionText;
     private TMP_Text resultText;
 
-    // Temperature phase widgets - bellows lever: hold to draw air, release to pump a puff of
-    // heat. Holding well past a full charge makes the next puff's strength unpredictable, so
-    // "how long to hold" is a real decision each pump, not a free spam button.
+    // Temperature phase widgets - drag the handle up/down repeatedly to pump (each full
+    // down-then-up stroke raises pressure). Heat always fades regardless of pumping, so only a
+    // steady rhythm keeps up with it.
     private GameObject tempGroup;
-    private RectTransform sweetZoneRect;
-    private RectTransform needleRect;
-    private Image needleImage;
     private Image crucibleImage;
-    private RectTransform chargeGaugeFillRect;
-    private PointerHoldTracker leverHoldTracker;
+    private RectTransform dialNeedleRect;
+    private RectTransform tickMinRect;
+    private RectTransform tickMaxRect;
+    private RectTransform pumpTrackRect;
+    private VerticalDragHandle pumpHandle;
     private float barWidth = 460f;
 
     private readonly Color crucibleCoolColor = new Color(0.45f, 0.2f, 0.14f);
     private readonly Color crucibleHotColor = new Color(1f, 0.85f, 0.3f);
     private readonly Color crucibleOverheatColor = new Color(1f, 0.35f, 0.25f);
 
-    // Hammering phase widgets - direct tap on the blade, no separate hold button.
+    // Hammering phase widgets - hold the randomly-positioned marker on the blade to charge a
+    // FIXED, clearly-visible power gauge (not tucked under the player's own thumb), then release
+    // as close to the target % as possible.
     private GameObject hammerGroup;
     private RectTransform bladeRect;
-    private Button bladeButton;
-    private bool bladeTapped;
-    private RectTransform targetRingRect;
-    private RectTransform approachRingRect;
+    private RectTransform markerHoldRect;
+    private PointerHoldTracker markerHoldTracker;
     private RectTransform hammerIconRect;
+    private TMP_Text hammerTargetText;
+    private RectTransform powerGaugeBgRect;
+    private RectTransform powerFillRect;
+    private RectTransform hammerTargetLineRect;
     private readonly List<GameObject> hitMarks = new List<GameObject>();
 
     private void Awake()
@@ -113,7 +122,7 @@ public class CraftingMinigameUI : MonoBehaviour
     }
 
     // Anchored to the parent's left edge / vertical middle - used for every widget inside
-    // tempGroup so they all share one predictable coordinate frame (matches the bar's anchor).
+    // tempGroup/hammerGroup so they all share one predictable coordinate frame.
     private TMP_Text MakeGroupText(Transform parent, string name, int fontSize, Vector2 anchoredPos, Vector2 size, Color color)
     {
         var go = new GameObject(name, typeof(RectTransform));
@@ -140,39 +149,43 @@ public class CraftingMinigameUI : MonoBehaviour
         groupRect.anchorMax = new Vector2(0.5f, 1f);
         groupRect.pivot = new Vector2(0.5f, 1f);
         groupRect.anchoredPosition = new Vector2(0f, -220f);
-        groupRect.sizeDelta = new Vector2(barWidth, 28f);
+        groupRect.sizeDelta = new Vector2(barWidth, 900f);
 
-        var bg = new GameObject("Bar", typeof(RectTransform), typeof(Image));
-        bg.transform.SetParent(tempGroup.transform, false);
-        var bgRect = bg.GetComponent<RectTransform>();
-        bgRect.anchorMin = new Vector2(0f, 0.5f);
-        bgRect.anchorMax = new Vector2(0f, 0.5f);
-        bgRect.pivot = new Vector2(0f, 0.5f);
-        bgRect.anchoredPosition = Vector2.zero;
-        bgRect.sizeDelta = new Vector2(barWidth, 28f);
-        bg.GetComponent<Image>().color = new Color(0.35f, 0.45f, 0.6f);
-
-        var sweet = new GameObject("SweetZone", typeof(RectTransform), typeof(Image));
-        sweet.transform.SetParent(tempGroup.transform, false);
-        sweetZoneRect = sweet.GetComponent<RectTransform>();
-        sweetZoneRect.anchorMin = new Vector2(0f, 0.5f);
-        sweetZoneRect.anchorMax = new Vector2(0f, 0.5f);
-        sweetZoneRect.pivot = new Vector2(0f, 0.5f);
-        sweet.GetComponent<Image>().color = new Color(0.45f, 0.75f, 0.4f, 0.85f);
-
-        var needle = new GameObject("Needle", typeof(RectTransform), typeof(Image));
-        needle.transform.SetParent(tempGroup.transform, false);
-        needleRect = needle.GetComponent<RectTransform>();
-        needleRect.anchorMin = new Vector2(0f, 0.5f);
-        needleRect.anchorMax = new Vector2(0f, 0.5f);
-        needleRect.pivot = new Vector2(0.5f, 0.5f);
-        needleRect.sizeDelta = new Vector2(6f, 44f);
-        needleImage = needle.GetComponent<Image>();
-        needleImage.color = Color.white;
-
-        // Bellows widget: crucible (color shifts with heat) + vertical charge gauge + hold lever.
         float centerX = barWidth * 0.5f;
-        float centerY = -260f;
+        float dialCenterY = -280f;
+        const float dialSize = 300f;
+
+        var dialFaceGO = new GameObject("DialFace", typeof(RectTransform), typeof(Image));
+        dialFaceGO.transform.SetParent(tempGroup.transform, false);
+        var dialFaceRect = dialFaceGO.GetComponent<RectTransform>();
+        dialFaceRect.anchorMin = new Vector2(0f, 0.5f);
+        dialFaceRect.anchorMax = new Vector2(0f, 0.5f);
+        dialFaceRect.pivot = new Vector2(0.5f, 0.5f);
+        dialFaceRect.anchoredPosition = new Vector2(centerX, dialCenterY);
+        dialFaceRect.sizeDelta = new Vector2(dialSize, dialSize);
+        var dialFaceImage = dialFaceGO.GetComponent<Image>();
+        dialFaceImage.sprite = UIShapes.Circle();
+        dialFaceImage.color = new Color(0.4f, 0.14f, 0.09f);
+
+        var tickMinGO = new GameObject("TickMin", typeof(RectTransform), typeof(Image));
+        tickMinGO.transform.SetParent(tempGroup.transform, false);
+        tickMinRect = tickMinGO.GetComponent<RectTransform>();
+        tickMinRect.anchorMin = new Vector2(0f, 0.5f);
+        tickMinRect.anchorMax = new Vector2(0f, 0.5f);
+        tickMinRect.pivot = new Vector2(0.5f, 0f);
+        tickMinRect.anchoredPosition = new Vector2(centerX, dialCenterY);
+        tickMinRect.sizeDelta = new Vector2(8f, dialSize * 0.5f);
+        tickMinGO.GetComponent<Image>().color = new Color(0.95f, 0.82f, 0.35f);
+
+        var tickMaxGO = new GameObject("TickMax", typeof(RectTransform), typeof(Image));
+        tickMaxGO.transform.SetParent(tempGroup.transform, false);
+        tickMaxRect = tickMaxGO.GetComponent<RectTransform>();
+        tickMaxRect.anchorMin = new Vector2(0f, 0.5f);
+        tickMaxRect.anchorMax = new Vector2(0f, 0.5f);
+        tickMaxRect.pivot = new Vector2(0.5f, 0f);
+        tickMaxRect.anchoredPosition = new Vector2(centerX, dialCenterY);
+        tickMaxRect.sizeDelta = new Vector2(8f, dialSize * 0.5f);
+        tickMaxGO.GetComponent<Image>().color = new Color(0.95f, 0.82f, 0.35f);
 
         var crucibleGO = new GameObject("Crucible", typeof(RectTransform), typeof(Image));
         crucibleGO.transform.SetParent(tempGroup.transform, false);
@@ -180,43 +193,57 @@ public class CraftingMinigameUI : MonoBehaviour
         crucibleRect.anchorMin = new Vector2(0f, 0.5f);
         crucibleRect.anchorMax = new Vector2(0f, 0.5f);
         crucibleRect.pivot = new Vector2(0.5f, 0.5f);
-        crucibleRect.anchoredPosition = new Vector2(centerX, centerY);
-        crucibleRect.sizeDelta = new Vector2(220f, 220f);
+        crucibleRect.anchoredPosition = new Vector2(centerX, dialCenterY);
+        crucibleRect.sizeDelta = new Vector2(140f, 140f);
         crucibleImage = crucibleGO.GetComponent<Image>();
         crucibleImage.sprite = UIShapes.Circle();
         crucibleImage.color = crucibleCoolColor;
 
-        var chargeGaugeBg = new GameObject("ChargeGaugeBg", typeof(RectTransform), typeof(Image));
-        chargeGaugeBg.transform.SetParent(tempGroup.transform, false);
-        var chargeGaugeBgRect = chargeGaugeBg.GetComponent<RectTransform>();
-        chargeGaugeBgRect.anchorMin = new Vector2(0f, 0.5f);
-        chargeGaugeBgRect.anchorMax = new Vector2(0f, 0.5f);
-        chargeGaugeBgRect.pivot = new Vector2(0.5f, 0f);
-        chargeGaugeBgRect.anchoredPosition = new Vector2(centerX + 150f, centerY - 110f);
-        chargeGaugeBgRect.sizeDelta = new Vector2(28f, 220f);
-        chargeGaugeBg.GetComponent<Image>().color = new Color(0.22f, 0.2f, 0.18f);
+        var needleGO = new GameObject("DialNeedle", typeof(RectTransform), typeof(Image));
+        needleGO.transform.SetParent(tempGroup.transform, false);
+        dialNeedleRect = needleGO.GetComponent<RectTransform>();
+        dialNeedleRect.anchorMin = new Vector2(0f, 0.5f);
+        dialNeedleRect.anchorMax = new Vector2(0f, 0.5f);
+        dialNeedleRect.pivot = new Vector2(0.5f, 0f);
+        dialNeedleRect.anchoredPosition = new Vector2(centerX, dialCenterY);
+        dialNeedleRect.sizeDelta = new Vector2(6f, dialSize * 0.46f);
+        needleGO.GetComponent<Image>().color = Color.white;
 
-        var chargeGaugeFillGO = new GameObject("ChargeGaugeFill", typeof(RectTransform), typeof(Image));
-        chargeGaugeFillGO.transform.SetParent(chargeGaugeBg.transform, false);
-        chargeGaugeFillRect = chargeGaugeFillGO.GetComponent<RectTransform>();
-        chargeGaugeFillRect.anchorMin = new Vector2(0f, 0f);
-        chargeGaugeFillRect.anchorMax = new Vector2(1f, 0f);
-        chargeGaugeFillRect.pivot = new Vector2(0.5f, 0f);
-        chargeGaugeFillRect.offsetMin = Vector2.zero;
-        chargeGaugeFillRect.sizeDelta = new Vector2(0f, 0f);
-        chargeGaugeFillGO.GetComponent<Image>().color = new Color(0.95f, 0.7f, 0.3f);
+        var hubGO = new GameObject("DialHub", typeof(RectTransform), typeof(Image));
+        hubGO.transform.SetParent(tempGroup.transform, false);
+        var hubRect = hubGO.GetComponent<RectTransform>();
+        hubRect.anchorMin = new Vector2(0f, 0.5f);
+        hubRect.anchorMax = new Vector2(0f, 0.5f);
+        hubRect.pivot = new Vector2(0.5f, 0.5f);
+        hubRect.anchoredPosition = new Vector2(centerX, dialCenterY);
+        hubRect.sizeDelta = new Vector2(20f, 20f);
+        var hubImage = hubGO.GetComponent<Image>();
+        hubImage.sprite = UIShapes.Circle();
+        hubImage.color = Color.white;
 
-        var leverGO = new GameObject("BellowsLever", typeof(RectTransform), typeof(Image), typeof(PointerHoldTracker));
-        leverGO.transform.SetParent(tempGroup.transform, false);
-        var leverRect = leverGO.GetComponent<RectTransform>();
-        leverRect.anchorMin = new Vector2(0f, 0.5f);
-        leverRect.anchorMax = new Vector2(0f, 0.5f);
-        leverRect.pivot = new Vector2(0.5f, 0.5f);
-        leverRect.anchoredPosition = new Vector2(centerX, centerY - 190f);
-        leverRect.sizeDelta = new Vector2(300f, 84f);
-        leverGO.GetComponent<Image>().color = new Color(0.5f, 0.35f, 0.2f);
-        leverHoldTracker = leverGO.GetComponent<PointerHoldTracker>();
-        MakeGroupText(leverGO.transform, "LeverLabel", 16, Vector2.zero, new Vector2(300f, 84f), Color.white).text = "HOLD TO DRAW, RELEASE TO PUMP";
+        // Pump track + handle, below the dial.
+        var trackGO = new GameObject("PumpTrack", typeof(RectTransform), typeof(Image));
+        trackGO.transform.SetParent(tempGroup.transform, false);
+        pumpTrackRect = trackGO.GetComponent<RectTransform>();
+        pumpTrackRect.anchorMin = new Vector2(0f, 0.5f);
+        pumpTrackRect.anchorMax = new Vector2(0f, 0.5f);
+        pumpTrackRect.pivot = new Vector2(0.5f, 1f);
+        pumpTrackRect.anchoredPosition = new Vector2(centerX, dialCenterY - dialSize * 0.5f - 40f);
+        pumpTrackRect.sizeDelta = new Vector2(20f, 220f);
+        trackGO.GetComponent<Image>().color = new Color(0.22f, 0.2f, 0.18f);
+
+        var handleGO = new GameObject("PumpHandle", typeof(RectTransform), typeof(Image), typeof(VerticalDragHandle));
+        handleGO.transform.SetParent(trackGO.transform, false);
+        var pumpHandleRect = handleGO.GetComponent<RectTransform>();
+        pumpHandleRect.anchorMin = new Vector2(0f, 0f);
+        pumpHandleRect.anchorMax = new Vector2(0f, 0f);
+        pumpHandleRect.pivot = new Vector2(0.5f, 0.5f);
+        pumpHandleRect.anchoredPosition = new Vector2(pumpTrackRect.sizeDelta.x * 0.5f, 0f);
+        pumpHandleRect.sizeDelta = new Vector2(96f, 60f);
+        handleGO.GetComponent<Image>().color = new Color(0.5f, 0.35f, 0.2f);
+        pumpHandle = handleGO.GetComponent<VerticalDragHandle>();
+        pumpHandle.Track = pumpTrackRect;
+        MakeGroupText(handleGO.transform, "PumpLabel", 13, Vector2.zero, new Vector2(96f, 60f), Color.white).text = "PUMP";
 
         tempGroup.SetActive(false);
     }
@@ -232,47 +259,29 @@ public class CraftingMinigameUI : MonoBehaviour
         groupRect.anchoredPosition = new Vector2(0f, -220f);
         groupRect.sizeDelta = new Vector2(900f, 1300f);
 
-        // The blade itself is the tap target - "칼날 부위를 직접 클릭" - no separate button
-        // elsewhere on screen. Tapping anywhere on the blade counts as the strike attempt;
-        // WHEN you tap (matching the shrinking ring to the static target ring) is what's judged.
-        var blade = new GameObject("Blade", typeof(RectTransform), typeof(Image), typeof(Button));
+        // The blade is purely a position target now (hold the marker on it) - the power
+        // readout itself lives in a fixed spot to the right so it's never covered by a finger.
+        var blade = new GameObject("Blade", typeof(RectTransform), typeof(Image));
         blade.transform.SetParent(hammerGroup.transform, false);
         bladeRect = blade.GetComponent<RectTransform>();
         bladeRect.anchorMin = new Vector2(0f, 1f);
         bladeRect.anchorMax = new Vector2(0f, 1f);
         bladeRect.pivot = new Vector2(0f, 1f);
-        bladeRect.anchoredPosition = new Vector2(280f, -60f);
-        bladeRect.sizeDelta = new Vector2(340f, 1150f);
+        bladeRect.anchoredPosition = new Vector2(180f, -60f);
+        bladeRect.sizeDelta = new Vector2(300f, 1150f);
         blade.GetComponent<Image>().color = new Color(0.34f, 0.36f, 0.4f);
-        bladeButton = blade.GetComponent<Button>();
-        bladeButton.onClick.AddListener(() => bladeTapped = true);
 
-        var targetRingGO = new GameObject("TargetRing", typeof(RectTransform), typeof(Image));
-        targetRingGO.transform.SetParent(blade.transform, false);
-        targetRingRect = targetRingGO.GetComponent<RectTransform>();
-        targetRingRect.anchorMin = new Vector2(0.5f, 0.5f);
-        targetRingRect.anchorMax = new Vector2(0.5f, 0.5f);
-        targetRingRect.pivot = new Vector2(0.5f, 0.5f);
-        targetRingRect.sizeDelta = new Vector2(90f, 90f);
-        var targetRingImage = targetRingGO.GetComponent<Image>();
-        targetRingImage.sprite = UIShapes.Circle();
-        targetRingImage.color = new Color(0.95f, 0.82f, 0.35f, 0.55f);
-        targetRingImage.raycastTarget = false;
-
-        var approachRingGO = new GameObject("ApproachRing", typeof(RectTransform), typeof(Image));
-        approachRingGO.transform.SetParent(blade.transform, false);
-        approachRingRect = approachRingGO.GetComponent<RectTransform>();
-        approachRingRect.anchorMin = new Vector2(0.5f, 0.5f);
-        approachRingRect.anchorMax = new Vector2(0.5f, 0.5f);
-        approachRingRect.pivot = new Vector2(0.5f, 0.5f);
-        approachRingRect.sizeDelta = new Vector2(90f, 90f);
-        var approachRingImage = approachRingGO.GetComponent<Image>();
-        approachRingImage.sprite = UIShapes.Circle();
-        approachRingImage.color = new Color(1f, 1f, 1f, 0.85f);
-        approachRingImage.raycastTarget = false;
-
-        targetRingGO.SetActive(false);
-        approachRingGO.SetActive(false);
+        var markerGO = new GameObject("StrikeMarker", typeof(RectTransform), typeof(Image), typeof(PointerHoldTracker));
+        markerGO.transform.SetParent(blade.transform, false);
+        markerHoldRect = markerGO.GetComponent<RectTransform>();
+        markerHoldRect.anchorMin = new Vector2(0.5f, 0.5f);
+        markerHoldRect.anchorMax = new Vector2(0.5f, 0.5f);
+        markerHoldRect.pivot = new Vector2(0.5f, 0.5f);
+        markerHoldRect.sizeDelta = new Vector2(100f, 100f);
+        var markerImage = markerGO.GetComponent<Image>();
+        markerImage.sprite = UIShapes.Circle();
+        markerImage.color = new Color(0.95f, 0.82f, 0.35f, 0.75f);
+        markerHoldTracker = markerGO.GetComponent<PointerHoldTracker>();
 
         var hammerIconGO = new GameObject("HammerIcon", typeof(RectTransform), typeof(Image));
         hammerIconGO.transform.SetParent(blade.transform, false);
@@ -286,6 +295,50 @@ public class CraftingMinigameUI : MonoBehaviour
         hammerIconImage.raycastTarget = false;
         hammerIconGO.SetActive(false);
 
+        float gaugeX = 650f;
+
+        var hammerTargetGO = new GameObject("HammerTarget", typeof(RectTransform));
+        hammerTargetGO.transform.SetParent(hammerGroup.transform, false);
+        var hammerTargetRect = hammerTargetGO.GetComponent<RectTransform>();
+        hammerTargetRect.anchorMin = new Vector2(0f, 1f);
+        hammerTargetRect.anchorMax = new Vector2(0f, 1f);
+        hammerTargetRect.pivot = new Vector2(0.5f, 1f);
+        hammerTargetRect.anchoredPosition = new Vector2(gaugeX, -20f);
+        hammerTargetRect.sizeDelta = new Vector2(240f, 36f);
+        hammerTargetText = hammerTargetGO.AddComponent<TextMeshProUGUI>();
+        hammerTargetText.fontSize = 22;
+        hammerTargetText.alignment = TextAlignmentOptions.Center;
+        hammerTargetText.color = new Color(0.95f, 0.82f, 0.35f);
+
+        var gaugeBgGO = new GameObject("PowerGaugeBg", typeof(RectTransform), typeof(Image));
+        gaugeBgGO.transform.SetParent(hammerGroup.transform, false);
+        powerGaugeBgRect = gaugeBgGO.GetComponent<RectTransform>();
+        powerGaugeBgRect.anchorMin = new Vector2(0f, 1f);
+        powerGaugeBgRect.anchorMax = new Vector2(0f, 1f);
+        powerGaugeBgRect.pivot = new Vector2(0.5f, 1f);
+        powerGaugeBgRect.anchoredPosition = new Vector2(gaugeX, -70f);
+        powerGaugeBgRect.sizeDelta = new Vector2(80f, 760f);
+        gaugeBgGO.GetComponent<Image>().color = new Color(0.22f, 0.2f, 0.18f);
+
+        var gaugeFillGO = new GameObject("PowerGaugeFill", typeof(RectTransform), typeof(Image));
+        gaugeFillGO.transform.SetParent(gaugeBgGO.transform, false);
+        powerFillRect = gaugeFillGO.GetComponent<RectTransform>();
+        powerFillRect.anchorMin = new Vector2(0f, 0f);
+        powerFillRect.anchorMax = new Vector2(1f, 0f);
+        powerFillRect.pivot = new Vector2(0.5f, 0f);
+        powerFillRect.offsetMin = Vector2.zero;
+        powerFillRect.sizeDelta = new Vector2(0f, 0f);
+        gaugeFillGO.GetComponent<Image>().color = new Color(0.95f, 0.7f, 0.3f);
+
+        var targetLineGO = new GameObject("TargetLine", typeof(RectTransform), typeof(Image));
+        targetLineGO.transform.SetParent(gaugeBgGO.transform, false);
+        hammerTargetLineRect = targetLineGO.GetComponent<RectTransform>();
+        hammerTargetLineRect.anchorMin = new Vector2(0f, 0f);
+        hammerTargetLineRect.anchorMax = new Vector2(1f, 0f);
+        hammerTargetLineRect.pivot = new Vector2(0.5f, 0.5f);
+        hammerTargetLineRect.sizeDelta = new Vector2(0f, 10f);
+        targetLineGO.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.95f);
+
         hammerGroup.SetActive(false);
     }
 
@@ -294,79 +347,70 @@ public class CraftingMinigameUI : MonoBehaviour
         panel.SetActive(visible);
     }
 
-    // Bellows pump: hold the lever to draw air in (charge gauge fills over chargeToFullDuration),
-    // release to pump a puff of heat sized by how much was charged. Holding past a full charge
-    // makes the puff's strength unpredictable (instability window) instead of just bigger, so
-    // "release now or risk it" is a real decision on every single pump.
-    public IEnumerator RunTemperature(string title, float duration, float sweetMin, float sweetMax, float chargeToFullDuration, float cleanBumpMax, float instabilityWindow, float coolRate, float overheatPenaltyMultiplier, Action<float> onComplete)
+    // Bellows pump: drag the handle up and down repeatedly - each full down-then-up stroke
+    // raises pressure. Heat always fades regardless of pumping (not just when idle), so only a
+    // steady rhythm keeps up with it.
+    public IEnumerator RunTemperature(string title, float duration, float sweetMin, float sweetMax, float strokeBump, float coolRate, float overheatPenaltyMultiplier, Action<float> onComplete)
     {
         SetVisible(true);
         tempGroup.SetActive(true);
         titleText.text = title;
         resultText.text = "";
-        instructionText.text = "Hold the lever to draw air, release to pump - don't overdraw it!";
+        instructionText.text = "Drag the handle up and down to pump - heat always fades, keep the rhythm going!";
 
-        sweetZoneRect.anchoredPosition = new Vector2(sweetMin * barWidth, 0f);
-        sweetZoneRect.sizeDelta = new Vector2((sweetMax - sweetMin) * barWidth, 30f);
+        float minAngle = Mathf.Lerp(DialSweepAngle, -DialSweepAngle, sweetMin);
+        float maxAngle = Mathf.Lerp(DialSweepAngle, -DialSweepAngle, sweetMax);
+        tickMinRect.localRotation = Quaternion.Euler(0f, 0f, minAngle);
+        tickMaxRect.localRotation = Quaternion.Euler(0f, 0f, maxAngle);
+
+        pumpHandle.ResetToBottom();
 
         float value = 0f;
         float elapsed = 0f;
         float timeInZone = 0f;
         float overheatTime = 0f;
-        bool wasHeld = false;
-        chargeGaugeFillRect.anchorMax = new Vector2(1f, 0f);
-        crucibleImage.color = crucibleCoolColor;
+        bool primedForStroke = false;
 
         while (elapsed < duration)
         {
             elapsed += Time.deltaTime;
 
-            bool isHeld = leverHoldTracker.IsHeld;
-            float heldTime = leverHoldTracker.HeldDuration;
-            float chargeLevel = Mathf.Clamp01(heldTime / chargeToFullDuration);
-            // Always shows chargeLevel (not gated on isHeld) so the gauge holds its peak value
-            // for a beat right at release instead of snapping to 0 the instant you let go -
-            // heldTime itself doesn't reset until the next press anyway.
-            chargeGaugeFillRect.anchorMax = new Vector2(1f, chargeLevel);
+            float handleY = pumpHandle.NormalizedY;
 
-            if (wasHeld && leverHoldTracker.WasReleasedThisFrame)
+            if (handleY < 0.25f)
             {
-                float overheldTime = Mathf.Max(0f, heldTime - chargeToFullDuration);
-                float instability = Mathf.Clamp01(overheldTime / instabilityWindow);
-                float puff = chargeLevel * cleanBumpMax * UnityEngine.Random.Range(1f - instability * 0.6f, 1f + instability * 0.6f);
-                value = Mathf.Clamp01(value + Mathf.Max(0f, puff));
+                primedForStroke = true;
+            }
+            else if (handleY > 0.75f && primedForStroke)
+            {
+                primedForStroke = false;
+                value = Mathf.Clamp01(value + strokeBump);
 
                 if (CameraFollow.Instance != null)
                 {
-                    CameraFollow.Instance.Shake(0.07f, 0.08f);
+                    CameraFollow.Instance.Shake(0.06f, 0.06f);
                 }
             }
-            else if (!isHeld)
-            {
-                value = Mathf.Clamp01(value - coolRate * Time.deltaTime);
-            }
 
-            wasHeld = isHeld;
+            value = Mathf.Clamp01(value - coolRate * Time.deltaTime);
+
+            float needleAngle = Mathf.Lerp(DialSweepAngle, -DialSweepAngle, value);
+            dialNeedleRect.localRotation = Quaternion.Euler(0f, 0f, needleAngle);
 
             if (value >= sweetMin && value <= sweetMax)
             {
                 timeInZone += Time.deltaTime;
-                needleImage.color = Color.white;
                 crucibleImage.color = Color.Lerp(crucibleCoolColor, crucibleHotColor, Mathf.Clamp01(value));
             }
             else if (value > sweetMax)
             {
                 overheatTime += Time.deltaTime;
-                needleImage.color = new Color(0.95f, 0.3f, 0.25f);
                 crucibleImage.color = crucibleOverheatColor;
             }
             else
             {
-                needleImage.color = new Color(0.6f, 0.75f, 0.95f);
                 crucibleImage.color = Color.Lerp(crucibleCoolColor, crucibleHotColor, Mathf.Clamp01(value));
             }
-
-            needleRect.anchoredPosition = new Vector2(value * barWidth, 0f);
 
             yield return null;
         }
@@ -380,17 +424,15 @@ public class CraftingMinigameUI : MonoBehaviour
         onComplete?.Invoke(quality);
     }
 
-    // Direct-click hammering: a static target ring appears at a random spot on the blade and a
-    // larger "approach" ring shrinks toward it over ringShrinkDuration. Tap the blade (anywhere)
-    // when the approach ring visually matches the target ring - no separate hold button, no
-    // power gauge, just "click the blade at the right moment".
-    public IEnumerator RunHammering(string title, int rounds, float ringShrinkDuration, float perfectTolerancePercent, float goodTolerancePercent, Action<float> onComplete)
+    // Power-based hammering: hold the randomly-positioned marker on the blade to charge the
+    // fixed power gauge, then release as close to the target % as possible.
+    public IEnumerator RunHammering(string title, int rounds, float chargeDuration, float perfectTolerancePercent, float goodTolerancePercent, Action<float> onComplete)
     {
         SetVisible(true);
         hammerGroup.SetActive(true);
         titleText.text = title;
         resultText.text = "";
-        instructionText.text = "Tap the blade when the rings match!";
+        instructionText.text = "Hold the marker, release when the gauge hits the target!";
 
         for (int i = 0; i < hitMarks.Count; i++)
         {
@@ -401,88 +443,85 @@ public class CraftingMinigameUI : MonoBehaviour
         }
         hitMarks.Clear();
 
-        const float approachStartScale = 2.4f;
-        const float targetScale = 1f;
         float totalScore = 0f;
+        float gaugeHeight = powerGaugeBgRect.sizeDelta.y;
 
         for (int round = 0; round < rounds; round++)
         {
-            instructionText.text = "Round " + (round + 1) + " / " + rounds + " - tap when the rings match!";
+            instructionText.text = "Round " + (round + 1) + " / " + rounds + " - hold the marker, release on target!";
             resultText.text = "";
 
-            float bladeHalfWidth = bladeRect.sizeDelta.x * 0.5f - 100f;
-            float bladeHalfHeight = bladeRect.sizeDelta.y * 0.5f - 100f;
-            Vector2 pos = new Vector2(
+            float bladeHalfWidth = bladeRect.sizeDelta.x * 0.5f - 70f;
+            float bladeHalfHeight = bladeRect.sizeDelta.y * 0.5f - 70f;
+            Vector2 markerPos = new Vector2(
                 UnityEngine.Random.Range(-bladeHalfWidth, bladeHalfWidth),
                 UnityEngine.Random.Range(-bladeHalfHeight, bladeHalfHeight));
+            markerHoldRect.anchoredPosition = markerPos;
 
-            targetRingRect.anchoredPosition = pos;
-            approachRingRect.anchoredPosition = pos;
-            targetRingRect.gameObject.SetActive(true);
-            approachRingRect.gameObject.SetActive(true);
-            approachRingRect.localScale = Vector3.one * approachStartScale;
+            int targetPercent = UnityEngine.Random.Range(20, 86);
+            hammerTargetText.text = "Target " + targetPercent + "%";
+            hammerTargetLineRect.anchoredPosition = new Vector2(0f, (targetPercent / 100f) * gaugeHeight);
 
-            bladeTapped = false;
-            float elapsed = 0f;
-            float maxTime = ringShrinkDuration + 0.6f;
-            bool tapped = false;
-            float finalScale = targetScale;
+            float power = 0f;
+            bool released = false;
+            float safetyTimer = 0f;
+            float maxTime = chargeDuration + 2.5f;
+            powerFillRect.anchorMax = new Vector2(1f, 0f);
 
-            while (!tapped && elapsed < maxTime)
+            while (!released && safetyTimer < maxTime)
             {
-                elapsed += Time.deltaTime;
-                float shrinkT = Mathf.Clamp01(elapsed / ringShrinkDuration);
-                finalScale = Mathf.Lerp(approachStartScale, targetScale, shrinkT);
-                approachRingRect.localScale = Vector3.one * finalScale;
+                safetyTimer += Time.deltaTime;
 
-                if (bladeTapped)
+                if (markerHoldTracker.IsHeld)
                 {
-                    bladeTapped = false;
-                    tapped = true;
-                    StartCoroutine(PlayHammerSwing(pos));
+                    power = Mathf.Clamp01(power + Time.deltaTime / chargeDuration);
+                }
+
+                powerFillRect.anchorMax = new Vector2(1f, power);
+
+                if (markerHoldTracker.WasReleasedThisFrame)
+                {
+                    released = true;
                 }
 
                 yield return null;
             }
 
-            float diffPercent = Mathf.Abs(finalScale - targetScale) / (approachStartScale - targetScale) * 100f;
-
-            if (!tapped)
+            if (released)
             {
-                diffPercent = 100f;
+                StartCoroutine(PlayHammerSwing(markerPos));
             }
 
+            int actualPercent = Mathf.RoundToInt(power * 100f);
+            int diff = Mathf.Abs(actualPercent - targetPercent);
             float roundScore;
             float shakeAmplitude;
 
-            if (diffPercent <= perfectTolerancePercent)
+            if (diff <= perfectTolerancePercent)
             {
                 roundScore = 1f;
                 shakeAmplitude = 0.16f;
-                resultText.text = "Perfect!";
-                SpawnHitMark(pos);
+                resultText.text = "Perfect! (" + actualPercent + "%)";
+                SpawnHitMark(markerPos);
             }
-            else if (diffPercent <= goodTolerancePercent)
+            else if (diff <= goodTolerancePercent)
             {
                 roundScore = 0.6f;
                 shakeAmplitude = 0.1f;
-                resultText.text = "Good";
-                SpawnHitMark(pos);
+                resultText.text = "Good (" + actualPercent + "%)";
+                SpawnHitMark(markerPos);
             }
             else
             {
                 roundScore = 0.15f;
                 shakeAmplitude = 0f;
-                resultText.text = tapped ? "Miss" : "Too Slow";
+                resultText.text = released ? "Miss (" + actualPercent + "%)" : "Too Slow";
             }
 
             if (shakeAmplitude > 0f && CameraFollow.Instance != null)
             {
                 CameraFollow.Instance.Shake(shakeAmplitude, 0.1f);
             }
-
-            targetRingRect.gameObject.SetActive(false);
-            approachRingRect.gameObject.SetActive(false);
 
             totalScore += roundScore;
             yield return new WaitForSeconds(0.45f);
@@ -497,8 +536,8 @@ public class CraftingMinigameUI : MonoBehaviour
         onComplete?.Invoke(quality);
     }
 
-    // Sells "I'm hitting this exact spot" - plays on every tap regardless of the round's
-    // judgement, so the click itself always reads as a real hammer strike.
+    // Sells "I'm hitting this exact spot" - plays on every release, so it always reads as a
+    // real hammer strike.
     private IEnumerator PlayHammerSwing(Vector2 position)
     {
         hammerIconRect.gameObject.SetActive(true);
@@ -607,5 +646,43 @@ public class CraftingMinigameUI : MonoBehaviour
             default:
                 return Color.white;
         }
+    }
+}
+
+// Constrains its own drag to a vertical track and exposes a 0..1 normalized position - used by
+// the furnace pump handle. No confirm/threshold logic here (unlike the crafting silhouette's
+// sheet-chip drag) - the caller polls NormalizedY every frame to detect stroke completion.
+public class VerticalDragHandle : MonoBehaviour, IDragHandler
+{
+    public RectTransform Track;
+    public float NormalizedY { get; private set; }
+
+    private RectTransform rect;
+    private Canvas canvas;
+
+    private void Awake()
+    {
+        rect = GetComponent<RectTransform>();
+        canvas = GetComponentInParent<Canvas>();
+    }
+
+    public void OnDrag(PointerEventData eventData)
+    {
+        if (Track == null)
+        {
+            return;
+        }
+
+        float scale = canvas != null ? canvas.scaleFactor : 1f;
+        float trackHeight = Track.sizeDelta.y;
+        float newY = Mathf.Clamp(rect.anchoredPosition.y + eventData.delta.y / scale, 0f, trackHeight);
+        rect.anchoredPosition = new Vector2(rect.anchoredPosition.x, newY);
+        NormalizedY = trackHeight > 0f ? newY / trackHeight : 0f;
+    }
+
+    public void ResetToBottom()
+    {
+        NormalizedY = 0f;
+        rect.anchoredPosition = new Vector2(rect.anchoredPosition.x, 0f);
     }
 }

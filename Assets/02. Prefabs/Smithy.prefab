@@ -589,13 +589,11 @@ MonoBehaviour:
   temperatureDuration: 9
   sweetMin: 0.55
   sweetMax: 0.75
-  chargeToFullDuration: 0.9
-  cleanBumpMax: 0.3
-  instabilityWindow: 0.6
-  coolRate: 0.3
+  strokeBump: 0.22
+  coolRate: 0.15
   overheatPenaltyMultiplier: 1.5
   hammerRounds: 4
-  ringShrinkDuration: 1.4
+  chargeDuration: 1.4
   perfectTolerancePercent: 10
   goodTolerancePercent: 30
 --- !u!23 &7191872465602167875
