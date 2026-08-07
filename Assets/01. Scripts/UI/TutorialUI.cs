@@ -133,13 +133,15 @@ public class TutorialUI : MonoBehaviour
         nextButton.onClick.AddListener(OnNext);
 
         // Sibling of Panel (not a child) so it stays visible even while the slideshow is closed -
-        // this is how the player reopens the tutorial after the first-run auto-show.
+        // this is how the player reopens the tutorial after the first-run auto-show. Bottom-left
+        // corner: top-right is ResourceHUD's resource panel, top-left is DevAutoPlayController's
+        // debug buttons - bottom-left is the one corner nothing else claims.
         var helpButton = MakeButton(canvasGO.transform, "HelpButton", Vector2.zero, new Vector2(72f, 72f), "?", new Color(0f, 0f, 0f, 0.5f));
         var helpRect = helpButton.GetComponent<RectTransform>();
-        helpRect.anchorMin = new Vector2(1f, 1f);
-        helpRect.anchorMax = new Vector2(1f, 1f);
-        helpRect.pivot = new Vector2(1f, 1f);
-        helpRect.anchoredPosition = new Vector2(-24f, -24f);
+        helpRect.anchorMin = new Vector2(0f, 0f);
+        helpRect.anchorMax = new Vector2(0f, 0f);
+        helpRect.pivot = new Vector2(0f, 0f);
+        helpRect.anchoredPosition = new Vector2(24f, 24f);
         helpButton.onClick.AddListener(Open);
     }
 
