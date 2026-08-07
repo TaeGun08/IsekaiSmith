@@ -1290,3 +1290,39 @@ Unity 콘솔(`read_console`) 확인 결과 에러/경고 0건 — 컴파일 정�
 ### 다음에 할 일 (TODO)
 - [ ] 유저 재테스트: 입구 기준 방향감, 흙길, 대장간 내부 동선(용광로-모루-풀무-보관함) 확인
 - [ ] 커밋 예정
+
+---
+
+## 2026-08-07
+
+### 손님 주문 기획서 v2 + 판매 시스템 1차 구현
+- customer_order_design_v2.html 작성(버거플리즈/피자레디/XP히어로 참고 - 문제는 손님 캐릭터
+  부재가 아니라 "슬롯이 항상 안 채워짐/생성이 균일함/빨리 처리해도 보상差 약함"이었다고 진단).
+  §3 스크롤 목록→고정 3슬롯 카운터, §4 웨이브 페이싱(재보충 1~2초, 60~90초마다 혼잡 웨이브),
+  §5 콤보 보너스 추가. 커밋 후 바로 구현 착수(사용자가 "수정 후 작업 들어가자"고 지시).
+- **신규 스크립트** (`Assets/01. Scripts/Sales/`): `SalesCurrency`(골드), `ToolInventory`(등급별
+  완제품 재고, `TrySpendAtLeast`), `Reputation`(평판 배율), `SalesPricing`(등급별 기본가 - UI 추정치
+  표시와 실제 정산이 같은 표를 보게 분리), `CustomerOrder`(POCO), `OrderQueueManager`(슬롯 재보충/
+  웨이브/콤보/납품 로직, CraftingStation과 동일하게 플레이어 근접 게이트), `SalesCounterUI`(런타임
+  생성 uGUI, InteractionPromptUI/CraftingMinigameUI와 동일 패턴).
+- **기존 연결**: `CraftingStation.ApplyCraft`가 이제 `ResourceBank.Add(Tool)` 대신
+  `ToolInventory.Add(grade, amount)` 호출(완제품 등급이 그동안 완전히 버려지고 있었음).
+  `ResourceHUD`에 골드 표시 추가, Tool 총량은 `ToolInventory.Total`로 교체.
+- **씬 배치**: Smithy(0,0,17, 무회전)를 UnityMCP execute_code로 라이브 조회해서 문/작업대 방향
+  확인(작업대는 +Z 안쪽, StorageCrate2가 -Z=입구 쪽) → 입구 앞 (0,0,11)에 지형 높이 샘플링해서
+  `SalesCounter` 오브젝트 생성. HUD에 `GoldText` 라벨도 ToolText 복제해서 배치.
+- **막힌 부분 (기존 메모리 [[unity-editorwindow-screenshot-technique]]의 stale-assembly 한계
+  재확인)**: 이번 세션에서 새로 만들거나 수정한 스크립트 타입(`OrderQueueManager`, `ResourceHUD`의
+  새 필드 `goldText`)을 UnityMCP 브릿지가 인식 못 함 - `manage_components`/`unity_reflect`가
+  전부 "type not found"/"property not found". execute_code뿐 아니라 manage_components 등 브릿지
+  전체가 세션 시작 시점 어셈블리 스냅샷에 고정되는 문제로 재확인됨. 그래서:
+  - `SalesCounter` 오브젝트는 만들어져 있지만 `OrderQueueManager` 컴포넌트는 아직 못 붙임
+  - `GoldText` UI 오브젝트는 만들어져 있지만 `ResourceHUD.goldText` 슬롯에 아직 연결 안 됨
+  컴파일 자체는 에러 0개로 정상 완료(read_console 확인). 다음 세션(새 MCP 연결)에서 두 개만
+  마저 연결하면 끝 - 또는 사용자가 인스펙터에서 각각 드래그 한 번씩만 해주면 즉시 완료.
+
+### 다음에 할 일 (TODO)
+- [ ] `SalesCounter`에 `OrderQueueManager` 컴포넌트 부착 (다음 세션 자동 또는 수동 1회)
+- [ ] `GoldText`를 `ResourceHUDCanvas`의 `ResourceHUD.goldText` 슬롯에 연결 (위와 동일)
+- [ ] 플레이 테스트: 슬롯 재보충 리듬/웨이브/콤보 체감, 초기 수치(패이스/보상) 조정
+- [ ] 커밋 예정

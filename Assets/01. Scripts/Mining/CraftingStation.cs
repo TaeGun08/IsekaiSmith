@@ -12,7 +12,6 @@ public class CraftingStation : MonoBehaviour
     [SerializeField] private ResourceType woodType = ResourceType.Wood;
     [SerializeField] private int woodAmount = 1;
     [SerializeField] private ResourceType manaStoneType = ResourceType.ManaStone;
-    [SerializeField] private ResourceType outputType = ResourceType.Tool;
     [SerializeField] private int outputAmount = 1;
     [SerializeField] private float interactRadius = 2.5f;
     [SerializeField] private string stationTitle = "Forge: Sword";
@@ -176,7 +175,7 @@ public class CraftingStation : MonoBehaviour
 
         CraftGrade grade = CraftGradeUtility.GradeFor(quality);
         amount = outputAmount + CraftGradeUtility.BonusAmount(grade);
-        ResourceBank.Add(outputType, amount);
+        ToolInventory.Add(grade, amount);
         return grade;
     }
 
