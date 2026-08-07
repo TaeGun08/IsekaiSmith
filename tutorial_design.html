@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>이세계 대장장이 - 임시 튜토리얼 기획서</title>
+<style>
+  :root {
+    --ink: #2b2420; --paper: #f6f1e7; --card: #ffffff; --border: #dcd3c2; --accent: #b5651d;
+    --good: #4f8f5f; --warn: #c1440e; --gold: #d9a441; --blue: #4472a8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 20px 80px; background: var(--paper); color: var(--ink);
+    font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .doc { width: 100%; max-width: 1080px; }
+  h1 { font-size: 25px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 8px; color: #6b6155; font-size: 14px; }
+  p.pitch {
+    font-size: 15px; line-height: 1.75; background: var(--card); border: 1px solid var(--border);
+    border-left: 4px solid var(--accent); border-radius: 8px; padding: 16px 18px; margin: 16px 0 32px;
+  }
+  h2 { font-size: 19px; margin: 46px 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+  h2 .num { color: var(--accent); margin-right: 8px; }
+  h3 { font-size: 14.5px; margin: 20px 0 10px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); }
+  .note { font-size: 12.5px; color: #6b6155; line-height: 1.7; margin-top: 8px; }
+  .qa-list { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.9; }
+  .qa-list li b { color: var(--accent); }
+
+  .scope-row { display:flex; gap:0; margin-top:14px; border-radius:10px; overflow:hidden; border:1px solid var(--border); }
+  .scope-col { flex:1; padding:16px; }
+  .scope-col.in { background:#eef3ea; }
+  .scope-col.out { background:#f3ece0; }
+  .scope-col h4 { margin:0 0 8px; font-size:14px; }
+  .scope-col ul { margin:0; padding-left:18px; font-size:12px; line-height:1.8; }
+
+  .flow-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top: 12px; justify-content:center; }
+  .flow-step { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:10px 12px; font-size:12px; text-align:center; min-width: 96px; }
+  .flow-arrow { color: var(--accent); font-size:16px; }
+
+  table.spec { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12.5px; }
+  table.spec th, table.spec td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+  table.spec th { background: #efe8d9; font-size: 12px; }
+
+  .phone { width: 230px; height: 408px; background: #1c1a18; border-radius: 22px; padding: 10px; box-shadow: 0 4px 14px rgba(0,0,0,0.25); margin: 0 auto; }
+  .phone-screen { width: 100%; height: 100%; background: #2f4a26; border-radius: 14px; position: relative; overflow: hidden; display:flex; align-items:center; justify-content:center; }
+  .slide-mock { position:absolute; inset:24px 16px; background:rgba(0,0,0,0.62); border-radius:12px; padding:16px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; color:#fff; }
+  .slide-mock .step-icon { width:44px; height:44px; border-radius:50%; background:#b5651d; margin-bottom:10px; }
+  .slide-mock h6 { margin:0 0 8px; font-size:13px; }
+  .slide-mock p { margin:0; font-size:9.5px; line-height:1.6; color:#e6dfd2; }
+  .slide-mock .dots { position:absolute; bottom:36px; display:flex; gap:6px; }
+  .slide-mock .dot { width:6px; height:6px; border-radius:50%; background:rgba(255,255,255,0.35); }
+  .slide-mock .dot.active { background:#f2d16b; }
+  .slide-mock .btn-row { position:absolute; bottom:10px; left:16px; right:16px; display:flex; justify-content:space-between; font-size:8px; color:#cfc8bb; }
+
+  footer { margin-top: 40px; font-size: 12px; color: #948a7c; text-align: center; }
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <h1>임시 튜토리얼 기획서</h1>
+  <p class="sub">tutorial_design.html · 채집→제작→판매 루프가 갖춰진 지금 시점 기준, 시퀀스/구성/조작법만 알려주는 가벼운 온보딩</p>
+  <p class="pitch">
+    지금까지 만든 시스템(이동, 채집, 대장간 제작, 판매 카운터)을 처음 켰을 때 순서대로 훑어주는
+    <b>텍스트 슬라이드형 튜토리얼</b>입니다. 손님 캐릭터나 맵 연출처럼 나중에 바뀔 여지가 큰 부분에
+    맞추기보다, <b>지금 실제로 돌아가는 조작/흐름을 정확히 안내</b>하는 데 집중합니다 - 나중에 시스템이
+    바뀌면 슬라이드 텍스트만 교체하면 되도록 로직과 콘텐츠(슬라이드 데이터)를 분리합니다.
+  </p>
+
+  <h2><span class="num">1.</span> 범위</h2>
+  <div class="scope-row">
+    <div class="scope-col in">
+      <h4>이번에 포함</h4>
+      <ul>
+        <li>풀스크린 슬라이드 오버레이(제목+짧은 설명, 다음/건너뛰기)</li>
+        <li>슬라이드 5장: 환영 → 이동 → 채집 → 제작 → 판매</li>
+        <li>최초 1회 자동 표시(이후 <code>PlayerPrefs</code>로 기억), 우측 상단 "?" 버튼으로 재열람</li>
+        <li>실제 조작(드래그 이동/자동 채집/CRAFT 버튼/주문서 탭)과 일치하는 문구</li>
+      </ul>
+    </div>
+    <div class="scope-col out">
+      <h4>이번엔 미룸</h4>
+      <ul>
+        <li>특정 행동을 실제로 수행해야 다음 슬라이드로 넘어가는 "가이드형" 튜토리얼(하이라이트/화살표
+        연출 포함) - 지금은 그냥 읽고 넘기는 슬라이드까지만</li>
+        <li>보스전/사냥터 등 아직 없는 시스템 안내</li>
+        <li>다국어 대응 - 지금 프로젝트 텍스트가 전부 한글이라 이 문서도 한글만</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2><span class="num">2.</span> 슬라이드 5장 - 실제 구현 기준</h2>
+  <div class="card">
+    <table class="spec">
+      <tr><th style="width:110px;">1. 환영</th><td>이세계 대장장이 소개 한 줄 + "화면을 넘겨서 플레이 방법을 확인하세요"</td></tr>
+      <tr><th>2. 이동</th><td>화면 아무 곳이나 <b>드래그</b>하면 그 방향으로 이동합니다 (<code>FloatingJoystick</code> -
+      가상 조이스틱이 드래그 시작 위치에 나타남).</td></tr>
+      <tr><th>3. 채집</th><td>벌목장의 나무 / 채석장의 돌에 <b>가까이 다가가면 자동으로 채집</b>됩니다
+      (<code>PlayerMining</code>/<code>PlayerWoodcutting</code> - 버튼 없음). 짊어진 재료는 근처
+      <b>보관함에 다가가면 자동으로 저장</b>됩니다(<code>StorageDepot</code>).</td></tr>
+      <tr><th>4. 제작</th><td>대장간에 재료(나무+돌)가 충분한 채로 다가가면 <b>CRAFT</b>(정밀 제작 -
+      배치/제련/단조 미니게임) 또는 <b>QUICK CRAFT</b>(즉시 제작) 버튼이 뜹니다
+      (<code>InteractionPromptUI</code>). 완성된 도구는 품질에 따라 <b>Rough~Legendary 등급</b>이
+      매겨집니다.</td></tr>
+      <tr><th>5. 판매</th><td>판매대에 다가가면 손님 주문서가 뜹니다. <b>주문서를 탭</b>하면 조건에 맞는
+      등급의 도구가 있을 때 자동으로 납품하고 <b>골드</b>를 받습니다(<code>SalesCounterUI</code>).
+      제때 못 받으면 평판이 조금 깎입니다 - 채집→제작→판매를 반복해서 골드를 모으는 게 지금까지의
+      핵심 루프입니다.</td></tr>
+    </table>
+  </div>
+
+  <h2><span class="num">3.</span> UI 형태</h2>
+  <div class="card">
+    <div class="flow-row">
+      <div class="flow-step">최초 실행 시<br>자동 표시</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">슬라이드 5장<br>다음/건너뛰기</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">마지막 장에서<br>"시작하기"로 닫힘</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">우측 상단 "?"<br>버튼으로 재열람</div>
+    </div>
+    <div class="phone" style="margin-top:18px;"><div class="phone-screen">
+      <div class="slide-mock">
+        <div class="step-icon"></div>
+        <h6>2 / 5 - 이동</h6>
+        <p>화면 아무 곳이나 드래그하면<br>그 방향으로 이동합니다.</p>
+        <div class="dots">
+          <div class="dot"></div><div class="dot active"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        </div>
+        <div class="btn-row"><span>건너뛰기</span><span>다음 ></span></div>
+      </div>
+    </div></div>
+    <p class="note" style="text-align:center;">다른 self-built UI(InteractionPromptUI/CraftingMinigameUI/
+    SalesCounterUI)와 동일하게 런타임에 자체 Canvas를 만들어 씬 배선 없이 동작 · 다른 UI보다 sortingOrder를
+    높게 둬서(예: 50) 항상 최상단에 표시</p>
+  </div>
+
+  <h2><span class="num">4.</span> 구현 메모</h2>
+  <div class="card">
+    <ul class="qa-list">
+      <li><b>슬라이드 데이터</b> - 제목/설명 문자열 배열로 분리해서 하드코딩 UI 빌드 로직과 콘텐츠를
+      섞지 않습니다(시스템이 바뀌면 배열만 수정).</li>
+      <li><b>재열람 버튼</b> - 기존 HUD 어딘가에 작게 "?" 버튼을 추가. 첫 실행 자동 표시 여부는
+      <code>PlayerPrefs.GetInt("TutorialSeen")</code>로 판정.</li>
+      <li><b>다른 UI와의 우선순위</b> - 판매/제작 프롬프트보다 위에 떠야 하므로 sortingOrder를 가장
+      높게(50) 설정.</li>
+    </ul>
+  </div>
+
+  <footer>tutorial_design.html v1 · 확인 후 바로 구현합니다.</footer>
+</div>
+</body>
+</html>

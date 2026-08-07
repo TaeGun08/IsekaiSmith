@@ -15,6 +15,14 @@ public class ResourceHUD : MonoBehaviour
     private int lastTool = -1;
     private int lastGold = -1;
 
+    // ResourceHUD is the one always-present, scene-wired MonoBehaviour, so it's the bootstrap
+    // point for the self-built TutorialUI (see tutorial_design.html) - not because the two are
+    // conceptually related, just because something has to make the first call.
+    private void Start()
+    {
+        TutorialUI.Instance.ShowIfFirstTime();
+    }
+
     private void Update()
     {
         int wood = ResourceBank.Get(ResourceType.Wood);

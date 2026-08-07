@@ -6,7 +6,7 @@ using UnityEngine.UI;
 // Self-contained: builds its own Canvas/UI in Awake so no scene wiring is needed, same pattern as
 // InteractionPromptUI/CraftingMinigameUI. OrderQueueManager calls Show(self) every frame it wants
 // the counter visible and Hide() otherwise - this class only renders slot state, it doesn't decide
-// order flow itself (customer_order_design_v2.html §3).
+// order flow itself (customer_order_design_v3.html §3).
 public class SalesCounterUI : MonoBehaviour
 {
     private static SalesCounterUI instance;
@@ -27,29 +27,34 @@ public class SalesCounterUI : MonoBehaviour
     }
 
     // Card visuals are built up to this many - covers OrderQueueManager.slotCount being tweaked
-    // in the Inspector without needing to rebuild UI at runtime.
-    private const int MaxSlotCards = 5;
-    private const float CardWidth = 170f;
-    private const float CardGap = 14f;
+    // in the Inspector without needing to rebuild UI at runtime. Kept small (not e.g. 8) so the
+    // backdrop/content width below stays sane on a 1080-wide reference canvas.
+    private const int MaxSlotCards = 4;
+    private const float CardWidth = 220f;
+    private const float CardHeight = 250f;
+    private const float CardGap = 18f;
+    private const float ContentWidth = MaxSlotCards * CardWidth + (MaxSlotCards - 1) * CardGap + 64f;
 
-    private readonly Color emptyColor = new Color(1f, 1f, 1f, 0.08f);
-    private readonly Color filledColor = new Color(0.98f, 0.95f, 0.9f);
-    private readonly Color patienceGood = new Color(0.44f, 0.6f, 0.35f);
-    private readonly Color patienceBad = new Color(0.76f, 0.27f, 0.05f);
+    // Order tickets read as light "paper" cards (matches customer_order_design.html mockups) - so
+    // labels on them use dark ink, not the white used everywhere else in this self-built UI style.
+    private readonly Color cardInk = new Color(0.16f, 0.13f, 0.1f);
+    private readonly Color emptyColor = new Color(0.62f, 0.58f, 0.5f, 0.35f);
+    private readonly Color filledColor = new Color(0.97f, 0.93f, 0.85f);
+    private readonly Color patienceGood = new Color(0.35f, 0.62f, 0.32f);
+    private readonly Color patienceBad = new Color(0.82f, 0.28f, 0.1f);
 
     private GameObject panel;
     private readonly List<SlotCard> cards = new List<SlotCard>();
     private TMP_Text goldText;
     private TMP_Text reputationText;
     private Image reputationFill;
-    private TMP_Text comboText;
     private GameObject rushBanner;
 
     private OrderQueueManager activeManager;
 
     private class SlotCard
     {
-        public GameObject Root;
+        public RectTransform Rect;
         public Image Background;
         public TMP_Text GradeLabel;
         public Image PatienceFill;
@@ -76,34 +81,33 @@ public class SalesCounterUI : MonoBehaviour
         scaler.referenceResolution = new Vector2(1080, 1920);
         scaler.matchWidthOrHeight = 1f;
 
-        panel = new GameObject("Panel", typeof(RectTransform));
+        panel = new GameObject("Panel", typeof(RectTransform), typeof(Image));
         panel.transform.SetParent(canvasGO.transform, false);
         var panelRect = panel.GetComponent<RectTransform>();
         panelRect.anchorMin = new Vector2(0.5f, 0f);
         panelRect.anchorMax = new Vector2(0.5f, 0f);
         panelRect.pivot = new Vector2(0.5f, 0f);
-        panelRect.anchoredPosition = new Vector2(0f, 260f);
-        panelRect.sizeDelta = new Vector2(1000f, 420f);
+        panelRect.anchoredPosition = new Vector2(0f, 280f);
+        panelRect.sizeDelta = new Vector2(ContentWidth, 460f);
+        // Dark backdrop behind everything - the cards/text used to float directly over the 3D
+        // scene with no grouping surface, which made low-contrast text unreadable depending on
+        // what was behind it (e.g. white text over light grass terrain).
+        panel.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.55f);
 
-        float rowWidth = MaxSlotCards * CardWidth + (MaxSlotCards - 1) * CardGap;
-        float startX = -rowWidth / 2f + CardWidth / 2f;
         for (int i = 0; i < MaxSlotCards; i++)
         {
-            cards.Add(BuildSlotCard(i, new Vector2(startX + i * (CardWidth + CardGap), -20f)));
+            cards.Add(BuildSlotCard(i));
         }
 
-        rushBanner = MakeText("RushBanner", 22, new Vector2(0f, -190f), new Vector2(rowWidth, 40f)).gameObject;
+        rushBanner = MakeText("RushBanner", 26, new Vector2(0f, -300f), new Vector2(ContentWidth - 40f, 44f)).gameObject;
         var rushText = rushBanner.GetComponent<TMP_Text>();
-        rushText.text = "RUSH! 손님이 몰려옵니다";
-        rushText.color = new Color(1f, 0.55f, 0.25f);
+        rushText.text = "RUSH HOUR - orders incoming!";
+        rushText.color = new Color(1f, 0.6f, 0.3f);
         rushText.fontStyle = FontStyles.Bold;
 
-        goldText = MakeText("GoldText", 26, new Vector2(-260f, -250f), new Vector2(300f, 40f));
-        goldText.alignment = TextAlignmentOptions.Left;
-
-        comboText = MakeText("ComboText", 22, new Vector2(260f, -250f), new Vector2(300f, 40f));
-        comboText.alignment = TextAlignmentOptions.Right;
-        comboText.color = new Color(0.95f, 0.82f, 0.42f);
+        goldText = MakeText("GoldText", 32, new Vector2(0f, -356f), new Vector2(ContentWidth - 40f, 44f));
+        goldText.color = new Color(1f, 0.86f, 0.5f);
+        goldText.fontStyle = FontStyles.Bold;
 
         var repBg = new GameObject("ReputationBarBg", typeof(RectTransform), typeof(Image));
         repBg.transform.SetParent(panel.transform, false);
@@ -111,9 +115,9 @@ public class SalesCounterUI : MonoBehaviour
         repBgRect.anchorMin = new Vector2(0.5f, 1f);
         repBgRect.anchorMax = new Vector2(0.5f, 1f);
         repBgRect.pivot = new Vector2(0.5f, 1f);
-        repBgRect.anchoredPosition = new Vector2(0f, -300f);
-        repBgRect.sizeDelta = new Vector2(rowWidth, 18f);
-        repBg.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.4f);
+        repBgRect.anchoredPosition = new Vector2(0f, -412f);
+        repBgRect.sizeDelta = new Vector2(ContentWidth - 40f, 26f);
+        repBg.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.15f);
 
         var repFillGO = new GameObject("ReputationBarFill", typeof(RectTransform), typeof(Image));
         repFillGO.transform.SetParent(repBg.transform, false);
@@ -122,15 +126,16 @@ public class SalesCounterUI : MonoBehaviour
         repFillRect.anchorMax = new Vector2(0f, 1f);
         repFillRect.pivot = new Vector2(0f, 0.5f);
         repFillRect.anchoredPosition = Vector2.zero;
-        repFillRect.sizeDelta = new Vector2(rowWidth, 0f);
+        repFillRect.sizeDelta = new Vector2(ContentWidth - 40f, 0f);
         reputationFill = repFillGO.GetComponent<Image>();
         reputationFill.color = new Color(0.85f, 0.65f, 0.25f);
 
-        reputationText = MakeText("ReputationText", 16, new Vector2(0f, -300f), new Vector2(rowWidth, 18f));
+        reputationText = MakeText("ReputationText", 18, new Vector2(0f, -412f), new Vector2(ContentWidth - 40f, 26f));
         reputationText.color = Color.white;
+        reputationText.fontStyle = FontStyles.Bold;
     }
 
-    private SlotCard BuildSlotCard(int index, Vector2 anchoredPos)
+    private SlotCard BuildSlotCard(int index)
     {
         var root = new GameObject("Slot" + index, typeof(RectTransform), typeof(Image), typeof(Button));
         root.transform.SetParent(panel.transform, false);
@@ -138,12 +143,12 @@ public class SalesCounterUI : MonoBehaviour
         rootRect.anchorMin = new Vector2(0.5f, 1f);
         rootRect.anchorMax = new Vector2(0.5f, 1f);
         rootRect.pivot = new Vector2(0.5f, 1f);
-        rootRect.anchoredPosition = anchoredPos;
-        rootRect.sizeDelta = new Vector2(CardWidth, 230f);
+        rootRect.sizeDelta = new Vector2(CardWidth, CardHeight);
         var background = root.GetComponent<Image>();
 
-        var gradeLabel = MakeText("Grade", 20, new Vector2(0f, -14f), new Vector2(CardWidth - 16f, 30f), root.transform);
+        var gradeLabel = MakeText("Grade", 24, new Vector2(0f, -16f), new Vector2(CardWidth - 20f, 34f), root.transform);
         gradeLabel.fontStyle = FontStyles.Bold;
+        gradeLabel.color = cardInk;
 
         var patienceBg = new GameObject("PatienceBg", typeof(RectTransform), typeof(Image));
         patienceBg.transform.SetParent(root.transform, false);
@@ -151,9 +156,9 @@ public class SalesCounterUI : MonoBehaviour
         patienceBgRect.anchorMin = new Vector2(0.5f, 1f);
         patienceBgRect.anchorMax = new Vector2(0.5f, 1f);
         patienceBgRect.pivot = new Vector2(0.5f, 1f);
-        patienceBgRect.anchoredPosition = new Vector2(0f, -140f);
-        patienceBgRect.sizeDelta = new Vector2(CardWidth - 20f, 14f);
-        patienceBg.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.25f);
+        patienceBgRect.anchoredPosition = new Vector2(0f, -166f);
+        patienceBgRect.sizeDelta = new Vector2(CardWidth - 28f, 18f);
+        patienceBg.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.2f);
 
         var patienceFillGO = new GameObject("PatienceFill", typeof(RectTransform), typeof(Image));
         patienceFillGO.transform.SetParent(patienceBg.transform, false);
@@ -162,19 +167,23 @@ public class SalesCounterUI : MonoBehaviour
         patienceFillRect.anchorMax = new Vector2(0f, 1f);
         patienceFillRect.pivot = new Vector2(0f, 0.5f);
         patienceFillRect.anchoredPosition = Vector2.zero;
-        patienceFillRect.sizeDelta = new Vector2(CardWidth - 20f, 0f);
+        patienceFillRect.sizeDelta = new Vector2(CardWidth - 28f, 0f);
         var patienceFill = patienceFillGO.GetComponent<Image>();
         patienceFill.color = patienceGood;
 
-        var payLabel = MakeText("Pay", 18, new Vector2(0f, -170f), new Vector2(CardWidth - 16f, 28f), root.transform);
+        var payLabel = MakeText("Pay", 22, new Vector2(0f, -198f), new Vector2(CardWidth - 20f, 32f), root.transform);
+        payLabel.fontStyle = FontStyles.Bold;
+        payLabel.color = cardInk;
 
-        var emptyLabel = MakeText("EmptyLabel", 15, new Vector2(0f, -100f), new Vector2(CardWidth - 20f, 60f), root.transform);
-        emptyLabel.text = "다음 손님\n대기중...";
-        emptyLabel.color = new Color(1f, 1f, 1f, 0.55f);
+        // English-only for now - no Korean-compatible TMP font asset in the project yet
+        // (Korean copy planned once one is added).
+        var emptyLabel = MakeText("EmptyLabel", 18, new Vector2(0f, -110f), new Vector2(CardWidth - 28f, 80f), root.transform);
+        emptyLabel.text = "Waiting for\nnext customer...";
+        emptyLabel.color = new Color(cardInk.r, cardInk.g, cardInk.b, 0.75f);
 
         return new SlotCard
         {
-            Root = root,
+            Rect = rootRect,
             Background = background,
             GradeLabel = gradeLabel,
             PatienceFill = patienceFill,
@@ -207,15 +216,23 @@ public class SalesCounterUI : MonoBehaviour
         panel.SetActive(true);
 
         IReadOnlyList<CustomerOrder> slots = manager.Slots;
+        // Cards are laid out centered around the active slot count each call, not MaxSlotCards -
+        // otherwise a 3-slot counter renders its row shifted off-center inside 4 card sockets.
+        int activeCount = Mathf.Min(slots.Count, cards.Count);
+        float activeRowWidth = activeCount * CardWidth + Mathf.Max(0, activeCount - 1) * CardGap;
+        float startX = -activeRowWidth / 2f + CardWidth / 2f;
+
         for (int i = 0; i < cards.Count; i++)
         {
             SlotCard card = cards[i];
             bool inUse = i < slots.Count;
-            card.Root.SetActive(inUse);
+            card.Rect.gameObject.SetActive(inUse);
             if (!inUse)
             {
                 continue;
             }
+
+            card.Rect.anchoredPosition = new Vector2(startX + i * (CardWidth + CardGap), -20f);
 
             CustomerOrder order = slots[i];
             bool filled = order != null;
@@ -235,7 +252,7 @@ public class SalesCounterUI : MonoBehaviour
 
             float patience01 = order.Patience01;
             RectTransform fillRect = (RectTransform)card.PatienceFill.transform;
-            fillRect.sizeDelta = new Vector2((CardWidth - 20f) * patience01, 0f);
+            fillRect.sizeDelta = new Vector2((CardWidth - 28f) * patience01, 0f);
             card.PatienceFill.color = Color.Lerp(patienceBad, patienceGood, patience01);
 
             int slotIndex = i;
@@ -244,11 +261,9 @@ public class SalesCounterUI : MonoBehaviour
         }
 
         goldText.text = "Gold " + SalesCurrency.Gold;
-        comboText.text = manager.Combo > 0 ? "Combo x" + manager.Combo : "";
         reputationText.text = "Reputation " + Mathf.RoundToInt(Reputation.Percent) + "%";
         var reputationFillRect = (RectTransform)reputationFill.transform;
-        float rowWidth = MaxSlotCards * CardWidth + (MaxSlotCards - 1) * CardGap;
-        reputationFillRect.sizeDelta = new Vector2(rowWidth * Reputation.Percent / 100f, 0f);
+        reputationFillRect.sizeDelta = new Vector2((ContentWidth - 40f) * Reputation.Percent / 100f, 0f);
         rushBanner.SetActive(manager.InRush);
     }
 

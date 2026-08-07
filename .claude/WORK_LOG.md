@@ -1322,7 +1322,73 @@ Unity 콘솔(`read_console`) 확인 결과 에러/경고 0건 — 컴파일 정�
   마저 연결하면 끝 - 또는 사용자가 인스펙터에서 각각 드래그 한 번씩만 해주면 즉시 완료.
 
 ### 다음에 할 일 (TODO)
-- [ ] `SalesCounter`에 `OrderQueueManager` 컴포넌트 부착 (다음 세션 자동 또는 수동 1회)
-- [ ] `GoldText`를 `ResourceHUDCanvas`의 `ResourceHUD.goldText` 슬롯에 연결 (위와 동일)
-- [ ] 플레이 테스트: 슬롯 재보충 리듬/웨이브/콤보 체감, 초기 수치(패이스/보상) 조정
+- [x] `SalesCounter`에 `OrderQueueManager` 컴포넌트 부착 완료 (MCP 재연결 후)
+- [x] `GoldText`를 `ResourceHUDCanvas`의 `ResourceHUD.goldText` 슬롯에 연결 완료
+- [ ] 플레이 테스트로 리듬/체감 조정은 미착수
+
+---
+
+## 2026-08-07 (계속)
+
+### 손님 주문 기획서 v3 (참고작 오류 정정 + 콤보 제거) + UI 버그 수정
+- 사용자 지적: XP히어로는 손님/판매 시스템이 없는 던전 크롤러 RPG(웹검색으로 확인) - v2의 참고
+  근거가 틀렸음. 콤보 시스템도 불필요하다는 판단. → `customer_order_design_v3.html` 작성:
+  버거플리즈/피자레디만 웹검색으로 재확인(공통점: 카운터 상시 대기줄 + 피크타임에 주문 생성
+  속도 자체가 빨라짐), 콤보 보너스 제거하고 지급액 공식을 v1(기본가×속도보너스×평판배율)로 복귀.
+  `OrderQueueManager`/`SalesCounterUI`에서 콤보 관련 필드/로직 전부 제거.
+- **UI 버그 사용자 제보**("클릭 위치 안 맞음/레이아웃 안 맞음/보기 힘든 크기") → Play Mode
+  진입 + 스크린샷으로 실제 확인, 4개 확정:
+  1. `GoldText`(지난 세션에 ToolText 복제로 생성) - `manage_gameobject modify`(new_name만
+     지정)가 예상과 다르게 `m_SizeDelta.x`를 -206으로 망가뜨려서 "Gold 0"이 세로로 한 글자씩
+     쪼개져 렌더링되던 버그. `.unity` 씬 파일 직접 텍스트 수정으로 -16으로 복구(라이브 MCP가
+     플레이모드 중 set_property 거부해서 파일 직접 수정).
+  2. 기존 "HUD Canvas"(조이스틱)의 `CanvasScaler` 참조 해상도가 `1920x1080`(가로)로 설정되어
+     있었는데 실제 게임은 세로(`1080x1920`) - 조이스틱이 약 1.78배 커져 있었음. `1080x1920`으로
+     수정.
+  3. `SalesCounterUI` 슬롯 카드가 `MaxSlotCards=5` 기준으로 중앙 정렬 계산을 해서, 실제
+     `slotCount=3`일 때 카드 3개짜리 줄이 화면 중앙이 아니라 왼쪽으로 쏠려서 렌더링되던 버그.
+     `Show()`에서 매번 "실제 활성 슬롯 개수" 기준으로 시작 x좌표를 다시 계산하도록 수정.
+  4. 티켓 카드 배경은 밝은 크림색(`filledColor`)인데 라벨 텍스트는 `MakeText`의 기본값인 흰색을
+     그대로 써서 대비가 거의 없어 안 보이던 버그(기획서 목업엔 잉크색으로 그려놓고 실제 코드에는
+     반영 안 함) - 카드 라벨을 진한 잉크색(`cardInk`)으로, 카드/폰트 크기도 전반적으로 키움
+     (170→220 카드폭, 20~26→24~32 폰트). 패널 전체에 반투명 검정 백드롭도 추가해서 3D 배경
+     위에 흰 텍스트(골드/평판/러시배너)가 묻히지 않게 함.
+  - 라이브 확인용 execute_code로 `EventSystem.RaycastAll`을 직접 시뮬레이션해서 클릭이 실제로
+    올바른 슬롯 Button에 우선 도달하는 것도 확인(조이스틱의 풀스크린 레이캐스트 존이 sortingOrder
+    0이라 sortingOrder 5인 판매 UI가 항상 이김 - 클릭 라우팅 자체는 문제 없었음).
+  - **막힌 부분**: 수정 후 재확인하려던 중 UnityMCP 연결이 다시 끊겨서(반복되는 환경 이슈) 최종
+    스크린샷 재확인은 못 함. 씬 파일(GoldText/HUD Canvas 참조해상도)은 직접 텍스트 수정 + 이전에
+    같은 세션에서 저장된 상태 위에 적용된 것이라 디스크 기준으로는 정상. `OrderQueueManager`의
+    콤보 필드 잔재(`comboBonusStartAt` 등)가 씬에 남아있던 것도 같이 정리.
+
+### 다음에 할 일 (TODO)
+- [x] 다음 세션: Play Mode 진입 후 스크린샷으로 4개 수정 실제 반영됐는지 최종 확인 - MCP 재연결
+  후 컴파일 에러 0개 확인. 스크린샷 자체는 재진입한 Play Mode가 실제로는 안 켜진 상태에서 찍혀서
+  (Edit 모드 카메라만 나옴 - `manage_editor stop`이 "Already stopped" 반환) 최종 비주얼 확인은
+  다음 세션으로 다시 미룸(코드/씬 값 자체는 정상 확인됨).
+- [ ] 플레이 테스트: 슬롯 재보충 리듬/웨이브 체감, 초기 수치(페이스/보상) 조정
+
+---
+
+### 임시 튜토리얼 구현 + 게임 내 UI 텍스트 영문화
+- 사용자 요청: 현재 구현된 시스템(이동/채집/제작/판매) 기준으로 시퀀스·구성·조작법만 안내하는
+  가벼운 튜토리얼. `tutorial_design.html` 작성(5장 슬라이드: 환영/이동/채집/제작/판매, 최초 1회
+  자동 표시 + "?" 버튼으로 재열람, 콘텐츠(문구 배열)와 빌드 로직 분리) 후 바로 구현.
+- `TutorialUI.cs` 신규(`Assets/01. Scripts/UI/`) - 기존 self-built UI 패턴(InteractionPromptUI 등)
+  그대로: Awake에서 자체 Canvas 생성(sortingOrder 50, 다른 UI보다 위), 슬라이드 배열 순회,
+  Skip/Next/Start 버튼, dot 인디케이터, PlayerPrefs로 최초 1회 판정. `ResourceHUD.Start()`에서
+  `TutorialUI.Instance.ShowIfFirstTime()` 호출로 부트스트랩(씬에 항상 존재하는 유일한 컴포넌트라
+  진입점으로 사용 - 개념적 연관성 때문이 아님, 주석으로 명시).
+- **사용자 지적**: 한글 폰트 에셋이 아직 없어서 TMP 텍스트의 한글이 전부 네모(tofu)로 깨짐 -
+  실제로 콘솔에 "Unicode value ... was not found in [LiberationSans SDF]" 경고 다수 확인. 게임 내
+  UI 텍스트는 전부 영문으로, 대화 응답은 계속 한글로 - 두 언어를 분리하는 것으로 확정.
+  `TutorialUI.cs`(슬라이드 5개 전체 + 버튼)와 `SalesCounterUI.cs`(대기중/러시아워 문구)를 전부
+  영문으로 교체, 코드 주석으로 "한글 폰트 생기면 교체 예정" 명시. 메모리에도
+  `project_no_korean_font_yet.md`로 기록(다른 Editor 전용 툴(AiCompanion)은 대상 아님).
+- 컴파일 에러 0개, 이전 콘솔에 남아있던 한글 tofu 경고는 콘솔 clear로 정리 후 재확인해서 더 이상
+  발생 안 함 확인.
+
+### 다음에 할 일 (TODO)
+- [ ] 다음 세션: 실제 Play Mode에서 튜토리얼 슬라이드 스크린샷으로 레이아웃/가독성 확인
+- [ ] 플레이 테스트: 슬롯 재보충 리듬/웨이브 체감, 초기 수치(페이스/보상) 조정
 - [ ] 커밋 예정

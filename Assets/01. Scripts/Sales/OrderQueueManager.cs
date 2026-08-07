@@ -2,10 +2,10 @@ using System.Collections.Generic;
 using UnityEngine;
 
 // Runs the sales counter: fixed slots hold CustomerOrders, empty slots refill on a short delay
-// (shorter during rush waves), patience ticks down per slot, and tapping a filled slot tries to
+// (shorter during rush hour), patience ticks down per slot, and tapping a filled slot tries to
 // fulfill it against ToolInventory for a payout. Only simulates while the player is near the
 // counter, mirroring CraftingStation's proximity-gated Update() instead of running off-screen.
-// See customer_order_design_v2.html §3/§4/§5.
+// See customer_order_design_v3.html §3/§4/§5.
 public class OrderQueueManager : MonoBehaviour
 {
     [Header("Counter")]
@@ -32,9 +32,6 @@ public class OrderQueueManager : MonoBehaviour
 
     [Header("Payout")]
     [SerializeField] private float speedBonusMax = 0.5f;
-    [SerializeField] private int comboBonusStartAt = 3;
-    [SerializeField] private float comboBonusStepPercent = 5f;
-    [SerializeField] private float comboBonusMaxPercent = 25f;
 
     private CustomerOrder[] slots;
     private float[] refillTimers;
@@ -47,7 +44,6 @@ public class OrderQueueManager : MonoBehaviour
     public bool PlayerNear { get; private set; }
     public IReadOnlyList<CustomerOrder> Slots => slots;
     public bool InRush => inRush;
-    public int Combo { get; private set; }
 
     private void Awake()
     {
@@ -126,7 +122,6 @@ public class OrderQueueManager : MonoBehaviour
     {
         slots[slotIndex] = null;
         refillTimers[slotIndex] = NextRefillDelay();
-        Combo = 0;
         Reputation.OnOrderFailed();
     }
 
@@ -151,13 +146,8 @@ public class OrderQueueManager : MonoBehaviour
             return false;
         }
 
-        Combo++;
         float speedBonus = order.Patience01 * speedBonusMax;
-        float comboBonusPercent = Combo >= comboBonusStartAt
-            ? Mathf.Min(comboBonusMaxPercent, (Combo - comboBonusStartAt + 1) * comboBonusStepPercent)
-            : 0f;
-
-        int pay = Mathf.RoundToInt(SalesPricing.BaseFor(spentGrade) * (1f + speedBonus) * (1f + comboBonusPercent / 100f) * Reputation.Multiplier);
+        int pay = Mathf.RoundToInt(SalesPricing.BaseFor(spentGrade) * (1f + speedBonus) * Reputation.Multiplier);
         SalesCurrency.Add(pay);
         Reputation.OnOrderSuccess();
 
