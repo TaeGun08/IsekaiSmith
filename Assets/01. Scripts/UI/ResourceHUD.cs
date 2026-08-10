@@ -28,11 +28,11 @@ public class ResourceHUD : MonoBehaviour
     }
 
     // ResourceHUD is the one always-present, scene-wired MonoBehaviour, so it's the bootstrap
-    // point for the self-built TutorialUI (see tutorial_design.html) - not because the two are
-    // conceptually related, just because something has to make the first call.
+    // point for the self-built GuidedTutorial (see guided_tutorial_design.html) - not because the
+    // two are conceptually related, just because something has to make the first call.
     private void Start()
     {
-        TutorialUI.Instance.ShowIfFirstTime();
+        GuidedTutorial.Instance.ShowIfFirstTime();
     }
 
     // These six text objects were originally sized (fontSize 22) and packed (30px line spacing)
