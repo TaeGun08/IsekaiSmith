@@ -6,9 +6,11 @@ using UnityEngine.UI;
 // Drives the physical Customer instances for OrderQueueManager's slots - a pure presentation
 // layer that polls manager.Slots each frame (same pattern the old SalesCounterUI used) and diffs
 // against its own last-known customer array: order appeared -> spawn + walk in, order gone ->
-// walk the existing customer out and let it self-despawn. OrderQueueManager has no reference back
-// to this class and doesn't know customers exist - it only ever sees slot indices.
-// See customer_order_design_v4.html.
+// walk the existing customer out and let it self-despawn. Runs regardless of player distance -
+// customers should keep arriving/waiting/leaving on their own even while the player is off
+// gathering, not just pop into existence the moment the player walks up to the counter
+// (playtest feedback). OrderQueueManager has no reference back to this class and doesn't know
+// customers exist - it only ever sees slot indices. See customer_order_design_v4.html.
 [RequireComponent(typeof(OrderQueueManager))]
 public class CustomerVisualManager : MonoBehaviour
 {
@@ -34,6 +36,44 @@ public class CustomerVisualManager : MonoBehaviour
         }
 
         BuildRushLabel();
+        BuildCounterVisual();
+        BuildApproachPath();
+    }
+
+    // SalesCounter had no visual at all - just an empty GameObject holding scripts (playtest
+    // feedback). A single tinted box is enough at this project's current art bar (matches the
+    // Player capsule / crate-box level of fidelity elsewhere) - not a real prop, just something
+    // to stand at. Built here instead of a scene prefab so it needs no live scene wiring.
+    private void BuildCounterVisual()
+    {
+        var counter = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        counter.name = "CounterVisual";
+        counter.transform.SetParent(transform, false);
+        counter.transform.localPosition = new Vector3(0f, 0.5f, 0f);
+        counter.transform.localScale = new Vector3(3.2f, 1f, 0.9f);
+        counter.GetComponent<MeshRenderer>().material.color = new Color(0.45f, 0.32f, 0.2f);
+    }
+
+    // A flat tinted strip from the spawn point to the counter so the queue reads as "customers
+    // walk in along this" rather than popping up on bare grass (playtest feedback asked for a
+    // path). Not terrain texture painting (that needs an editor-time alphamap pass, out of scope
+    // here) - just a simple ground-level plane, consistent with this class's code-only approach.
+    private void BuildApproachPath()
+    {
+        if (spawnPoint == null)
+        {
+            return;
+        }
+
+        var path = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        path.name = "ApproachPathVisual";
+        path.transform.SetParent(transform, false);
+        Destroy(path.GetComponent<Collider>()); // decorative ground strip - must not block movement
+
+        float halfLength = Mathf.Abs(spawnPoint.localPosition.z) / 2f + 0.2f;
+        path.transform.localPosition = new Vector3(0f, 0.02f, spawnPoint.localPosition.z / 2f);
+        path.transform.localScale = new Vector3(3.4f, 0.05f, halfLength * 2f);
+        path.GetComponent<MeshRenderer>().material.color = new Color(0.62f, 0.52f, 0.36f);
     }
 
     private void BuildRushLabel()
@@ -71,13 +111,6 @@ public class CustomerVisualManager : MonoBehaviour
             return; // not wired up in the Inspector yet
         }
 
-        if (!manager.PlayerNear)
-        {
-            DespawnAllImmediate();
-            rushLabel.transform.parent.gameObject.SetActive(false);
-            return;
-        }
-
         rushLabel.transform.parent.gameObject.SetActive(manager.InRush);
         if (rushLabel.transform.parent.gameObject.activeSelf && Camera.main != null)
         {
@@ -113,19 +146,6 @@ public class CustomerVisualManager : MonoBehaviour
             }
 
             customers[i].SetOrder(order.MinGrade, order.Patience01);
-        }
-    }
-
-    private void DespawnAllImmediate()
-    {
-        for (int i = 0; i < customers.Length; i++)
-        {
-            if (customers[i] != null)
-            {
-                Destroy(customers[i].gameObject);
-                customers[i] = null;
-                trackedOrderIds[i] = NoOrder;
-            }
         }
     }
 }

@@ -179,7 +179,7 @@ MonoBehaviour:
   rushRefillDelayMin: 0.3
   rushRefillDelayMax: 0.6
   minGradeFloor: 0
-  minGradeCeiling: 4
+  minGradeCeiling: 1
   patienceForRough: 25
   patiencePerGradeStep: 6
   speedBonusMax: 0.5

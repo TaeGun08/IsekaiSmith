@@ -3,11 +3,12 @@ using UnityEngine;
 
 // Runs the sales counter's order logic: fixed slots hold CustomerOrders, empty slots refill on a
 // short delay (shorter during rush hour), patience ticks down per slot, and TryFulfill() checks a
-// slot against ToolInventory for a payout. Only simulates while the player is near the counter,
-// mirroring CraftingStation's proximity-gated Update() instead of running off-screen. Pure order
-// logic - CustomerVisualManager (sibling component) polls Slots/PlayerNear/InRush to drive the
-// physical customer characters; this class has no idea they exist. See
-// customer_order_design_v4.html.
+// slot against ToolInventory for a payout. Simulation always runs (customers keep arriving/waiting/
+// leaving whether or not the player is nearby - a shop that's only "open" when you're standing at
+// the counter felt lifeless in testing); PlayerNear only gates TryFulfill, since you still have to
+// physically walk up to hand over the goods. Pure order logic - CustomerVisualManager (sibling
+// component) polls Slots/InRush to drive the physical customer characters; this class has no idea
+// they exist. See customer_order_design_v4.html.
 public class OrderQueueManager : MonoBehaviour
 {
     [Header("Counter")]
@@ -28,7 +29,9 @@ public class OrderQueueManager : MonoBehaviour
 
     [Header("Order Content")]
     [SerializeField] private CraftGrade minGradeFloor = CraftGrade.Rough;
-    [SerializeField] private CraftGrade minGradeCeiling = CraftGrade.Exceptional;
+    // Capped at Common ("일반 등급") per playtest feedback - Superior+ felt out of reach for
+    // early play since QUICK CRAFT only ever produces Fine and precise crafting needs real skill.
+    [SerializeField] private CraftGrade minGradeCeiling = CraftGrade.Common;
     [SerializeField] private float patienceForRough = 25f;
     [SerializeField] private float patiencePerGradeStep = 6f;
 
@@ -63,11 +66,6 @@ public class OrderQueueManager : MonoBehaviour
     {
         PlayerNear = PlayerMotor.Instance != null &&
             (PlayerMotor.Instance.transform.position - transform.position).sqrMagnitude <= interactRadius * interactRadius;
-
-        if (!PlayerNear)
-        {
-            return;
-        }
 
         TickWave(Time.deltaTime);
         TickSlots(Time.deltaTime);
@@ -136,7 +134,7 @@ public class OrderQueueManager : MonoBehaviour
     // Returns whether it was fulfilled.
     public bool TryFulfill(int slotIndex)
     {
-        if (slotIndex < 0 || slotIndex >= slots.Length)
+        if (!PlayerNear || slotIndex < 0 || slotIndex >= slots.Length)
         {
             return false;
         }
