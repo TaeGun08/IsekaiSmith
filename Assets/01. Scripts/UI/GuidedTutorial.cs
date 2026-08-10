@@ -38,6 +38,11 @@ public class GuidedTutorial : MonoBehaviour
         Done
     }
 
+    // Raised from "just 1" per user feedback - collecting a single item didn't feel like enough
+    // of an accomplishment to advance on.
+    private const int WoodGatherTarget = 4;
+    private const int OreGatherTarget = 4;
+
     private Step step = Step.Welcome;
     private bool running;
 
@@ -116,11 +121,9 @@ public class GuidedTutorial : MonoBehaviour
                 bannerText.text = "Drag anywhere on screen to move";
                 break;
             case Step.GatherWood:
-                bannerText.text = "Gather wood at the Lumber Camp";
-                break;
+                break; // text set every frame in Update() so it can show live progress
             case Step.GatherOre:
-                bannerText.text = "Gather ore at the Quarry";
-                break;
+                break; // text set every frame in Update() so it can show live progress
             case Step.Craft:
                 bannerText.text = "Craft a tool at the Smithy";
                 break;
@@ -166,17 +169,25 @@ public class GuidedTutorial : MonoBehaviour
                 }
                 break;
             case Step.GatherWood:
-                if (ResourceBank.Get(ResourceType.Wood) > lastWood)
+            {
+                int gathered = Mathf.Clamp(ResourceBank.Get(ResourceType.Wood) - lastWood, 0, WoodGatherTarget);
+                bannerText.text = "Gather wood at the Lumber Camp (" + gathered + "/" + WoodGatherTarget + ")";
+                if (gathered >= WoodGatherTarget)
                 {
                     EnterStep(Step.GatherOre);
                 }
                 break;
+            }
             case Step.GatherOre:
-                if (ResourceBank.Get(ResourceType.Ore) > lastOre)
+            {
+                int gathered = Mathf.Clamp(ResourceBank.Get(ResourceType.Ore) - lastOre, 0, OreGatherTarget);
+                bannerText.text = "Gather ore at the Quarry (" + gathered + "/" + OreGatherTarget + ")";
+                if (gathered >= OreGatherTarget)
                 {
                     EnterStep(Step.Craft);
                 }
                 break;
+            }
             case Step.Craft:
                 if (ToolInventory.Total > lastTool)
                 {

@@ -91,8 +91,11 @@
     <table class="spec">
       <tr><th style="width:70px;">0</th><td><b>환영</b> - 풀스크린 카드 한 장(기존 TutorialUI 스타일 재사용), "시작하기"로 닫으면 1단계 진입. 화살표 없음.</td></tr>
       <tr><th>1</th><td><b>이동</b> - 화면 드래그로 이동 안내. 완료 조건: 플레이어가 처음 <code>HasMovementInput</code>이 true가 된 순간(한 번이라도 움직이면 통과).</td></tr>
-      <tr><th>2</th><td><b>나무 모으기</b> - 화살표가 가장 가까운 <code>WoodNode</code>를 가리킴. 완료 조건: <code>ResourceBank.Get(Wood) &gt;= 1</code>(보관함 예치까지, 자동 예치되므로 사실상 벌목장 근처 도달로 충분).</td></tr>
-      <tr><th>3</th><td><b>돌 모으기</b> - 화살표가 <code>Quarry</code>를 가리킴. 완료 조건: <code>ResourceBank.Get(Ore) &gt;= 1</code>.</td></tr>
+      <tr><th>2</th><td><b>나무 모으기</b> - 화살표가 <code>LumberCamp</code>를 가리킴. 완료 조건:
+      <code>ResourceBank.Get(Wood)</code>이 단계 진입 시점보다 <b>4 증가</b>(v1의 "1개면 통과"에서
+      상향 - 사용자 피드백: 1개는 채집했다는 실감이 안 남). 배너에 "(2/4)"처럼 실시간 진행도 표시.</td></tr>
+      <tr><th>3</th><td><b>돌 모으기</b> - 화살표가 <code>Quarry</code>를 가리킴. 완료 조건:
+      <code>ResourceBank.Get(Ore)</code>이 4 증가(나무와 동일 기준).</td></tr>
       <tr><th>4</th><td><b>제작</b> - 화살표가 <code>Smithy</code>를 가리킴. 완료 조건: <code>ToolInventory.Total</code>이 처음 증가한 순간(QUICK CRAFT 버튼 눌러도 통과).</td></tr>
       <tr><th>5</th><td><b>판매</b> - 화살표가 <code>SalesCounter</code>를 가리킴. 완료 조건: 첫 <code>TryFulfill</code> 성공(<code>SalesCurrency.Gold</code> 증가 감지).</td></tr>
       <tr><th>6</th><td><b>완료</b> - "이제 자유롭게 플레이하세요!" 짧은 토스트 후 배너/화살표 전부 숨김, 다시 안 뜸.</td></tr>
@@ -145,13 +148,15 @@
     </ul>
   </div>
 
-  <h2><span class="num">6.</span> 확인 부탁드립니다</h2>
+  <h2><span class="num">6.</span> 확인 결과 <span class="tag">반영됨</span></h2>
   <div class="card">
     <ul class="qa-list">
-      <li><b>Q1.</b> §2 완료 조건("최소 1개 모으면 통과" 수준의 가벼운 기준) - 이 정도면 될까요,
-      아니면 좀 더 확실히 모았다는 느낌이 들게(예: 나무 4개) 기준을 올릴까요?</li>
-      <li><b>Q2.</b> §4 화살표를 정말 단순한 화살촉 하나(플레이어 앞에 떠서 회전)로 시작하고, 부족하면
-      점선 경로로 보강하는 순서로 가도 될까요?</li>
+      <li><b>Q1 → 답변: 기준을 올림.</b> §2 완료 조건을 "1개면 통과"에서 <b>나무/돌 각 4개</b>로
+      상향 - 구현 완료(<code>WoodGatherTarget</code>/<code>OreGatherTarget</code> = 4,
+      배너에 실시간 진행도 표시).</li>
+      <li><b>Q2 → 답변: 제안한 순서(단순하게 시작 → 부족하면 보강) 그대로 진행.</b> 지금은 단순
+      화살촉 플레이스홀더 그대로 유지 - 실플레이해보고 부족하면 점선 경로로 보강 예정(아직 착수
+      안 함).</li>
     </ul>
     <p class="note">별다른 이견 없으시면 이 값들로 바로 구현 들어가겠습니다.</p>
   </div>
