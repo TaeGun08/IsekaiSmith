@@ -161,7 +161,48 @@
     <p class="note">별다른 이견 없으시면 이 값들로 바로 구현 들어가겠습니다.</p>
   </div>
 
-  <footer>guided_tutorial_design.html v1 · tutorial_design.html 대체</footer>
+  <h2><span class="num">7.</span> 세분화 개정 <span class="tag">v1.1 - 실플레이 피드백</span></h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;">
+    실제 구현을 보니 <b>"벌목장으로 가라"는 뭉뚱그린 안내가 아니라, 나무 한 그루 → (캐면) 보관함
+    순서로 하나씩 짚어주는 게 맞다</b>는 피드백. 확인해보니 벌목장/채석장의 나무·광물은
+    <code>TreeFieldSpawner</code>/<code>ResourceFieldSpawner</code>가 <b>씬 시작 시 런타임으로
+    흩뿌려 생성</b>하는 것이라 고정된 오브젝트를 미리 참조할 수 없고, <b>보관함(<code>StorageDepot</code>)은
+    벌목장/채석장이 아니라 대장간 안(<code>StorageCrate1</code>=나무, <code>StorageCrate2</code>=광물)에
+    있다</b>는 것도 확인함(왕복 동선). 이 두 가지를 반영해서 채집 단계를 아래처럼 쪼갭니다.</p>
+    <table class="spec">
+      <tr><th style="width:60px;">2-1</th><td><b>나무 캐기</b> - 화살표가 <b>매 순간 가장 가까운
+      살아있는 <code>WoodNode</code></b>를 가리킴(고정 오브젝트가 아니라 런타임 탐색). 완료 조건:
+      <b>짊어진(아직 미예치) 나무</b>가 4개(<code>CarryStack.GetCount(Wood) &gt;= 4</code>).</td></tr>
+      <tr><th>2-2</th><td><b>나무 옮기기</b> - 화살표가 대장간의 <code>StorageCrate1</code>을 가리킴.
+      완료 조건: <code>ResourceBank.Get(Wood)</code> 증가(자동 예치 감지).</td></tr>
+      <tr><th>3-1</th><td><b>돌 캐기</b> - 가장 가까운 살아있는 <code>OreNode</code> 추적. 완료 조건:
+      짊어진 광물 4개.</td></tr>
+      <tr><th>3-2</th><td><b>돌 옮기기</b> - 화살표가 <code>StorageCrate2</code>를 가리킴. 완료 조건:
+      <code>ResourceBank.Get(Ore)</code> 증가.</td></tr>
+      <tr><th>4</th><td><b>제작</b> - 화살표가 대장간을 가리킴. 배너 문구에서
+      <b>CRAFT(정밀 - 미니게임, 더 좋은 품질)</b>와 <b>QUICK CRAFT(즉시 제작)</b> 둘 다 있다는 걸
+      명시적으로 안내. 완료 조건은 기존과 동일하게 <code>ToolInventory.Total</code> 증가(어느 쪽을
+      선택해도 통과) - 둘 다 강제로 시켜보게 할지는 아래 Q3 참고.</td></tr>
+    </table>
+    <p class="note">가장 가까운 대상 탐색은 <code>FindObjectsByType&lt;WoodNode&gt;</code>/
+    <code>&lt;OreNode&gt;</code>로 매 프레임 재계산(밭 규모가 작아 성능 문제 없음) - 캐던 나무가
+    쓰러지면(<code>IsAvailable == false</code>) 자동으로 다음으로 가까운 나무를 가리키게 됩니다.</p>
+  </div>
+
+  <h2><span class="num">8.</span> 추가 확인 부탁드립니다</h2>
+  <div class="card">
+    <ul class="qa-list">
+      <li><b>Q3.</b> §7-4 제작 단계 - CRAFT/QUICK CRAFT 중 <b>아무거나 하나만 하면 통과</b>로 둘까요,
+      아니면 <b>QUICK CRAFT 먼저 시켜보고 나서 "이번엔 CRAFT로 직접 만들어보세요"처럼 두 번 다
+      경험</b>시킬까요? (후자가 더 친절하지만 튜토리얼이 한 단계 더 늘어남)</li>
+      <li><b>Q4.</b> 캐기 목표 개수 4개 - 나무/돌 공통으로 유지해도 될까요, 아니면 등급별 재고
+      쌓아두는 느낌을 살리게 대장간 첫 제작 레시피 요구량(오레 2 + 나무 1)에 맞춰 더 낮출까요?</li>
+    </ul>
+    <p class="note">확인 주시면 바로 구현 들어가겠습니다.</p>
+  </div>
+
+  <footer>guided_tutorial_design.html v1.1 · tutorial_design.html 대체 + 세분화 개정</footer>
 </div>
 </body>
 </html>
