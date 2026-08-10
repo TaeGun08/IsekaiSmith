@@ -1,11 +1,13 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// Runs the sales counter: fixed slots hold CustomerOrders, empty slots refill on a short delay
-// (shorter during rush hour), patience ticks down per slot, and tapping a filled slot tries to
-// fulfill it against ToolInventory for a payout. Only simulates while the player is near the
-// counter, mirroring CraftingStation's proximity-gated Update() instead of running off-screen.
-// See customer_order_design_v3.html §3/§4/§5.
+// Runs the sales counter's order logic: fixed slots hold CustomerOrders, empty slots refill on a
+// short delay (shorter during rush hour), patience ticks down per slot, and TryFulfill() checks a
+// slot against ToolInventory for a payout. Only simulates while the player is near the counter,
+// mirroring CraftingStation's proximity-gated Update() instead of running off-screen. Pure order
+// logic - CustomerVisualManager (sibling component) polls Slots/PlayerNear/InRush to drive the
+// physical customer characters; this class has no idea they exist. See
+// customer_order_design_v4.html.
 public class OrderQueueManager : MonoBehaviour
 {
     [Header("Counter")]
@@ -64,13 +66,11 @@ public class OrderQueueManager : MonoBehaviour
 
         if (!PlayerNear)
         {
-            SalesCounterUI.Instance.Hide();
             return;
         }
 
         TickWave(Time.deltaTime);
         TickSlots(Time.deltaTime);
-        SalesCounterUI.Instance.Show(this);
     }
 
     private void TickWave(float dt)
@@ -132,7 +132,8 @@ public class OrderQueueManager : MonoBehaviour
             : Random.Range(refillDelayMin, refillDelayMax);
     }
 
-    // Called by SalesCounterUI when the player taps a slot. Returns whether it was fulfilled.
+    // Called when the player taps a customer's speech bubble (see Customer/CustomerVisualManager).
+    // Returns whether it was fulfilled.
     public bool TryFulfill(int slotIndex)
     {
         if (slotIndex < 0 || slotIndex >= slots.Length)
