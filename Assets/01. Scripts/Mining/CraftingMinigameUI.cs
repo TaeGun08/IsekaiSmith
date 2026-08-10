@@ -96,9 +96,9 @@ public class CraftingMinigameUI : MonoBehaviour
         panelRect.sizeDelta = new Vector2(980f, 1700f);
         panel.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.65f);
 
-        titleText = MakeText(panel.transform, "Title", 34, new Vector2(0f, -46f), new Vector2(880f, 48f));
-        resultText = MakeText(panel.transform, "Result", 24, new Vector2(0f, -120f), new Vector2(880f, 40f));
-        instructionText = MakeText(panel.transform, "Instruction", 20, new Vector2(0f, -1620f), new Vector2(900f, 50f));
+        titleText = MakeText(panel.transform, "Title", 38, new Vector2(0f, -46f), new Vector2(880f, 52f));
+        resultText = MakeText(panel.transform, "Result", 28, new Vector2(0f, -120f), new Vector2(880f, 44f));
+        instructionText = MakeText(panel.transform, "Instruction", 26, new Vector2(0f, -1620f), new Vector2(900f, 56f));
 
         BuildTemperatureGroup();
         BuildHammerGroup();
@@ -243,7 +243,7 @@ public class CraftingMinigameUI : MonoBehaviour
         handleGO.GetComponent<Image>().color = new Color(0.5f, 0.35f, 0.2f);
         pumpHandle = handleGO.GetComponent<VerticalDragHandle>();
         pumpHandle.Track = pumpTrackRect;
-        MakeGroupText(handleGO.transform, "PumpLabel", 13, Vector2.zero, new Vector2(96f, 60f), Color.white).text = "PUMP";
+        MakeGroupText(handleGO.transform, "PumpLabel", 16, Vector2.zero, new Vector2(96f, 60f), Color.white).text = "PUMP";
 
         tempGroup.SetActive(false);
     }
@@ -306,7 +306,7 @@ public class CraftingMinigameUI : MonoBehaviour
         hammerTargetRect.anchoredPosition = new Vector2(gaugeX, -20f);
         hammerTargetRect.sizeDelta = new Vector2(240f, 36f);
         hammerTargetText = hammerTargetGO.AddComponent<TextMeshProUGUI>();
-        hammerTargetText.fontSize = 22;
+        hammerTargetText.fontSize = 26;
         hammerTargetText.alignment = TextAlignmentOptions.Center;
         hammerTargetText.color = new Color(0.95f, 0.82f, 0.35f);
 

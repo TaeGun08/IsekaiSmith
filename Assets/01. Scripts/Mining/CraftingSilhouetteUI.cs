@@ -99,8 +99,8 @@ public class CraftingSilhouetteUI : MonoBehaviour
         panelRect.sizeDelta = new Vector2(980f, 1700f);
         panel.GetComponent<Image>().color = new Color(0.08f, 0.07f, 0.06f, 0.94f);
 
-        titleText = MakeText(panel.transform, "Title", 34, new Vector2(0f, -46f), new Vector2(880f, 48f));
-        hintText = MakeText(panel.transform, "Hint", 20, new Vector2(0f, -104f), new Vector2(880f, 36f));
+        titleText = MakeText(panel.transform, "Title", 38, new Vector2(0f, -46f), new Vector2(880f, 52f));
+        hintText = MakeText(panel.transform, "Hint", 24, new Vector2(0f, -104f), new Vector2(880f, 40f));
         hintText.text = "Tap a slot to choose a material";
         hintText.color = new Color(0.75f, 0.72f, 0.68f);
 
@@ -122,7 +122,7 @@ public class CraftingSilhouetteUI : MonoBehaviour
         bladeRect.sizeDelta = new Vector2(170f, 700f);
         bladeImage = bladeGO.GetComponent<Image>();
         bladeImage.color = bladeBaseColor;
-        MakeText(bladeGO.transform, "Label", 18, new Vector2(0f, 24f), new Vector2(200f, 28f)).text = "BLADE";
+        MakeText(bladeGO.transform, "Label", 20, new Vector2(0f, 24f), new Vector2(200f, 30f)).text = "BLADE";
 
         var guardGO = new GameObject("Guard", typeof(RectTransform), typeof(Image));
         guardGO.transform.SetParent(panel.transform, false);
@@ -144,10 +144,10 @@ public class CraftingSilhouetteUI : MonoBehaviour
         handleRect.sizeDelta = new Vector2(110f, 240f);
         handleImage = handleGO.GetComponent<Image>();
         handleImage.color = handleBaseColor;
-        MakeText(handleGO.transform, "Label", 18, new Vector2(0f, 24f), new Vector2(200f, 28f)).text = "HANDLE";
+        MakeText(handleGO.transform, "Label", 20, new Vector2(0f, 24f), new Vector2(200f, 30f)).text = "HANDLE";
 
-        forgeButton = MakeButton(panel.transform, "ForgeButton", new Vector2(-160f, 60f), new Vector2(280f, 90f), "FORGE", new Color(0.35f, 0.6f, 0.35f));
-        cancelButton = MakeButton(panel.transform, "CancelButton", new Vector2(160f, 60f), new Vector2(280f, 90f), "CANCEL", new Color(0.5f, 0.3f, 0.28f));
+        forgeButton = MakeButton(panel.transform, "ForgeButton", new Vector2(-160f, 65f), new Vector2(290f, 100f), "FORGE", new Color(0.35f, 0.6f, 0.35f));
+        cancelButton = MakeButton(panel.transform, "CancelButton", new Vector2(160f, 65f), new Vector2(290f, 100f), "CANCEL", new Color(0.5f, 0.3f, 0.28f));
 
         BuildSheet();
         sheet.SetActive(false);
@@ -165,8 +165,8 @@ public class CraftingSilhouetteUI : MonoBehaviour
         sheetRect.sizeDelta = new Vector2(980f, 480f);
         sheet.GetComponent<Image>().color = new Color(0.12f, 0.11f, 0.09f, 0.98f);
 
-        sheetTitleText = MakeText(sheet.transform, "SheetTitle", 24, new Vector2(0f, -24f), new Vector2(880f, 40f));
-        var sheetHintText = MakeText(sheet.transform, "SheetHint", 16, new Vector2(0f, -56f), new Vector2(880f, 28f));
+        sheetTitleText = MakeText(sheet.transform, "SheetTitle", 28, new Vector2(0f, -24f), new Vector2(880f, 44f));
+        var sheetHintText = MakeText(sheet.transform, "SheetHint", 22, new Vector2(0f, -56f), new Vector2(880f, 32f));
         sheetHintText.text = "Drag a material upward to place it";
         sheetHintText.color = new Color(0.75f, 0.72f, 0.68f);
 
@@ -180,7 +180,7 @@ public class CraftingSilhouetteUI : MonoBehaviour
         gridRect.sizeDelta = new Vector2(900f, 280f);
         sheetGrid = gridGO.transform;
 
-        var closeButton = MakeButton(sheet.transform, "SheetClose", new Vector2(0f, 30f), new Vector2(220f, 64f), "CLOSE", new Color(0.4f, 0.38f, 0.34f));
+        var closeButton = MakeButton(sheet.transform, "SheetClose", new Vector2(0f, 40f), new Vector2(240f, 96f), "CLOSE", new Color(0.4f, 0.38f, 0.34f));
         closeButton.onClick.AddListener(CloseSheet);
     }
 
@@ -197,7 +197,7 @@ public class CraftingSilhouetteUI : MonoBehaviour
         var image = go.GetComponent<Image>();
         image.color = slotEmptyColor;
 
-        var text = MakeText(go.transform, "Label", 16, Vector2.zero, new Vector2(130f, 130f));
+        var text = MakeText(go.transform, "Label", 20, Vector2.zero, new Vector2(130f, 130f));
         var textRect = text.GetComponent<RectTransform>();
         textRect.anchorMin = Vector2.zero;
         textRect.anchorMax = Vector2.one;
@@ -246,7 +246,7 @@ public class CraftingSilhouetteUI : MonoBehaviour
         rect.sizeDelta = size;
         go.GetComponent<Image>().color = color;
 
-        var label = MakeText(go.transform, "Text", 22, Vector2.zero, size);
+        var label = MakeText(go.transform, "Text", 26, Vector2.zero, size);
         var labelRect = label.GetComponent<RectTransform>();
         labelRect.anchorMin = Vector2.zero;
         labelRect.anchorMax = Vector2.one;
@@ -356,7 +356,7 @@ public class CraftingSilhouetteUI : MonoBehaviour
         rect.sizeDelta = new Vector2(chipSize, rowHeight - chipGap);
         go.GetComponent<Image>().color = color;
 
-        var text = MakeText(go.transform, "Label", 18, Vector2.zero, new Vector2(chipSize, rowHeight - chipGap));
+        var text = MakeText(go.transform, "Label", 22, Vector2.zero, new Vector2(chipSize, rowHeight - chipGap));
         var textRect = text.GetComponent<RectTransform>();
         textRect.anchorMin = Vector2.zero;
         textRect.anchorMax = Vector2.one;

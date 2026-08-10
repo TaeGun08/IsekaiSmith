@@ -124,10 +124,10 @@ public class TutorialUI : MonoBehaviour
             dots.Add(dotGO.GetComponent<Image>());
         }
 
-        skipButton = MakeButton(card.transform, "SkipButton", new Vector2(-210f, 50f), new Vector2(260f, 84f), "Skip", new Color(0.5f, 0.46f, 0.4f));
+        skipButton = MakeButton(card.transform, "SkipButton", new Vector2(-215f, 60f), new Vector2(270f, 110f), "Skip", new Color(0.5f, 0.46f, 0.4f));
         skipButton.onClick.AddListener(Close);
 
-        var nextGO = MakeButton(card.transform, "NextButton", new Vector2(210f, 50f), new Vector2(260f, 84f), "Next >", new Color(0.71f, 0.4f, 0.11f));
+        var nextGO = MakeButton(card.transform, "NextButton", new Vector2(215f, 60f), new Vector2(270f, 110f), "Next >", new Color(0.71f, 0.4f, 0.11f));
         nextButton = nextGO;
         nextLabel = nextGO.GetComponentInChildren<TMP_Text>();
         nextButton.onClick.AddListener(OnNext);
@@ -136,7 +136,7 @@ public class TutorialUI : MonoBehaviour
         // this is how the player reopens the tutorial after the first-run auto-show. Bottom-left
         // corner: top-right is ResourceHUD's resource panel, top-left is DevAutoPlayController's
         // debug buttons - bottom-left is the one corner nothing else claims.
-        var helpButton = MakeButton(canvasGO.transform, "HelpButton", Vector2.zero, new Vector2(72f, 72f), "?", new Color(0f, 0f, 0f, 0.5f));
+        var helpButton = MakeButton(canvasGO.transform, "HelpButton", Vector2.zero, new Vector2(96f, 96f), "?", new Color(0f, 0f, 0f, 0.5f));
         var helpRect = helpButton.GetComponent<RectTransform>();
         helpRect.anchorMin = new Vector2(0f, 0f);
         helpRect.anchorMax = new Vector2(0f, 0f);
@@ -183,7 +183,7 @@ public class TutorialUI : MonoBehaviour
         textRect.offsetMax = Vector2.zero;
         var tmp = textGO.AddComponent<TextMeshProUGUI>();
         tmp.text = text;
-        tmp.fontSize = 26;
+        tmp.fontSize = 30;
         tmp.fontStyle = FontStyles.Bold;
         tmp.alignment = TextAlignmentOptions.Center;
         tmp.color = Color.white;
