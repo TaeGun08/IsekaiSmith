@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>이세계 대장장이 - 가이드식 튜토리얼 기획서</title>
+<style>
+  :root {
+    --ink: #2b2420; --paper: #f6f1e7; --card: #ffffff; --border: #dcd3c2; --accent: #b5651d;
+    --good: #4f8f5f; --warn: #c1440e; --gold: #d9a441;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 20px 80px; background: var(--paper); color: var(--ink);
+    font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .doc { width: 100%; max-width: 1080px; }
+  h1 { font-size: 25px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 8px; color: #6b6155; font-size: 14px; }
+  p.pitch {
+    font-size: 15px; line-height: 1.75; background: var(--card); border: 1px solid var(--border);
+    border-left: 4px solid var(--accent); border-radius: 8px; padding: 16px 18px; margin: 16px 0 32px;
+  }
+  h2 { font-size: 19px; margin: 46px 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+  h2 .num { color: var(--accent); margin-right: 8px; }
+  h2 .tag { font-size: 11px; font-weight: bold; border-radius: 5px; padding: 2px 8px; margin-left: 8px; vertical-align: 2px; background:#f3ece0; color: var(--warn); }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); }
+  .note { font-size: 12.5px; color: #6b6155; line-height: 1.7; margin-top: 8px; }
+  .qa-list { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.9; }
+  .qa-list li b { color: var(--accent); }
+
+  .scope-row { display:flex; gap:0; margin-top:14px; border-radius:10px; overflow:hidden; border:1px solid var(--border); }
+  .scope-col { flex:1; padding:16px; }
+  .scope-col.in { background:#eef3ea; }
+  .scope-col.out { background:#f3ece0; }
+  .scope-col h4 { margin:0 0 8px; font-size:14px; }
+  .scope-col ul { margin:0; padding-left:18px; font-size:12px; line-height:1.8; }
+
+  table.spec { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12.5px; }
+  table.spec th, table.spec td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+  table.spec th { background: #efe8d9; font-size: 12px; }
+
+  .scene-mock { width: 100%; height: 260px; background:#6d8f52; border-radius:10px; position:relative; overflow:hidden; margin-top:14px; }
+  .banner { position:absolute; top:14px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.6); color:#fff; font-size:11px; padding:6px 16px; border-radius:20px; white-space:nowrap; }
+  .banner b { color:#f2d16b; }
+  .player { position:absolute; bottom:90px; left:38%; width:22px; height:32px; background:#e8e2d5; border-radius:11px 11px 6px 6px; }
+  .arrow-path { position:absolute; bottom:98px; left:44%; width:160px; height:3px; background:repeating-linear-gradient(90deg,#f2d16b 0 10px, transparent 10px 18px); }
+  .arrow-head { position:absolute; bottom:90px; left:60%; width:0; height:0; border-top:9px solid transparent; border-bottom:9px solid transparent; border-left:16px solid #f2d16b; }
+  .target-dot { position:absolute; bottom:96px; right:14%; width:14px; height:14px; border-radius:50%; background:#4f8f5f; box-shadow:0 0 0 6px rgba(79,143,95,0.3); }
+
+  footer { margin-top: 40px; font-size: 12px; color: #948a7c; text-align: center; }
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <h1>가이드식 튜토리얼 기획서</h1>
+  <p class="sub">guided_tutorial_design.html · tutorial_design.html(임시 슬라이드형)의 최종 형태로 교체</p>
+  <p class="pitch">
+    기존 <code>TutorialUI</code>는 "읽고 넘기는" 슬라이드였습니다. 이번엔 <b>바닥에 네비게이션
+    화살표를 띄워서 다음에 어디로 가야 하는지 직접 유도</b>하고, 실제로 그 행동을 완료해야 다음
+    단계로 넘어가는 방식으로 바꿉니다 - 설명을 읽는 게 아니라 몸으로 한 바퀴 돌면서 배우는 형태.
+    <code>TutorialUI</code>의 슬라이드 로직은 걷어내고 이 시스템이 대체합니다.
+  </p>
+
+  <h2><span class="num">1.</span> 범위</h2>
+  <div class="scope-row">
+    <div class="scope-col in">
+      <h4>이번에 포함</h4>
+      <ul>
+        <li>단계별 목표를 화면 상단 배너로 표시 ("나무 4개 모으기" 등)</li>
+        <li>목표 지점을 향한 바닥 화살표(플레이스홀더 지오메트리, 플레이어를 따라다니며 방향 갱신)</li>
+        <li>실제 행동 완료를 감지해서 자동으로 다음 단계 진행(탭해서 넘기는 게 아님)</li>
+        <li>최초 1회만 자동 진행, 완료 후 다시 안 뜸(<code>PlayerPrefs</code>)</li>
+        <li>건너뛰기 버튼(급한 유저용)</li>
+      </ul>
+    </div>
+    <div class="scope-col out">
+      <h4>이번엔 미룸</h4>
+      <ul>
+        <li>사냥/전투 단계 안내 - 아직 그 시스템 자체가 없음</li>
+        <li>화살표의 실제 경로탐색(NavMesh 기반 우회) - 지금 맵은 장애물이 거의 없어서 직선 방향
+        표시로 충분, 필요해지면 나중에 보강</li>
+        <li>다국어 - 프로젝트 전체가 아직 영문 UI 기준(<code>project_no_korean_font_yet</code>)</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2><span class="num">2.</span> 단계 시퀀스 - 실제 완료 조건 기준</h2>
+  <div class="card">
+    <table class="spec">
+      <tr><th style="width:70px;">0</th><td><b>환영</b> - 풀스크린 카드 한 장(기존 TutorialUI 스타일 재사용), "시작하기"로 닫으면 1단계 진입. 화살표 없음.</td></tr>
+      <tr><th>1</th><td><b>이동</b> - 화면 드래그로 이동 안내. 완료 조건: 플레이어가 처음 <code>HasMovementInput</code>이 true가 된 순간(한 번이라도 움직이면 통과).</td></tr>
+      <tr><th>2</th><td><b>나무 모으기</b> - 화살표가 가장 가까운 <code>WoodNode</code>를 가리킴. 완료 조건: <code>ResourceBank.Get(Wood) &gt;= 1</code>(보관함 예치까지, 자동 예치되므로 사실상 벌목장 근처 도달로 충분).</td></tr>
+      <tr><th>3</th><td><b>돌 모으기</b> - 화살표가 <code>Quarry</code>를 가리킴. 완료 조건: <code>ResourceBank.Get(Ore) &gt;= 1</code>.</td></tr>
+      <tr><th>4</th><td><b>제작</b> - 화살표가 <code>Smithy</code>를 가리킴. 완료 조건: <code>ToolInventory.Total</code>이 처음 증가한 순간(QUICK CRAFT 버튼 눌러도 통과).</td></tr>
+      <tr><th>5</th><td><b>판매</b> - 화살표가 <code>SalesCounter</code>를 가리킴. 완료 조건: 첫 <code>TryFulfill</code> 성공(<code>SalesCurrency.Gold</code> 증가 감지).</td></tr>
+      <tr><th>6</th><td><b>완료</b> - "이제 자유롭게 플레이하세요!" 짧은 토스트 후 배너/화살표 전부 숨김, 다시 안 뜸.</td></tr>
+    </table>
+    <p class="note">2~5단계는 "탭해서 다음" 이 아니라 <b>실제 조건 충족을 매 프레임 감지</b>해서 자동
+    전환 - 배너에는 진행 중인 목표만 뜨고, 완료되면 짧은 완료 표시 후 바로 다음 화살표로 전환.</p>
+  </div>
+
+  <h2><span class="num">3.</span> 화면 구성</h2>
+  <div class="card">
+    <div class="scene-mock">
+      <div class="banner">2 / 5 &nbsp; <b>나무를 모으세요</b> &nbsp; (0/1)</div>
+      <div class="player"></div>
+      <div class="arrow-path"></div>
+      <div class="arrow-head"></div>
+      <div class="target-dot"></div>
+    </div>
+    <p class="note" style="text-align:center;">상단 배너(현재 단계 + 목표 텍스트) · 바닥 화살표(점선 +
+    화살촉, 목표 지점까지 이어짐, 플레이어가 움직이면 매 프레임 방향 재계산) · 목표 지점에 옅은
+    펄스 마커</p>
+  </div>
+
+  <h2><span class="num">4.</span> 화살표 구현 방식</h2>
+  <div class="card">
+    <table class="spec">
+      <tr><th style="width:170px;">지오메트리</th><td>플레이스홀더 수준 - 실제 화살표 스프라이트/모델
+      대신 <b>납작한 삼각형(Cone 프리미티브를 눕혀서) 여러 개를 점선처럼 배치</b>하거나, 단순하게
+      <b>화살촉 모양 하나만 플레이어 앞 2~3유닛 지점에 띄워서 목표 방향으로 회전</b>시키는 쪽으로
+      단순화(구현 시 더 가벼운 쪽 선택).</td></tr>
+      <tr><th>추적 로직</th><td>매 프레임 <code>목표위치 - 플레이어위치</code> 방향으로
+      <code>Quaternion.LookRotation</code>, 화살표는 플레이어보다 살짝 앞/위(바닥에서 뜬 높이)에
+      위치시켜 항상 시야에 들어오게 함.</td></tr>
+      <tr><th>목표 지점</th><td>단계별로 이미 씬에 있는 실제 오브젝트 참조 - 벌목장/채석장/대장간/
+      판매대. 별도 웨이포인트 배치 불필요(전부 이미 존재).</td></tr>
+    </table>
+  </div>
+
+  <h2><span class="num">5.</span> 구현 메모</h2>
+  <div class="card">
+    <ul class="qa-list">
+      <li><b>클래스</b> - <code>GuidedTutorial.cs</code> 신규(<code>Assets/01. Scripts/UI/</code>).
+      기존 <code>TutorialUI</code>의 슬라이드 진행 로직(Next/Skip 다단 카드)은 걷어내고, 0단계
+      환영 카드만 남긴 뒤 이 클래스가 이어받는 구조로 재편. <code>ResourceHUD.Start()</code>의
+      부트스트랩 호출 대상만 교체.</li>
+      <li><b>완료 감지</b> - 각 단계가 "이전 프레임 값 대비 증가했는가"를 폴링하는 방식(기존
+      <code>ResourceHUD</code>의 lastX 패턴과 동일 스타일) - 새 이벤트 시스템 도입 없이 일관성
+      유지.</li>
+      <li><b>대상 오브젝트 참조</b> - 벌목장/채석장/대장간/판매대를 <code>GameObject.Find</code> 또는
+      직렬화 필드로 참조. 씬에 이미 있는 오브젝트라 새 배치 작업 불필요.</li>
+    </ul>
+  </div>
+
+  <h2><span class="num">6.</span> 확인 부탁드립니다</h2>
+  <div class="card">
+    <ul class="qa-list">
+      <li><b>Q1.</b> §2 완료 조건("최소 1개 모으면 통과" 수준의 가벼운 기준) - 이 정도면 될까요,
+      아니면 좀 더 확실히 모았다는 느낌이 들게(예: 나무 4개) 기준을 올릴까요?</li>
+      <li><b>Q2.</b> §4 화살표를 정말 단순한 화살촉 하나(플레이어 앞에 떠서 회전)로 시작하고, 부족하면
+      점선 경로로 보강하는 순서로 가도 될까요?</li>
+    </ul>
+    <p class="note">별다른 이견 없으시면 이 값들로 바로 구현 들어가겠습니다.</p>
+  </div>
+
+  <footer>guided_tutorial_design.html v1 · tutorial_design.html 대체</footer>
+</div>
+</body>
+</html>
