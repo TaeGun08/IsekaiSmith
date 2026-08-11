@@ -58,15 +58,35 @@ public class Customer : MonoBehaviour
         var canvasRect = canvasGO.GetComponent<RectTransform>();
         canvasRect.sizeDelta = new Vector2(220f, 110f);
 
-        var bg = new GameObject("Background", typeof(RectTransform), typeof(Image), typeof(Button));
+        var bg = new GameObject("Background", typeof(RectTransform), typeof(Image));
         bg.transform.SetParent(canvasGO.transform, false);
         var bgRect = bg.GetComponent<RectTransform>();
         bgRect.anchorMin = Vector2.zero;
         bgRect.anchorMax = Vector2.one;
         bgRect.offsetMin = Vector2.zero;
         bgRect.offsetMax = Vector2.zero;
-        bg.GetComponent<Image>().color = new Color(0.97f, 0.93f, 0.85f, 0.98f);
-        bubbleButton = bg.GetComponent<Button>();
+        var bgImage = bg.GetComponent<Image>();
+        bgImage.color = new Color(0.97f, 0.93f, 0.85f, 0.98f);
+        // Not the tap target itself (see TapZone below) - visual only, must not steal raycasts.
+        bgImage.raycastTarget = false;
+
+        // Queue slots stand only 1.4m apart (QueuePoint0/1/2 in the scene), but this bubble is a
+        // full 2.2m wide (canvasRect 220 * 0.01 world scale) - if the whole background were the
+        // tap target (as it used to be), tapping near the boundary between two customers could
+        // hit the wrong one (user report: "옆에 버튼이 클릭될 때가 있다"). Instead, only a smaller
+        // centered zone (1.0m world) is tappable, leaving 0.2m of dead space on each side within
+        // the 1.4m slot spacing - the visual bubble stays full-size and readable, only the hit-box
+        // shrinks.
+        var tapZone = new GameObject("TapZone", typeof(RectTransform), typeof(Image), typeof(Button));
+        tapZone.transform.SetParent(canvasGO.transform, false);
+        var tapZoneRect = tapZone.GetComponent<RectTransform>();
+        tapZoneRect.anchorMin = new Vector2(0.5f, 0.5f);
+        tapZoneRect.anchorMax = new Vector2(0.5f, 0.5f);
+        tapZoneRect.pivot = new Vector2(0.5f, 0.5f);
+        tapZoneRect.anchoredPosition = Vector2.zero;
+        tapZoneRect.sizeDelta = new Vector2(100f, 100f);
+        tapZone.GetComponent<Image>().color = Color.clear;
+        bubbleButton = tapZone.GetComponent<Button>();
         bubbleButton.onClick.AddListener(onTap);
 
         gradeLabel = MakeText(bg.transform, "Grade", 34, new Vector2(0f, -16f), new Vector2(200f, 44f));

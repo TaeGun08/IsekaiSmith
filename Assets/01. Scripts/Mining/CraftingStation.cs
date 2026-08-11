@@ -58,6 +58,8 @@ public class CraftingStation : MonoBehaviour
         {
             anvilPulseBaseScale = anvilPulseVisual.localScale;
         }
+
+        InteractionPadVisual.Build(transform, interactRadius);
     }
 
     private void Update()
@@ -114,6 +116,10 @@ public class CraftingStation : MonoBehaviour
     // actual recipe instead of a separately hardcoded number that could drift out of sync.
     public int OreAmount => oreAmount;
     public int WoodAmount => woodAmount;
+
+    // Lets GuidedTutorial hide its floor arrow once the player is already within interacting
+    // distance, instead of a separately hardcoded distance that could drift out of sync.
+    public float InteractRadius => interactRadius;
 
     // Bypasses the silhouette/minigame flow and applies the same fixed-quality result as the
     // QUICK CRAFT button. Used by DevAutoPlayController for automated loop testing.

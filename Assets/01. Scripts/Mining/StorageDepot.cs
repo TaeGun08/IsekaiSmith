@@ -13,6 +13,15 @@ public class StorageDepot : MonoBehaviour
     public CarryLayer AcceptedLayer => acceptedLayer;
     public int StoredAmount => storedAmount;
 
+    // Lets GuidedTutorial hide its floor arrow once the player is already within depositing
+    // distance, instead of a separately hardcoded distance that could drift out of sync.
+    public float DepositRadius => depositRadius;
+
+    private void Awake()
+    {
+        InteractionPadVisual.Build(transform, depositRadius);
+    }
+
     private void Update()
     {
         if (PlayerMotor.Instance == null)

@@ -50,6 +50,10 @@ public class OrderQueueManager : MonoBehaviour
     public IReadOnlyList<CustomerOrder> Slots => slots;
     public bool InRush => inRush;
 
+    // Lets GuidedTutorial hide its floor arrow once the player is already within interacting
+    // distance, instead of a separately hardcoded distance that could drift out of sync.
+    public float InteractRadius => interactRadius;
+
     private void Awake()
     {
         slots = new CustomerOrder[slotCount];
@@ -60,6 +64,8 @@ public class OrderQueueManager : MonoBehaviour
         {
             refillTimers[i] = Random.Range(refillDelayMin, refillDelayMax);
         }
+
+        InteractionPadVisual.Build(transform, interactRadius);
     }
 
     private void Update()

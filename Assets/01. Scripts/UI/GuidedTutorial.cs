@@ -58,7 +58,15 @@ public class GuidedTutorial : MonoBehaviour
     private Transform storageCrateOre;
     private Transform salesCounter;
     private CraftingStation craftingStation;
+    private StorageDepot woodDepot;
+    private StorageDepot oreDepot;
+    private OrderQueueManager orderQueueManager;
     private CarryStack playerCarryStack;
+
+    // Gather steps have no formal "interaction radius" field to read (chopping/mining is trigger-
+    // collider driven, not a polled distance check like the other three stops) - this is an
+    // approximation of that trigger footprint, just for deciding when to hide the arrow.
+    private const float GatherHideRadius = 1.2f;
 
     private int lastWood;
     private int lastOre;
@@ -133,12 +141,15 @@ public class GuidedTutorial : MonoBehaviour
 
         GameObject woodCrateGO = GameObject.Find("StorageCrate1");
         storageCrateWood = woodCrateGO != null ? woodCrateGO.transform : null;
+        woodDepot = woodCrateGO != null ? woodCrateGO.GetComponent<StorageDepot>() : null;
 
         GameObject oreCrateGO = GameObject.Find("StorageCrate2");
         storageCrateOre = oreCrateGO != null ? oreCrateGO.transform : null;
+        oreDepot = oreCrateGO != null ? oreCrateGO.GetComponent<StorageDepot>() : null;
 
         GameObject counterGO = GameObject.Find("SalesCounter");
         salesCounter = counterGO != null ? counterGO.transform : null;
+        orderQueueManager = counterGO != null ? counterGO.GetComponent<OrderQueueManager>() : null;
     }
 
     private void OnWelcomeStart()
@@ -300,6 +311,7 @@ public class GuidedTutorial : MonoBehaviour
     private void UpdateArrow()
     {
         Transform target = null;
+        float hideRadius = GatherHideRadius;
 
         switch (step)
         {
@@ -310,6 +322,7 @@ public class GuidedTutorial : MonoBehaviour
             case Step.CarryWood1:
             case Step.CarryWood2:
                 target = storageCrateWood;
+                hideRadius = woodDepot != null ? woodDepot.DepositRadius : GatherHideRadius;
                 break;
             case Step.GatherOre1:
             case Step.GatherOre2:
@@ -318,13 +331,16 @@ public class GuidedTutorial : MonoBehaviour
             case Step.CarryOre1:
             case Step.CarryOre2:
                 target = storageCrateOre;
+                hideRadius = oreDepot != null ? oreDepot.DepositRadius : GatherHideRadius;
                 break;
             case Step.QuickCraft:
             case Step.PreciseCraft:
                 target = smithy;
+                hideRadius = craftingStation != null ? craftingStation.InteractRadius : GatherHideRadius;
                 break;
             case Step.Sell:
                 target = salesCounter;
+                hideRadius = orderQueueManager != null ? orderQueueManager.InteractRadius : GatherHideRadius;
                 break;
         }
 
@@ -338,7 +354,10 @@ public class GuidedTutorial : MonoBehaviour
         Vector3 toTarget = target.position - playerPos;
         toTarget.y = 0f;
 
-        if (toTarget.sqrMagnitude < 0.04f)
+        // Hide once the player is already close enough to interact with the target (matches that
+        // target's own real interaction/deposit radius, not a fixed dead zone) - shows again the
+        // moment they're far enough away (or the target is off the beaten path) to need directing.
+        if (toTarget.sqrMagnitude < hideRadius * hideRadius)
         {
             arrowRoot.gameObject.SetActive(false);
             return;
@@ -433,13 +452,16 @@ public class GuidedTutorial : MonoBehaviour
         canvasGO.transform.SetParent(transform, false);
         var canvas = canvasGO.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 15;
+        // Above DevAutoPlayController's dev-only panel (order 20, top-left, editor/dev builds
+        // only) so the banner is never hidden behind it while testing - still below the welcome/
+        // help canvases (50), which are full-screen or genuinely modal.
+        canvas.sortingOrder = 25;
         var scaler = canvasGO.GetComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1080, 1920);
         scaler.matchWidthOrHeight = 1f;
 
-        bannerRoot = new GameObject("Banner", typeof(RectTransform), typeof(Image));
+        bannerRoot = new GameObject("Banner", typeof(RectTransform), typeof(Image), typeof(Outline));
         bannerRoot.transform.SetParent(canvasGO.transform, false);
         var bannerRect = bannerRoot.GetComponent<RectTransform>();
         bannerRect.anchorMin = new Vector2(0.5f, 1f);
@@ -447,7 +469,13 @@ public class GuidedTutorial : MonoBehaviour
         bannerRect.pivot = new Vector2(0.5f, 1f);
         bannerRect.anchoredPosition = new Vector2(0f, -40f);
         bannerRect.sizeDelta = new Vector2(900f, 90f);
-        bannerRoot.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.62f);
+        // Darker/more opaque than before (0.62 -> 0.85) plus a gold outline on the panel's own
+        // Image so the banner reads clearly regardless of what's behind it (grass, resource
+        // panel, dev overlay).
+        bannerRoot.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.85f);
+        var outline = bannerRoot.GetComponent<Outline>();
+        outline.effectColor = new Color(1f, 0.86f, 0.5f, 0.9f);
+        outline.effectDistance = new Vector2(2f, -2f);
 
         bannerText = MakeText(bannerRoot.transform, "Text", 30, Vector2.zero, new Vector2(860f, 90f));
         bannerText.rectTransform.anchorMin = Vector2.zero;
