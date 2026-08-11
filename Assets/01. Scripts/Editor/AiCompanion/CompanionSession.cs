@@ -181,7 +181,12 @@ public class CompanionSession
     {
         ActivityLog.Add("ERROR: " + error);
         Log.AppendActivity("ERROR: " + error);
-        Changed?.Invoke();
+        // Same as HandleTurnComplete: an errored turn is still a finished turn from the UI's
+        // point of view - without this, CurrentActivity stayed stuck on Thinking ("코드 분석
+        // 중...") forever whenever a runner failed instead of completing normally (most visibly
+        // right after SwitchProvider, when the new CLI fails to connect - the "연동 실패" notice
+        // showed up but the character stayed frozen mid-"analyzing" - 2026-08-11 report).
+        AdvanceQueueOrNotify();
         OnError?.Invoke(error);
     }
 
