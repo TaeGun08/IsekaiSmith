@@ -5,7 +5,9 @@ using UnityEngine.UI;
 // Final-form onboarding, replacing TutorialUI's read-and-skip slideshow: a single welcome card,
 // then a top banner + a floor arrow that points at the next objective and auto-advances the
 // moment the player actually does it (no "tap to continue"). Self-contained runtime UI, same
-// pattern as every other UI class in this project. See guided_tutorial_design.html.
+// pattern as every other UI class in this project. See guided_tutorial_design.html §7 for the
+// step-by-step breakdown this class implements (find a tree -> chop -> carry to the smithy's
+// storage crate -> repeat for ore -> try QUICK CRAFT -> gather again -> try CRAFT -> sell).
 public class GuidedTutorial : MonoBehaviour
 {
     private const string SeenPrefsKey = "GuidedTutorialSeen";
@@ -31,17 +33,17 @@ public class GuidedTutorial : MonoBehaviour
     {
         Welcome,
         Move,
-        GatherWood,
-        GatherOre,
-        Craft,
+        GatherWood1, CarryWood1, GatherOre1, CarryOre1, QuickCraft,
+        GatherWood2, CarryWood2, GatherOre2, CarryOre2, PreciseCraft,
         Sell,
         Done
     }
 
-    // Raised from "just 1" per user feedback - collecting a single item didn't feel like enough
-    // of an accomplishment to advance on.
-    private const int WoodGatherTarget = 4;
-    private const int OreGatherTarget = 4;
+    // Recipe amounts are read from the live CraftingStation each cycle (see FindReferences) so
+    // this never drifts out of sync with whatever the actual recipe requires; these are just the
+    // fallback if that station can't be found for some reason.
+    private const int FallbackWoodTarget = 1;
+    private const int FallbackOreTarget = 2;
 
     private Step step = Step.Welcome;
     private bool running;
@@ -51,15 +53,21 @@ public class GuidedTutorial : MonoBehaviour
     private TMP_Text bannerText;
     private Transform arrowRoot;
 
-    private Transform lumberCamp;
-    private Transform quarry;
     private Transform smithy;
+    private Transform storageCrateWood;
+    private Transform storageCrateOre;
     private Transform salesCounter;
+    private CraftingStation craftingStation;
+    private CarryStack playerCarryStack;
 
     private int lastWood;
     private int lastOre;
-    private int lastTool;
     private int lastGold;
+    private bool quickCraftDone;
+    private bool preciseCraftDone;
+
+    private int WoodTarget => craftingStation != null ? craftingStation.WoodAmount : FallbackWoodTarget;
+    private int OreTarget => craftingStation != null ? craftingStation.OreAmount : FallbackOreTarget;
 
     private void Awake()
     {
@@ -72,8 +80,30 @@ public class GuidedTutorial : MonoBehaviour
         arrowRoot.gameObject.SetActive(false);
     }
 
-    // Called once from ResourceHUD.Start() - see TutorialUI's old comment for why that
-    // particular class is the bootstrap point (it's just the one always-present component).
+    private void OnEnable()
+    {
+        CraftingStation.OnCrafted += HandleCrafted;
+    }
+
+    private void OnDisable()
+    {
+        CraftingStation.OnCrafted -= HandleCrafted;
+    }
+
+    private void HandleCrafted(bool wasQuickCraft)
+    {
+        if (wasQuickCraft)
+        {
+            quickCraftDone = true;
+        }
+        else
+        {
+            preciseCraftDone = true;
+        }
+    }
+
+    // Called once from ResourceHUD.Start() - see that class's comment for why that particular
+    // component is the bootstrap point.
     public void ShowIfFirstTime()
     {
         if (PlayerPrefs.GetInt(SeenPrefsKey, 0) != 0)
@@ -86,10 +116,7 @@ public class GuidedTutorial : MonoBehaviour
 
     public void Begin()
     {
-        lumberCamp = FindTransform("LumberCamp");
-        quarry = FindTransform("Quarry");
-        smithy = FindTransform("Smithy");
-        salesCounter = FindTransform("SalesCounter");
+        FindReferences();
 
         step = Step.Welcome;
         running = true;
@@ -98,10 +125,20 @@ public class GuidedTutorial : MonoBehaviour
         welcomePanel.SetActive(true);
     }
 
-    private static Transform FindTransform(string name)
+    private void FindReferences()
     {
-        GameObject go = GameObject.Find(name);
-        return go != null ? go.transform : null;
+        GameObject smithyGO = GameObject.Find("Smithy");
+        smithy = smithyGO != null ? smithyGO.transform : null;
+        craftingStation = smithyGO != null ? smithyGO.GetComponentInChildren<CraftingStation>() : null;
+
+        GameObject woodCrateGO = GameObject.Find("StorageCrate1");
+        storageCrateWood = woodCrateGO != null ? woodCrateGO.transform : null;
+
+        GameObject oreCrateGO = GameObject.Find("StorageCrate2");
+        storageCrateOre = oreCrateGO != null ? oreCrateGO.transform : null;
+
+        GameObject counterGO = GameObject.Find("SalesCounter");
+        salesCounter = counterGO != null ? counterGO.transform : null;
     }
 
     private void OnWelcomeStart()
@@ -120,12 +157,21 @@ public class GuidedTutorial : MonoBehaviour
             case Step.Move:
                 bannerText.text = "Drag anywhere on screen to move";
                 break;
-            case Step.GatherWood:
-                break; // text set every frame in Update() so it can show live progress
-            case Step.GatherOre:
-                break; // text set every frame in Update() so it can show live progress
-            case Step.Craft:
-                bannerText.text = "Craft a tool at the Smithy";
+            case Step.CarryWood1:
+            case Step.CarryWood2:
+                bannerText.text = "Bring the wood to the storage crate";
+                break;
+            case Step.CarryOre1:
+            case Step.CarryOre2:
+                bannerText.text = "Bring the ore to the storage crate";
+                break;
+            case Step.QuickCraft:
+                bannerText.text = "At the Smithy, tap QUICK CRAFT for an instant result";
+                quickCraftDone = false;
+                break;
+            case Step.PreciseCraft:
+                bannerText.text = "Now try CRAFT for a hands-on, higher-quality result";
+                preciseCraftDone = false;
                 break;
             case Step.Sell:
                 bannerText.text = "Sell it at the counter";
@@ -142,8 +188,12 @@ public class GuidedTutorial : MonoBehaviour
 
         lastWood = ResourceBank.Get(ResourceType.Wood);
         lastOre = ResourceBank.Get(ResourceType.Ore);
-        lastTool = ToolInventory.Total;
         lastGold = SalesCurrency.Gold;
+
+        if (playerCarryStack == null && PlayerMotor.Instance != null)
+        {
+            playerCarryStack = PlayerMotor.Instance.GetComponentInChildren<CarryStack>();
+        }
     }
 
     private void HideBanner()
@@ -165,31 +215,65 @@ public class GuidedTutorial : MonoBehaviour
             case Step.Move:
                 if (PlayerMotor.Instance != null && PlayerMotor.Instance.HasMovementInput)
                 {
-                    EnterStep(Step.GatherWood);
+                    EnterStep(Step.GatherWood1);
                 }
                 break;
-            case Step.GatherWood:
-            {
-                int gathered = Mathf.Clamp(ResourceBank.Get(ResourceType.Wood) - lastWood, 0, WoodGatherTarget);
-                bannerText.text = "Gather wood at the Lumber Camp (" + gathered + "/" + WoodGatherTarget + ")";
-                if (gathered >= WoodGatherTarget)
+            case Step.GatherWood1:
+                if (TickGather("Chop wood at the nearest tree", CarryLayer.Wood, WoodTarget))
                 {
-                    EnterStep(Step.GatherOre);
+                    EnterStep(Step.CarryWood1);
                 }
                 break;
-            }
-            case Step.GatherOre:
-            {
-                int gathered = Mathf.Clamp(ResourceBank.Get(ResourceType.Ore) - lastOre, 0, OreGatherTarget);
-                bannerText.text = "Gather ore at the Quarry (" + gathered + "/" + OreGatherTarget + ")";
-                if (gathered >= OreGatherTarget)
+            case Step.CarryWood1:
+                if (ResourceBank.Get(ResourceType.Wood) > lastWood)
                 {
-                    EnterStep(Step.Craft);
+                    EnterStep(Step.GatherOre1);
                 }
                 break;
-            }
-            case Step.Craft:
-                if (ToolInventory.Total > lastTool)
+            case Step.GatherOre1:
+                if (TickGather("Mine ore at the nearest rock", CarryLayer.Ore, OreTarget))
+                {
+                    EnterStep(Step.CarryOre1);
+                }
+                break;
+            case Step.CarryOre1:
+                if (ResourceBank.Get(ResourceType.Ore) > lastOre)
+                {
+                    EnterStep(Step.QuickCraft);
+                }
+                break;
+            case Step.QuickCraft:
+                if (quickCraftDone)
+                {
+                    EnterStep(Step.GatherWood2);
+                }
+                break;
+            case Step.GatherWood2:
+                if (TickGather("Chop a little more wood", CarryLayer.Wood, WoodTarget))
+                {
+                    EnterStep(Step.CarryWood2);
+                }
+                break;
+            case Step.CarryWood2:
+                if (ResourceBank.Get(ResourceType.Wood) > lastWood)
+                {
+                    EnterStep(Step.GatherOre2);
+                }
+                break;
+            case Step.GatherOre2:
+                if (TickGather("Mine a little more ore", CarryLayer.Ore, OreTarget))
+                {
+                    EnterStep(Step.CarryOre2);
+                }
+                break;
+            case Step.CarryOre2:
+                if (ResourceBank.Get(ResourceType.Ore) > lastOre)
+                {
+                    EnterStep(Step.PreciseCraft);
+                }
+                break;
+            case Step.PreciseCraft:
+                if (preciseCraftDone)
                 {
                     EnterStep(Step.Sell);
                 }
@@ -203,15 +287,45 @@ public class GuidedTutorial : MonoBehaviour
         }
     }
 
+    // Shared by all four "gather N of X" steps - shows live progress in the banner and reports
+    // whether the target has been reached. Carried (not-yet-deposited) amount, not the bank total,
+    // since the point is teaching "chop first, then go deposit" as two distinct actions.
+    private bool TickGather(string label, CarryLayer layer, int target)
+    {
+        int carried = playerCarryStack != null ? playerCarryStack.GetCount(layer) : 0;
+        bannerText.text = label + " (" + Mathf.Min(carried, target) + "/" + target + ")";
+        return carried >= target;
+    }
+
     private void UpdateArrow()
     {
         Transform target = null;
+
         switch (step)
         {
-            case Step.GatherWood: target = lumberCamp; break;
-            case Step.GatherOre: target = quarry; break;
-            case Step.Craft: target = smithy; break;
-            case Step.Sell: target = salesCounter; break;
+            case Step.GatherWood1:
+            case Step.GatherWood2:
+                target = FindNearestAvailable<WoodNode>(n => n.IsAvailable);
+                break;
+            case Step.CarryWood1:
+            case Step.CarryWood2:
+                target = storageCrateWood;
+                break;
+            case Step.GatherOre1:
+            case Step.GatherOre2:
+                target = FindNearestAvailable<OreNode>(n => n.IsAvailable);
+                break;
+            case Step.CarryOre1:
+            case Step.CarryOre2:
+                target = storageCrateOre;
+                break;
+            case Step.QuickCraft:
+            case Step.PreciseCraft:
+                target = smithy;
+                break;
+            case Step.Sell:
+                target = salesCounter;
+                break;
         }
 
         if (target == null || PlayerMotor.Instance == null)
@@ -234,6 +348,40 @@ public class GuidedTutorial : MonoBehaviour
         Vector3 direction = toTarget.normalized;
         arrowRoot.position = playerPos + direction * 1.6f + Vector3.up * 1.3f;
         arrowRoot.rotation = Quaternion.LookRotation(direction, Vector3.up);
+    }
+
+    // Trees/ore chunks are scattered at runtime by TreeFieldSpawner/ResourceFieldSpawner, not
+    // fixed scene objects, so the arrow has to re-search for the closest live one every time
+    // instead of pointing at a cached reference (which would go stale the moment it's harvested).
+    private Transform FindNearestAvailable<T>(System.Func<T, bool> isAvailable) where T : Component
+    {
+        if (PlayerMotor.Instance == null)
+        {
+            return null;
+        }
+
+        Vector3 playerPos = PlayerMotor.Instance.transform.position;
+        T[] candidates = FindObjectsByType<T>(FindObjectsSortMode.None);
+
+        T nearest = null;
+        float nearestSqrDist = float.MaxValue;
+
+        foreach (T candidate in candidates)
+        {
+            if (!isAvailable(candidate))
+            {
+                continue;
+            }
+
+            float sqrDist = (candidate.transform.position - playerPos).sqrMagnitude;
+            if (sqrDist < nearestSqrDist)
+            {
+                nearestSqrDist = sqrDist;
+                nearest = candidate;
+            }
+        }
+
+        return nearest != null ? nearest.transform : null;
     }
 
     private void BuildWelcomeCard()

@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using UnityEngine;
 
@@ -7,6 +8,12 @@ using UnityEngine;
 // -> hammer (hammering minigame) -> weapon is done.
 public class CraftingStation : MonoBehaviour
 {
+    // Fired on a successful craft (bool = was the QUICK CRAFT button, false = the precise
+    // silhouette/minigame flow) - GuidedTutorial listens so it can require the player to actually
+    // try each method instead of just detecting "a craft happened".
+    public static event Action<bool> OnCrafted;
+
+
     [SerializeField] private ResourceType oreType = ResourceType.Ore;
     [SerializeField] private int oreAmount = 2;
     [SerializeField] private ResourceType woodType = ResourceType.Wood;
@@ -81,7 +88,7 @@ public class CraftingStation : MonoBehaviour
             InteractionPromptUI.Instance.Show(
                 stationTitle,
                 () => StartCoroutine(CraftWithSilhouetteAndMinigames()),
-                () => ApplyCraft(0.5f, 0, out _));
+                () => ApplyCraft(0.5f, 0, true, out _));
             promptShown = true;
         }
     }
@@ -103,6 +110,11 @@ public class CraftingStation : MonoBehaviour
     public bool NeedsOre => ResourceBank.Get(oreType) < oreAmount;
     public bool NeedsWood => ResourceBank.Get(woodType) < woodAmount;
 
+    // Read-only recipe amounts - lets GuidedTutorial set its "gather N wood/ore" targets from the
+    // actual recipe instead of a separately hardcoded number that could drift out of sync.
+    public int OreAmount => oreAmount;
+    public int WoodAmount => woodAmount;
+
     // Bypasses the silhouette/minigame flow and applies the same fixed-quality result as the
     // QUICK CRAFT button. Used by DevAutoPlayController for automated loop testing.
     public bool TryDevQuickCraft(out CraftGrade grade, out int amount)
@@ -115,7 +127,7 @@ public class CraftingStation : MonoBehaviour
             return false;
         }
 
-        grade = ApplyCraft(0.5f, 0, out amount);
+        grade = ApplyCraft(0.5f, 0, true, out amount);
         return true;
     }
 
@@ -150,12 +162,12 @@ public class CraftingStation : MonoBehaviour
             q => hammerQuality = q);
 
         float quality = (meltQuality + hammerQuality) * 0.5f;
-        CraftGrade grade = ApplyCraft(quality, manaSpent, out int amount);
+        CraftGrade grade = ApplyCraft(quality, manaSpent, false, out int amount);
         yield return CraftingMinigameUI.Instance.ShowGradeResult(grade, amount);
         isCrafting = false;
     }
 
-    private CraftGrade ApplyCraft(float quality, int manaSpent, out int amount)
+    private CraftGrade ApplyCraft(float quality, int manaSpent, bool isQuickCraft, out int amount)
     {
         amount = 0;
 
@@ -176,6 +188,7 @@ public class CraftingStation : MonoBehaviour
         CraftGrade grade = CraftGradeUtility.GradeFor(quality);
         amount = outputAmount + CraftGradeUtility.BonusAmount(grade);
         ToolInventory.Add(grade, amount);
+        OnCrafted?.Invoke(isQuickCraft);
         return grade;
     }
 
