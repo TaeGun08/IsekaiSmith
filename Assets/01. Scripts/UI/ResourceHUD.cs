@@ -28,11 +28,15 @@ public class ResourceHUD : MonoBehaviour
     }
 
     // ResourceHUD is the one always-present, scene-wired MonoBehaviour, so it's the bootstrap
-    // point for the self-built GuidedTutorial (see guided_tutorial_design.html) - not because the
-    // two are conceptually related, just because something has to make the first call.
+    // point for every self-built system that needs one (GuidedTutorial, and now combat - see
+    // combat_design_v1.html §5) - not because they're conceptually related, just because
+    // something has to make the first call.
     private void Start()
     {
         GuidedTutorial.Instance.ShowIfFirstTime();
+        FieldMonsterSpawner.Instance.Bootstrap();
+        PlayerCombat.Instance.Activate();
+        PlayerHealthHUD.Instance.Show();
     }
 
     // These six text objects were originally sized (fontSize 22) and packed (30px line spacing)

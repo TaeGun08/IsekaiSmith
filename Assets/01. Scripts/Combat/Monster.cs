@@ -1,0 +1,114 @@
+using UnityEngine;
+
+// Self-built field "잡몹" (weak monster) - a tinted Sphere primitive, same low-fidelity vector
+// convention as Player/Customer (Capsule) and resource nodes (Box). Spawned and pooled by
+// FieldMonsterSpawner. Pure distance-check AI (no colliders/triggers), matching every other
+// interactable class in this project (CraftingStation/StorageDepot/OrderQueueManager). See
+// combat_design_v1.html §3.
+public class Monster : MonoBehaviour
+{
+    private const float MaxHP = 30f;
+    private const float ContactDamage = 5f;
+    private const float ContactInterval = 1.2f;
+    private const float AggroRadius = 4f;
+    private const float AttackRadius = 1.2f;
+    private const float MoveSpeed = 1.8f;
+    private const float FlashDuration = 0.15f;
+
+    private float currentHP;
+    private float contactTimer;
+    private float flashTimer;
+    private bool dead;
+
+    private Renderer bodyRenderer;
+    private Color baseColor;
+
+    public bool IsAvailable => !dead;
+
+    public static Monster Spawn(Vector3 groundPosition)
+    {
+        var body = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        body.name = "Slime";
+        body.transform.position = groundPosition + Vector3.up * 0.5f;
+        body.transform.localScale = Vector3.one * 0.9f;
+        Object.Destroy(body.GetComponent<Collider>()); // visual only - AI uses plain distance checks
+
+        var monster = body.AddComponent<Monster>();
+        monster.bodyRenderer = body.GetComponent<Renderer>();
+        monster.baseColor = new Color(0.35f, 0.68f, 0.4f);
+        monster.bodyRenderer.material.color = monster.baseColor;
+        monster.currentHP = MaxHP;
+        return monster;
+    }
+
+    public void TakeDamage(float amount)
+    {
+        if (dead)
+        {
+            return;
+        }
+
+        currentHP -= amount;
+        flashTimer = FlashDuration;
+
+        if (currentHP <= 0f)
+        {
+            Defeat();
+        }
+    }
+
+    private void Defeat()
+    {
+        dead = true;
+        gameObject.SetActive(false);
+    }
+
+    // Called by FieldMonsterSpawner when respawning this instance at a new scattered position
+    // after RespawnDelay has passed.
+    public void ResetAt(Vector3 groundPosition)
+    {
+        transform.position = groundPosition + Vector3.up * 0.5f;
+        currentHP = MaxHP;
+        contactTimer = 0f;
+        dead = false;
+        gameObject.SetActive(true);
+    }
+
+    private void Update()
+    {
+        if (dead || PlayerMotor.Instance == null)
+        {
+            return;
+        }
+
+        if (flashTimer > 0f)
+        {
+            flashTimer -= Time.deltaTime;
+            bodyRenderer.material.color = flashTimer > 0f ? Color.red : baseColor;
+        }
+
+        Vector3 playerPos = PlayerMotor.Instance.transform.position;
+        Vector3 toPlayer = playerPos - transform.position;
+        toPlayer.y = 0f;
+        float sqrDist = toPlayer.sqrMagnitude;
+
+        if (sqrDist <= AttackRadius * AttackRadius)
+        {
+            contactTimer -= Time.deltaTime;
+            if (contactTimer <= 0f)
+            {
+                contactTimer = ContactInterval;
+                PlayerHealth.TakeDamage(ContactDamage);
+            }
+            return;
+        }
+
+        contactTimer = 0f;
+
+        if (sqrDist <= AggroRadius * AggroRadius)
+        {
+            Vector3 direction = toPlayer.normalized;
+            transform.position += direction * MoveSpeed * Time.deltaTime;
+        }
+    }
+}

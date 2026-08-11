@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>이세계 대장장이 - 전투/사냥터 시스템 기획서 v1</title>
+<style>
+  :root {
+    --ink: #2b2420; --paper: #f6f1e7; --card: #ffffff; --border: #dcd3c2; --accent: #b5651d;
+    --good: #4f8f5f; --warn: #c1440e; --gold: #d9a441; --blue: #4472a8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 20px 80px; background: var(--paper); color: var(--ink);
+    font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .doc { width: 100%; max-width: 1100px; }
+  h1 { font-size: 25px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 8px; color: #6b6155; font-size: 14px; }
+  p.pitch {
+    font-size: 15px; line-height: 1.75; background: var(--card); border: 1px solid var(--border);
+    border-left: 4px solid var(--accent); border-radius: 8px; padding: 16px 18px; margin: 16px 0 32px;
+  }
+  h2 { font-size: 19px; margin: 46px 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+  h2 .num { color: var(--accent); margin-right: 8px; }
+  h2 .tag { font-size: 11px; font-weight: bold; border-radius: 5px; padding: 2px 8px; margin-left: 8px; vertical-align: 2px; background:#eef3ea; color: var(--good); }
+  h3 { font-size: 14.5px; margin: 20px 0 10px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); }
+  .note { font-size: 12.5px; color: #6b6155; line-height: 1.7; margin-top: 8px; }
+  .qa-list { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.95; }
+  .qa-list li b { color: var(--accent); }
+  .qa-list li { margin-bottom: 8px; }
+
+  .scope-row { display:flex; gap:0; margin-top:14px; border-radius:10px; overflow:hidden; border:1px solid var(--border); }
+  .scope-col { flex:1; padding:16px; }
+  .scope-col.in { background:#eef3ea; }
+  .scope-col.out { background:#f3ece0; }
+  .scope-col h4 { margin:0 0 8px; font-size:14px; }
+  .scope-col ul { margin:0; padding-left:18px; font-size:12px; line-height:1.8; }
+
+  table.spec { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12.5px; }
+  table.spec th, table.spec td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+  table.spec th { background: #efe8d9; font-size: 12px; }
+
+  .order-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top: 14px; justify-content:center; }
+  .order-step { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:12.5px; text-align:center; min-width: 96px; }
+  .order-step.now { border: 2px solid var(--accent); background:#fbf3e6; font-weight:bold; }
+  .order-arrow { color: var(--accent); font-size:16px; }
+
+  .phase-row { display:flex; gap:12px; flex-wrap:wrap; margin-top:14px; }
+  .phase-card { flex: 1; min-width: 220px; background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
+  .phase-card h4 { margin:0 0 8px; font-size:13.5px; color: var(--accent); }
+  .phase-card ul { margin:0; padding-left:18px; font-size:12px; line-height:1.8; }
+  .phase-card.current { border: 2px solid var(--accent); background:#fbf3e6; }
+
+  footer { margin-top: 40px; font-size: 12px; color: #948a7c; text-align: center; }
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <h1>전투/사냥터 시스템 기획서 v1</h1>
+  <p class="sub">combat_design_v1.html · 신규 - game_design_doc.html §2/§9(전투 개념)의 방향을 실제
+  구현 가능한 1단계로 구체화. §9 자체가 "세부 수치는 별도 턴에서" 라고 명시해뒀던 부분.</p>
+  <p class="pitch">
+    남은 로드맵(사냥터/전투 · 재료·무기 다양화 · 해금 게이트 · 암시장) 중 <b>전투를 가장 먼저</b>
+    잡습니다 - 재료 다양화(광물 등급업)는 던전 클리어가 전제고, 해금 게이트는 스테이지/던전
+    존재가 전제라 나머지 전부가 전투 위에 얹히는 구조입니다. 암시장은 의존성이 없어 순서가
+    자유롭지만, 전투가 없는 상태에서 먼저 넣으면 "왜 존재하는지" 체감이 약해 뒤로 미룹니다.
+  </p>
+
+  <div class="order-row">
+    <div class="order-step now">① 전투/사냥터</div>
+    <div class="order-arrow">→</div>
+    <div class="order-step">② 재료·무기 다양화</div>
+    <div class="order-arrow">→</div>
+    <div class="order-step">③ 해금 게이트</div>
+    <div class="order-arrow">→</div>
+    <div class="order-step">④ 암시장</div>
+  </div>
+
+  <h2><span class="num">1.</span> 이번 범위 - 필드 전투 MVP</h2>
+  <div class="scope-row">
+    <div class="scope-col in">
+      <h4>이번에 포함</h4>
+      <ul>
+        <li>필드에 약한 잡몹(슬라임) 소수 상주 - §2 "전투 압박 거의 없음, 튜토리얼 성격"</li>
+        <li>플레이어 체력 + 몬스터 접촉 시 피해</li>
+        <li>근접 자동 전투 - 채집(도끼/곡괭이)과 동일하게 <b>근처에 있으면 자동으로 스윙</b>,
+        별도 공격 버튼 없음</li>
+        <li>플레이어 사망 시 대장간 인근으로 리스폰(페널티 없음)</li>
+        <li>체력 게이지 UI</li>
+      </ul>
+    </div>
+    <div class="scope-col out">
+      <h4>다음 단계로 미룸</h4>
+      <ul>
+        <li>스테이지(순차 웨이브)/던전(랜덤 생성) - §2의 나머지 2개 층. 실제 진입 방식(포탈?
+        메뉴?), 웨이브 구조, 랜덤 생성 알고리즘 전부 미정 - 별도 문서에서 다룰 규모</li>
+        <li>마석 드랍/속성 - 스테이지 콘텐츠가 없는데 드랍만 먼저 넣을 이유가 없음</li>
+        <li>장착 무기 시스템("내가 만든 무기 장착") - 무기 다양화(②)가 먼저 있어야 "장착할
+        무기"가 여러 개 존재함. 이번 MVP는 §4의 임시 기본 공격력으로 대체</li>
+        <li>몬스터 다양화(슬라임 외 종류) - 필드는 원래도 "잡몹 소수"라 1종으로 충분</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2><span class="num">2.</span> 재검토 결과 - 기획 누락/애매한 부분 + 제안</h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px;">전체 기획서(game_design_doc.html)를 다시 훑으며
+    찾은, 아직 결정 안 된/빠진 부분과 제 제안입니다. 이견 없으시면 이 값들로 바로 구현합니다.</p>
+    <ul class="qa-list">
+      <li><b>①1 재투자 → "도구/대장간 확장"이 뭘 의미하는지 불명확.</b> §1 핵심 루프에는 있지만
+      §8(대장간 성장)은 시각/맵 영역이라 범위 밖으로 빠져 있고, "도구 업그레이드" 자체는 어느
+      섹션에도 수치가 없음. → 제안: 이번 MVP에선 손 안 대고, ②(무기 다양화) 단계에서 자연스럽게
+      "더 좋은 도구=더 빠른 채집/전투"로 연결(광물 등급별 곡괭이/도끼도 매트릭스에 포함되어 있어
+      §3 참고).</li>
+      <li><b>②1 전투 세부 수치가 기획서에 전혀 없음</b>(§9가 스스로 "별도 턴에서" 라고 명시).
+      → 이 문서 §3/§4에서 확정.</li>
+      <li><b>③1 사망 페널티가 안 정해져 있음.</b> → 제안: 게임오버/자원 손실 없이 HP 풀회복 +
+      대장간 인근 리스폰 + 짧은 무적시간만. 손님 주문 실패(§6)를 "평판 하락"이라는 부드러운
+      페널티로 처리한 것과 톤을 맞춤 - 이 게임은 지금까지 어디에도 강한 처벌이 없음.</li>
+      <li><b>④1 몬스터 비주얼 자산이 없음.</b> → 제안: 지금 프로젝트 전체가 그렇듯(플레이어=캡슐,
+      손님=캡슐, 자원=박스) <b>틴트된 구체 프리미티브</b>로 슬라임 표현 - 코드로 직접 생성해서
+      씬/프리팹 배치 작업이 전혀 필요 없게(제 작업 범위가 "배치"가 아니라 "기능"이라는 원칙과도
+      맞음).</li>
+      <li><b>⑤1 필드 몬스터의 보상이 안 정해져 있음.</b> §2 표에는 필드의 "주 획득물"이 광물
+      뿐이고 몬스터 처치 보상은 언급이 없음. → 제안: 이번 MVP는 보상 없음(순수 장애물) 유지 -
+      §2 원문 그대로. 스테이지가 생기면 그쪽에 마석 드랍을 넣는 게 기획 의도에 맞습니다.</li>
+    </ul>
+  </div>
+
+  <h2><span class="num">3.</span> 몬스터 - 슬라임 (필드 잡몹)</h2>
+  <div class="card">
+    <table class="spec">
+      <tr><th style="width:160px;">체력</th><td>30 (플레이어 기본 공격력 10 기준 3방)</td></tr>
+      <tr><th>접촉 피해</th><td>5, 1.2초마다 1회(붙어있는 동안 계속)</td></tr>
+      <tr><th>추격(aggro) 반경</th><td>4m - 이 안에 들어오면 플레이어를 향해 이동 시작</td></tr>
+      <tr><th>공격 반경</th><td>1.2m - 이 안에 들어오면 멈추고 접촉 피해 틱</td></tr>
+      <tr><th>이동 속도</th><td>1.8 (플레이어 기본 이동보다 느리게 - 도망 가능해야 "압박 거의 없음"에 맞음)</td></tr>
+      <tr><th>개체수/리스폰</th><td>필드에 4마리 상주, 처치 후 8초 뒤 다른 위치에 재출현</td></tr>
+      <tr><th>비주얼</th><td>초록 계열 틴트 Sphere(플레이어/손님과 같은 프리미티브 컨벤션),
+      맞으면 붉은색으로 짧게 플래시, 처치 시 살짝 찌그러졌다 사라지는 연출</td></tr>
+    </table>
+  </div>
+
+  <h2><span class="num">4.</span> 플레이어 전투</h2>
+  <div class="card">
+    <ul class="qa-list">
+      <li><b>자동 근접 공격</b> - 채집(<code>PlayerWoodcutting</code>/<code>PlayerMining</code>)과
+      동일 패턴: 몬스터가 공격 반경 안에 있으면 자동으로 주기적 스윙, 별도 입력 불필요(이 게임
+      전체가 지금까지 이 방식 하나로 일관됨).</li>
+      <li><b>공격력</b> - 기본 10, 0.6초 주기. 아직 무기 다양화(②)가 없어 "장착 무기 등급"이라는
+      개념 자체가 없으므로 이번엔 고정값 - ②에서 장착 무기 시스템이 생기면 이 상수 하나만
+      "장착된 도구의 등급 기반 계산식"으로 교체(자리만 미리 비워둠).</li>
+      <li><b>스윙 연출</b> - 아직 검 등 전용 무기 모델이 없어 기존 <code>ToolSwing.PlayAxeSwing()</code>을
+      임시로 재사용(§9 원문: "이미 구현된 도끼/곡괭이 스윙을 그대로 재사용"과 부합) - 실제
+      무기 비주얼은 ②에서 붙임.</li>
+      <li><b>체력</b> - 최대 100. 몬스터 접촉 피해로만 감소(다른 위협 없음).</li>
+      <li><b>사망 처리</b> - HP 0 도달 시: HP 풀회복 + 대장간(<code>SalesCounter</code> 인근)으로
+      순간이동 + 1.5초 무적(리스폰 직후 바로 다시 맞아 죽는 것 방지) + 골드/재료 손실 없음.</li>
+    </ul>
+  </div>
+
+  <h2><span class="num">5.</span> 구현 메모</h2>
+  <div class="card">
+    <ul class="qa-list">
+      <li>이 프로젝트의 기존 관례대로 <b>전부 코드에서 자체 생성</b> - 씬/프리팹에 사람이 미리
+      배치해둘 게 없음(맵 배치는 사용자님 영역이라는 원칙과 일치). 몬스터 스포너는
+      <code>GuidedTutorial</code>처럼 <code>Instance</code> 자동 생성 싱글턴.</li>
+      <li>몬스터 AI는 <code>CraftingStation</code>/<code>StorageDepot</code> 등 기존 상호작용
+      클래스들과 동일하게 <b>매 프레임 거리 계산</b>만으로 판정(콜라이더/트리거 불필요) -
+      이동까지 필요한 점만 다름.</li>
+      <li><code>PlayerHealth</code>는 <code>ResourceBank</code>/<code>Reputation</code>과 같은
+      순수 정적(static) 클래스로 - HP는 UI가 매 프레임 읽어가는 값일 뿐, 자기 자신을 표시할
+      필요가 없는 데이터.</li>
+      <li>체력 UI는 <code>ResourceHUD</code>의 씬 배선 텍스트에 새로 끼워넣지 않고(씬 편집
+      필요), <code>InteractionPromptUI</code>처럼 코드로 자체 캔버스를 만드는 소형 HP 바로
+      분리.</li>
+    </ul>
+  </div>
+
+  <h2><span class="num">6.</span> 다음 단계 예고</h2>
+  <div class="phase-row">
+    <div class="phase-card current">
+      <h4>① 전투/사냥터 (이 문서)</h4>
+      <ul><li>필드 슬라임 + 체력/사망</li><li>자동 근접 전투</li></ul>
+    </div>
+    <div class="phase-card">
+      <h4>② 재료·무기 다양화</h4>
+      <ul><li>광물 철→강철→미스릴→오리하르콘</li><li>검/도끼/망치/단검 매트릭스</li>
+      <li>장착 무기 시스템 - 여기서 ①의 고정 공격력을 실제 장비 스탯으로 교체</li></ul>
+    </div>
+    <div class="phase-card">
+      <h4>③ 해금 게이트</h4>
+      <ul><li>필드→스테이지→던전 시대 전환</li><li>스테이지/던전 콘텐츠 본체
+      (별도 문서 필요 - 진입 방식/웨이브/랜덤생성)</li></ul>
+    </div>
+    <div class="phase-card">
+      <h4>④ 암시장</h4>
+      <ul><li>확률 등장 NPC, 희귀 재료 매입/매도</li></ul>
+    </div>
+  </div>
+
+  <footer>combat_design_v1.html v1 · 최초 작성 - 필드 전투 MVP 범위 확정</footer>
+</div>
+</body>
+</html>
