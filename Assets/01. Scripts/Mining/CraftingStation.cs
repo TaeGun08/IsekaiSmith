@@ -59,7 +59,7 @@ public class CraftingStation : MonoBehaviour
             anvilPulseBaseScale = anvilPulseVisual.localScale;
         }
 
-        InteractionPadVisual.Build(transform, interactRadius);
+        InteractionPadIndicator.Attach(transform, interactRadius);
     }
 
     private void Update()

@@ -19,7 +19,7 @@ public class StorageDepot : MonoBehaviour
 
     private void Awake()
     {
-        InteractionPadVisual.Build(transform, depositRadius);
+        InteractionPadIndicator.Attach(transform, depositRadius);
     }
 
     private void Update()

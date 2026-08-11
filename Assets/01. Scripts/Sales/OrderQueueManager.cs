@@ -65,7 +65,7 @@ public class OrderQueueManager : MonoBehaviour
             refillTimers[i] = Random.Range(refillDelayMin, refillDelayMax);
         }
 
-        InteractionPadVisual.Build(transform, interactRadius);
+        InteractionPadIndicator.Attach(transform, interactRadius);
     }
 
     private void Update()

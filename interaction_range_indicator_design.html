@@ -80,16 +80,27 @@
     </div>
   </div>
 
-  <h2><span class="num">2.</span> 비주얼</h2>
+  <h2><span class="num">2.</span> 비주얼 <span class="tag" style="background:#f3ece0; color:var(--warn);">v2 - 개정</span></h2>
   <div class="card">
     <div class="scene-mock">
       <div class="pad-station"></div>
       <div class="pad"></div>
     </div>
-    <p class="note" style="text-align:center;">참고 이미지의 점선 원형 대신, 이 프로젝트의 기존
-    코드 생성 프리미티브 스타일(<code>CounterVisual</code>/<code>ApproachPath</code>와 동일 톤)에
-    맞춘 <b>납작한 원형 발판</b> - 새 셰이더/스프라이트 없이 <code>Cylinder</code> 프리미티브를
-    얇게 눌러서 표현.</p>
+    <p class="note" style="text-align:center;">v1의 납작한 <code>Cylinder</code> 프리미티브 대신,
+    참고 이미지처럼 <b>점선 원형(대시 링)</b>으로 개정 - 사용자 피드백("실린더보단 이미지를
+    쓰거나 UI로 그렸으면"). 새 텍스처 에셋을 임포트하는 대신, 이 프로젝트가 이미 쓰던 런타임
+    스프라이트 생성 방식(<code>UIShapes.Circle()</code> - 조이스틱/단조 미니게임 다이얼에 사용
+    중)을 그대로 확장한 <code>UIShapes.Ring()</code>으로 대시 링을 코드로 생성.</p>
+  </div>
+
+  <h2><span class="num">2-1.</span> 활성화 피드백 <span class="tag" style="background:#f3ece0; color:var(--warn);">v2 - 신규</span></h2>
+  <div class="card">
+    <p style="margin:0; font-size:13px; line-height:1.75;">
+    사용자 피드백: "플레이어가 밟으면 살짝 활성화 되는 색상이 바뀌고 살짝 넓어지는 듯한 느낌".
+    평소엔 어두운 톤(<code>idleColor</code>)이다가, 플레이어가 반경 안에 들어오면 대장간 골드
+    포인트 컬러(<code>activeColor</code>)로 서서히 바뀌면서 살짝(1.12배) 커짐 - 두 값 모두
+    즉시 스냅이 아니라 <code>Color.Lerp</code>/<code>Mathf.Lerp</code>로 부드럽게 보간(초당
+    8배속, 이 프로젝트의 다른 펄스 애니메이션과 비슷한 속도감).</p>
   </div>
 
   <h2><span class="num">3.</span> 크기 - 실제 판정 반경과 100% 일치</h2>
@@ -107,14 +118,20 @@
   <h2><span class="num">4.</span> 구현 메모 <span class="tag">구현 완료</span></h2>
   <div class="card">
     <p style="margin:0 0 10px; font-size:13px; line-height:1.75;">
-    <code>InteractionPadVisual</code>(신규, <code>Assets/01. Scripts/Environment/</code>) - 정적
-    헬퍼 하나(<code>Build(Transform parent, float radius)</code>)로 세 클래스 모두에서 각자의
-    <code>Awake()</code>에서 자기 반경으로 호출. 별도 MonoBehaviour/씬 배치 불필요 - 반경을 두 곳에
-    들고 있지 않도록 순수 유틸리티로 유지(모듈화 원칙).</p>
+    <code>InteractionPadIndicator</code>(<code>Assets/01. Scripts/Environment/</code>, v1의
+    <code>InteractionPadVisual</code> 정적 헬퍼를 대체) - World Space Canvas + Image로 구성,
+    <code>Customer</code> 말풍선/<code>CustomerVisualManager</code>의 러시아워 라벨과 동일한
+    "코드로 캔버스를 직접 만들어 바닥에 눕히는" 관례. 활성화 피드백(색/크기 보간)이 매 프레임
+    필요해서 이번엔 정적 헬퍼가 아니라 작은 <code>MonoBehaviour</code>로 전환했지만, 진입점은
+    여전히 <code>Attach(Transform parent, float radius)</code> 한 줄 호출로 유지(모듈화 원칙 -
+    반경을 두 곳에 들고 있지 않음).</p>
     <ul style="margin:0; padding-left:20px; font-size:12.5px; line-height:1.85;">
-      <li><code>CraftingStation.Awake()</code>, <code>StorageDepot.Awake()</code>(신규 추가),
+      <li><code>CraftingStation.Awake()</code>, <code>StorageDepot.Awake()</code>,
       <code>OrderQueueManager.Awake()</code> 각각에서 한 줄 호출.</li>
-      <li>Collider는 생성 직후 제거 - 이동/레이캐스트를 막으면 안 되는 순수 비주얼.</li>
+      <li>캔버스를 <code>Quaternion.Euler(90, 0, 0)</code>으로 눕혀 바닥에서 위를 보게 배치,
+      <code>raycastTarget = false</code>로 이동/클릭을 막지 않음.</li>
+      <li>매 프레임 플레이어와의 거리를 자체적으로 재서 활성화 여부 판정 - 각 클래스의
+      <code>PlayerNear</code>/<code>nearPlayer</code> 필드에 의존하지 않아 결합도 낮음.</li>
     </ul>
   </div>
 
@@ -128,7 +145,7 @@
     <code>guided_tutorial_design.html</code> §9 참고.</p>
   </div>
 
-  <footer>interaction_range_indicator_design.html v1 · 최초 작성 + 구현</footer>
+  <footer>interaction_range_indicator_design.html v2 · 실린더 → UI 대시 링 이미지 전환 + 활성화 피드백(색/크기) 추가</footer>
 </div>
 </body>
 </html>
