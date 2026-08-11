@@ -27,6 +27,10 @@ public class ClaudeSessionRunner : IAiSessionRunner
 
     private readonly string workingDirectory;
     private readonly ConcurrentQueue<string> outputQueue = new ConcurrentQueue<string>();
+    // Same rationale as CodexSessionRunner's stderrBuffer: a CLI can print benign diagnostics to
+    // stderr on a fully successful turn, so a line landing here isn't promoted to a real OnError
+    // until the process actually exits non-zero (see HandleLine's "__exited__" case).
+    private readonly StringBuilder stderrBuffer = new StringBuilder();
     private Process process;
     private string sessionId;
     private bool reloadLocked;
@@ -108,6 +112,7 @@ public class ClaudeSessionRunner : IAiSessionRunner
             outputQueue.Enqueue("__exited__");
         };
 
+        stderrBuffer.Clear();
         // Defer any pending domain reload (script recompile) until this turn finishes,
         // so a compile elsewhere in the project doesn't kill an in-flight response.
         LockReload();
@@ -238,12 +243,20 @@ private static string cachedClaudePath;
         {
             IsBusy = false;
             UnlockReload();
+            // Only stderr from a process that actually failed is a real error - a clean exit
+            // (code 0) means whatever it printed to stderr along the way was just diagnostic
+            // noise (see stderrBuffer's declaration comment).
+            if (process != null && process.ExitCode != 0 && stderrBuffer.Length > 0)
+            {
+                OnError?.Invoke(stderrBuffer.ToString().Trim());
+            }
+            stderrBuffer.Clear();
             return;
         }
 
         if (line.StartsWith("__stderr__:"))
         {
-            OnError?.Invoke(line.Substring("__stderr__:".Length));
+            stderrBuffer.AppendLine(line.Substring("__stderr__:".Length));
             return;
         }
 

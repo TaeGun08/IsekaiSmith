@@ -26,6 +26,14 @@ public class CodexSessionRunner : IAiSessionRunner
 
     private readonly string workingDirectory;
     private readonly ConcurrentQueue<string> outputQueue = new ConcurrentQueue<string>();
+    // Codex prints benign startup/progress diagnostics to stderr even on a fully successful
+    // turn (its banner, "Reading additional input from stdin...", etc.) - buffered here instead
+    // of being treated as a fatal error the moment a line arrives; only promoted to OnError if
+    // the process actually exits non-zero (see HandleLine's "__exited__" case). Previously any
+    // stderr line at all fired OnError immediately, so switching to Codex reported "연동 실패"
+    // on effectively every successful turn (2026-08-11 report - the reply still arrived right
+    // after the false failure notice).
+    private readonly StringBuilder stderrBuffer = new StringBuilder();
     private Process process;
     private string sessionId;
     private bool reloadLocked;
@@ -99,6 +107,7 @@ public class CodexSessionRunner : IAiSessionRunner
             outputQueue.Enqueue("__exited__");
         };
 
+        stderrBuffer.Clear();
         LockReload();
         IsBusy = true;
         lastActivityUtc = DateTime.UtcNow;
@@ -219,12 +228,20 @@ public class CodexSessionRunner : IAiSessionRunner
         {
             IsBusy = false;
             UnlockReload();
+            // Only stderr from a process that actually failed is a real error - a clean exit
+            // (code 0) means whatever it printed to stderr along the way was just diagnostic
+            // noise (see stderrBuffer's declaration comment).
+            if (process != null && process.ExitCode != 0 && stderrBuffer.Length > 0)
+            {
+                OnError?.Invoke(stderrBuffer.ToString().Trim());
+            }
+            stderrBuffer.Clear();
             return;
         }
 
         if (line.StartsWith("__stderr__:"))
         {
-            OnError?.Invoke(line.Substring("__stderr__:".Length));
+            stderrBuffer.AppendLine(line.Substring("__stderr__:".Length));
             return;
         }
 
