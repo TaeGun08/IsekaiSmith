@@ -35,8 +35,10 @@ public static class UIShapes
 
     private static Sprite ringSprite;
 
-    // Dashed ring, soft-edged like Circle() - used for InteractionPadIndicator's ground mark
-    // (matches the dashed-circle look of the reference image the user provided).
+    // Dashed ring, crisp-edged - used for InteractionPadIndicator's ground mark (matches the
+    // dashed-circle look of the reference image the user provided). Bumped to 256px + a narrow
+    // ~1.5px anti-alias band (previous version faded alpha across the *entire* band width, which
+    // read as a hazy blur rather than a ring - user report: "바닥의 이미지가 너무 흐려서 눈이 아파").
     public static Sprite Ring()
     {
         if (ringSprite != null)
@@ -44,15 +46,14 @@ public static class UIShapes
             return ringSprite;
         }
 
-        const int size = 128;
+        const int size = 256;
         const int dashCount = 14;
         const float dashFraction = 0.62f; // portion of each segment that's filled; rest is a gap
+        const float edgeSoftness = 1.5f; // px - only the true inner/outer edges are anti-aliased
         Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
         Vector2 center = new Vector2(size / 2f, size / 2f);
-        float outerRadius = size / 2f - 2f;
-        float innerRadius = outerRadius * 0.72f;
-        float bandCenter = (outerRadius + innerRadius) / 2f;
-        float bandHalfWidth = (outerRadius - innerRadius) / 2f;
+        float outerRadius = size / 2f - 4f;
+        float innerRadius = outerRadius * 0.78f;
         float segmentDegrees = 360f / dashCount;
 
         for (int y = 0; y < size; y++)
@@ -61,7 +62,12 @@ public static class UIShapes
             {
                 Vector2 offset = new Vector2(x + 0.5f, y + 0.5f) - center;
                 float dist = offset.magnitude;
-                float bandAlpha = Mathf.Clamp01(1f - Mathf.Abs(dist - bandCenter) / bandHalfWidth);
+
+                // Solid fill through the middle of the band, fading only within edgeSoftness px
+                // of the inner/outer boundary - a crisp ring, not a soft blob.
+                float distFromOuterEdge = outerRadius - dist;
+                float distFromInnerEdge = dist - innerRadius;
+                float bandAlpha = Mathf.Clamp01(Mathf.Min(distFromOuterEdge, distFromInnerEdge) / edgeSoftness);
 
                 float angle = Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg;
                 if (angle < 0f)
