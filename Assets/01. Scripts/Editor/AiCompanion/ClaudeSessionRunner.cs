@@ -64,14 +64,24 @@ public class ClaudeSessionRunner : IAiSessionRunner
             return;
         }
 
-        // This process runs headless (-p, no stdin wired up), so there is no way to
+        // The prompt is sent over stdin (bare "-p", no argument) rather than as a command-line
+        // argument - handoff turns pass the entire visible chat transcript
+        // (CompanionSession.BuildHandoffContext), which routinely exceeds cmd.exe's
+        // ~8191-character command-line limit ("claude.cmd" is a batch shim, so .NET launches it
+        // through cmd.exe even with UseShellExecute=false). Going over that limit doesn't throw
+        // here - cmd.exe itself rejects the command line and the process exits non-zero with a
+        // system-locale error on stderr, which then showed up mojibake'd (see
+        // StandardErrorEncoding below) as "연동 실패" on effectively every provider switch once
+        // the conversation got long (2026-08-11 report, first diagnosed against CodexSessionRunner).
+        //
+        // This process runs headless (no interactive stdin otherwise), so there is no way to
         // answer an interactive permission prompt. "acceptEdits" only auto-approves
         // file edits and leaves every other tool call (Bash, UnityMCP tools like
         // manage_ui/manage_gameobject) waiting on a prompt nothing can ever answer,
         // which silently stalls mid-task. bypassPermissions is the only mode that
         // actually works in this architecture.
         StringBuilder args = new StringBuilder();
-        args.Append("-p ").Append(Quote(message));
+        args.Append("-p");
         args.Append(" --output-format stream-json --verbose");
         if (!string.IsNullOrEmpty(sessionId))
         {
@@ -86,8 +96,10 @@ public class ClaudeSessionRunner : IAiSessionRunner
             WorkingDirectory = workingDirectory,
             UseShellExecute = false,
             CreateNoWindow = true,
+            RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            StandardInputEncoding = Encoding.UTF8,
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8
         };
@@ -124,6 +136,10 @@ public class ClaudeSessionRunner : IAiSessionRunner
             process.Start();
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
+            // Write the prompt to stdin and close it so claude sees EOF and starts the turn
+            // instead of waiting for more input (see the bare "-p" arg above).
+            process.StandardInput.Write(message);
+            process.StandardInput.Close();
         }
         catch (Exception ex)
         {

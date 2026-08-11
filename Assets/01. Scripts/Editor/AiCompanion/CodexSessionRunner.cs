@@ -62,8 +62,17 @@ public class CodexSessionRunner : IAiSessionRunner
             return;
         }
 
-        // Headless (no stdin wired up), so nothing can ever answer an interactive approval
-        // prompt - --dangerously-bypass-approvals-and-sandbox is Codex's equivalent of
+        // The prompt is sent over stdin ("-") rather than as a command-line argument -
+        // handoff turns pass the entire visible chat transcript (BuildHandoffContext), which
+        // routinely exceeds cmd.exe's ~8191-character command-line limit ("codex.cmd" is a
+        // batch shim, so .NET launches it through cmd.exe even with UseShellExecute=false).
+        // Going over that limit doesn't throw here - cmd.exe itself rejects the command line
+        // and codex exits non-zero with "명령줄이 너무 깁니다." on stderr, which then showed up
+        // mojibake'd (see StandardErrorEncoding below) as "연동 실패" on effectively every
+        // provider switch once the conversation got long (2026-08-11 report).
+        //
+        // Headless (no interactive stdin otherwise), so nothing can ever answer an interactive
+        // approval prompt - --dangerously-bypass-approvals-and-sandbox is Codex's equivalent of
         // Claude's --permission-mode bypassPermissions, and the only mode that doesn't stall.
         StringBuilder args = new StringBuilder();
         args.Append("exec ");
@@ -71,8 +80,7 @@ public class CodexSessionRunner : IAiSessionRunner
         {
             args.Append("resume ").Append(Quote(sessionId)).Append(' ');
         }
-        args.Append(Quote(message));
-        args.Append(" --json --dangerously-bypass-approvals-and-sandbox");
+        args.Append("- --json --dangerously-bypass-approvals-and-sandbox");
 
         ProcessStartInfo startInfo = new ProcessStartInfo
         {
@@ -81,8 +89,10 @@ public class CodexSessionRunner : IAiSessionRunner
             WorkingDirectory = workingDirectory,
             UseShellExecute = false,
             CreateNoWindow = true,
+            RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            StandardInputEncoding = Encoding.UTF8,
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8
         };
@@ -117,6 +127,10 @@ public class CodexSessionRunner : IAiSessionRunner
             process.Start();
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
+            // Write the prompt to stdin and close it so codex sees EOF and starts the turn
+            // instead of waiting for more input (see the "- --json" arg above).
+            process.StandardInput.Write(message);
+            process.StandardInput.Close();
         }
         catch (Exception ex)
         {
