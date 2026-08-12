@@ -3,8 +3,10 @@ using UnityEngine;
 
 // Self-bootstrapping singleton (same Instance-auto-create pattern as GuidedTutorial) - scatters a
 // small fixed number of Monster instances around the field and respawns each one a few seconds
-// after it's defeated. No scene/prefab wiring - everything is built at runtime, anchored off the
-// existing LumberCamp GameObject so no new placement is needed. See combat_design_v1.html §3/§5.
+// after it's defeated. No scene/prefab wiring - everything is built at runtime, anchored at the
+// midpoint between the existing LumberCamp/Quarry GameObjects (왼쪽 벌목장 - 가운데 사냥터 - 오른쪽
+// 채석장 layout the user already decided) so no new placement is needed and the spot is derived,
+// not guessed. See combat_design_v1.html §3/§5.
 public class FieldMonsterSpawner : MonoBehaviour
 {
     private const int MonsterCount = 4;
@@ -44,7 +46,10 @@ public class FieldMonsterSpawner : MonoBehaviour
         }
 
         GameObject lumberCampGO = GameObject.Find("LumberCamp");
-        anchor = lumberCampGO != null ? lumberCampGO.transform.position : Vector3.zero;
+        GameObject quarryGO = GameObject.Find("Quarry");
+        anchor = (lumberCampGO != null && quarryGO != null)
+            ? Vector3.Lerp(lumberCampGO.transform.position, quarryGO.transform.position, 0.5f)
+            : Vector3.zero;
 
         var placed = new List<Vector3>();
         for (int i = 0; i < MonsterCount; i++)
