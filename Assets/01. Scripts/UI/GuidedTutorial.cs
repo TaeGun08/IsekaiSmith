@@ -491,7 +491,7 @@ public class GuidedTutorial : MonoBehaviour
         bannerText = MakeText(bannerRoot.transform, "Text", 22, new Vector2(0f, -36f), new Vector2(292f, 62f));
         bannerText.color = Color.white;
         bannerText.fontStyle = FontStyles.Bold;
-        bannerText.enableWordWrapping = true;
+        bannerText.textWrappingMode = TextWrappingModes.Normal;
     }
 
     // Plain placeholder pointer (a single bright bar, like a compass needle) rather than a real
