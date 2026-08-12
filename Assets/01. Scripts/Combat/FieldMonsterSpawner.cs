@@ -37,6 +37,11 @@ public class FieldMonsterSpawner : MonoBehaviour
     private readonly List<Monster> monsters = new List<Monster>();
     private readonly List<float> respawnTimers = new List<float>();
 
+    // Lets PlayerCombat (and anything else that needs "all field monsters") reuse this already-
+    // tracked list instead of a scene-wide FindObjectsByType<Monster>() scan every attack check -
+    // there's only ever a handful of monsters, but the search itself isn't free (최적화 요청).
+    public IReadOnlyList<Monster> Monsters => monsters;
+
     // Called once from ResourceHUD.Start() alongside GuidedTutorial - idempotent so a stray
     // second call (e.g. scene reload) doesn't double-spawn.
     public void Bootstrap()

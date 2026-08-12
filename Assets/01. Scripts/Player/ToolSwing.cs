@@ -21,19 +21,38 @@ public class ToolSwing : MonoBehaviour
         public Quaternion Swung;
     }
 
+    private const float SwordSweepHalfAngle = 65f;
+
     // Three visually distinct swing shapes (user request: "사선으로 휘두르다던가 등... 종, 횡
-    // 다양한 휘두름") - rotated around different local axes so they read as genuinely different
-    // strikes rather than the same swing with a different duration. Picked randomly per swing
-    // (never repeating the immediately previous one) in PlaySwordSwing().
+    // 다양한 휘두름"), but ALL of them rotate around the sword's own local Z axis - the blade's
+    // thickness axis, running parallel to its two flat faces. Rotating around that specific axis
+    // is what makes the thin edge (not the wide flat side) lead through the arc; rotating around
+    // any other axis (the original version rotated around local X for the "vertical" pattern)
+    // sweeps the flat face first instead, which reads as swinging a blunt club - exactly the bug
+    // reported: "검을 날 부분으로 휘둘러야지 이건 몽둥이 휘두르는거랑 차이가 없는데". Each
+    // pattern's `holdOrientation` only changes which way that same edge-leading swing *looks*
+    // like it's aimed (vertical/horizontal/diagonal) - never the rotation axis itself. Picked
+    // randomly per swing (never repeating the immediately previous one) in PlaySwordSwing().
     private static readonly SwingPattern[] SwordPatterns =
     {
-        // Vertical overhead chop - swings top-down (rotates around local X).
-        new SwingPattern { Rest = Quaternion.Euler(-70f, 0f, 0f), Swung = Quaternion.Euler(50f, 0f, 0f) },
-        // Horizontal slash - swings side-to-side (rotates around local Z).
-        new SwingPattern { Rest = Quaternion.Euler(0f, 0f, -70f), Swung = Quaternion.Euler(0f, 0f, 70f) },
-        // Diagonal slash - corner-to-corner (X and Z rotate together).
-        new SwingPattern { Rest = Quaternion.Euler(-45f, 0f, -55f), Swung = Quaternion.Euler(35f, 0f, 55f) },
+        // Vertical overhead chop - holds the blade with its edge-axis pointing sideways, so the
+        // shared local-Z swing sweeps the blade up-down in front of the player.
+        MakeSwordPattern(Quaternion.Euler(0f, 90f, 0f)),
+        // Horizontal slash - holds the blade laid toward the target, so the same swing sweeps it
+        // left-right instead.
+        MakeSwordPattern(Quaternion.Euler(-90f, 0f, 0f)),
+        // Diagonal slash - a hold orientation halfway between the two above.
+        MakeSwordPattern(Quaternion.Euler(-45f, 45f, 0f)),
     };
+
+    private static SwingPattern MakeSwordPattern(Quaternion holdOrientation)
+    {
+        return new SwingPattern
+        {
+            Rest = holdOrientation * Quaternion.Euler(0f, 0f, -SwordSweepHalfAngle),
+            Swung = holdOrientation * Quaternion.Euler(0f, 0f, SwordSweepHalfAngle)
+        };
+    }
 
     private void Awake()
     {

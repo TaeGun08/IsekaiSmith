@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 // Auto-attacks the nearest live Monster in range - same "no dedicated input, just proximity" rule
@@ -108,19 +109,27 @@ public class PlayerCombat : MonoBehaviour
     private Monster FindNearestInRange()
     {
         Vector3 playerPos = PlayerMotor.Instance.transform.position;
-        Monster[] candidates = FindObjectsByType<Monster>(FindObjectsSortMode.None);
+        IReadOnlyList<Monster> candidates = FieldMonsterSpawner.Instance.Monsters;
 
         Monster nearest = null;
         float nearestSqrDist = AttackRadius * AttackRadius;
 
-        foreach (Monster candidate in candidates)
+        for (int i = 0; i < candidates.Count; i++)
         {
+            Monster candidate = candidates[i];
             if (!candidate.IsAvailable)
             {
                 continue;
             }
 
-            float sqrDist = (candidate.transform.position - playerPos).sqrMagnitude;
+            // Horizontal-only distance, matching Monster's own attack-range check exactly - the
+            // monster's sphere sits half a unit above its pivot while the player's own pivot
+            // height differs, so a plain 3D distance here could disagree with Monster's decision
+            // to stop and attack (bug report: "몬스터가 멈추는데 플레이어가 공격을 안 하는 경우").
+            Vector3 toCandidate = candidate.transform.position - playerPos;
+            toCandidate.y = 0f;
+            float sqrDist = toCandidate.sqrMagnitude;
+
             if (sqrDist <= nearestSqrDist)
             {
                 nearestSqrDist = sqrDist;

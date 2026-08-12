@@ -20,7 +20,7 @@ public class Monster : MonoBehaviour
     private float flashTimer;
     private bool dead;
 
-    private Renderer bodyRenderer;
+    private Material bodyMaterial; // cached once - repeatedly reading Renderer.material has real overhead
     private Color baseColor;
 
     public bool IsAvailable => !dead;
@@ -34,9 +34,9 @@ public class Monster : MonoBehaviour
         Object.Destroy(body.GetComponent<Collider>()); // visual only - AI uses plain distance checks
 
         var monster = body.AddComponent<Monster>();
-        monster.bodyRenderer = body.GetComponent<Renderer>();
+        monster.bodyMaterial = body.GetComponent<Renderer>().material; // instantiates once, reused from here on
         monster.baseColor = new Color(0.35f, 0.68f, 0.4f);
-        monster.bodyRenderer.material.color = monster.baseColor;
+        monster.bodyMaterial.color = monster.baseColor;
         monster.currentHP = MaxHP;
         return monster;
     }
@@ -76,6 +76,15 @@ public class Monster : MonoBehaviour
         currentHP = MaxHP;
         contactTimer = 0f;
         dead = false;
+
+        // The killing blow always leaves flashTimer > 0 (TakeDamage sets it before checking for
+        // death) and Update() stops running the instant the object deactivates, so that leftover
+        // timer was still sitting there on respawn - Update()'s very first tick after
+        // SetActive(true) would see flashTimer > 0 and immediately flash red again (user report:
+        // "몬스터가 죽었다 다시 태어나면 빨간색으로 깜빡이는 경우가 잦아"). Clearing both here fixes it.
+        flashTimer = 0f;
+        bodyMaterial.color = baseColor;
+
         gameObject.SetActive(true);
     }
 
@@ -89,7 +98,7 @@ public class Monster : MonoBehaviour
         if (flashTimer > 0f)
         {
             flashTimer -= Time.deltaTime;
-            bodyRenderer.material.color = flashTimer > 0f ? Color.red : baseColor;
+            bodyMaterial.color = flashTimer > 0f ? Color.red : baseColor;
         }
 
         Vector3 playerPos = PlayerMotor.Instance.transform.position;
