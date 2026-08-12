@@ -464,26 +464,34 @@ public class GuidedTutorial : MonoBehaviour
         bannerRoot = new GameObject("Banner", typeof(RectTransform), typeof(Image), typeof(Outline));
         bannerRoot.transform.SetParent(canvasGO.transform, false);
         var bannerRect = bannerRoot.GetComponent<RectTransform>();
-        bannerRect.anchorMin = new Vector2(0.5f, 1f);
-        bannerRect.anchorMax = new Vector2(0.5f, 1f);
-        bannerRect.pivot = new Vector2(0.5f, 1f);
-        bannerRect.anchoredPosition = new Vector2(0f, -40f);
-        bannerRect.sizeDelta = new Vector2(900f, 90f);
-        // Darker/more opaque than before (0.62 -> 0.85) plus a gold outline on the panel's own
-        // Image so the banner reads clearly regardless of what's behind it (grass, resource
-        // panel, dev overlay).
+        // Right edge, slightly below vertical center (사용자 요청: "오른쪽 중단보다 살짝 아래") -
+        // the previous top-center full-width banner sat right in the middle of this game's
+        // busiest screen real estate (resource panel/dev overlay both compete for the top edge),
+        // which is why it kept needing more contrast/sorting-order just to stay legible - the
+        // form factor and placement were the actual problem, not just layering. This corner has
+        // nothing else in it, and shrinking it into a labeled card reads as a persistent quest
+        // tracker instead of a transient alert banner.
+        bannerRect.anchorMin = new Vector2(1f, 0.5f);
+        bannerRect.anchorMax = new Vector2(1f, 0.5f);
+        bannerRect.pivot = new Vector2(1f, 0.5f);
+        bannerRect.anchoredPosition = new Vector2(-24f, -140f);
+        bannerRect.sizeDelta = new Vector2(320f, 104f);
         bannerRoot.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.85f);
         var outline = bannerRoot.GetComponent<Outline>();
         outline.effectColor = new Color(1f, 0.86f, 0.5f, 0.9f);
         outline.effectDistance = new Vector2(2f, -2f);
 
-        bannerText = MakeText(bannerRoot.transform, "Text", 30, Vector2.zero, new Vector2(860f, 90f));
-        bannerText.rectTransform.anchorMin = Vector2.zero;
-        bannerText.rectTransform.anchorMax = Vector2.one;
-        bannerText.rectTransform.offsetMin = Vector2.zero;
-        bannerText.rectTransform.offsetMax = Vector2.zero;
-        bannerText.color = new Color(1f, 0.86f, 0.5f);
+        // Small "QUEST" label up top so the card reads unambiguously as "your current objective"
+        // at a glance, instead of an unlabeled floating bar.
+        var header = MakeText(bannerRoot.transform, "Header", 16, new Vector2(0f, -10f), new Vector2(300f, 22f));
+        header.color = new Color(1f, 0.86f, 0.5f, 0.8f);
+        header.fontStyle = FontStyles.Bold;
+        header.text = "QUEST";
+
+        bannerText = MakeText(bannerRoot.transform, "Text", 22, new Vector2(0f, -36f), new Vector2(292f, 62f));
+        bannerText.color = Color.white;
         bannerText.fontStyle = FontStyles.Bold;
+        bannerText.enableWordWrapping = true;
     }
 
     // Plain placeholder pointer (a single bright bar, like a compass needle) rather than a real

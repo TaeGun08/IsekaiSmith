@@ -1727,8 +1727,47 @@ Phase 2(장착 무기 시스템)로 잡혀있는 내용의 재확인 - 이번엔
 `swordTool` 필드 연결만 하면 끝.
 
 ### 다음에 할 일 (TODO)
-- [ ] 다음 세션 최우선: `Player.prefab`의 `ToolAnchor`에 `Sword.prefab` 자식으로 추가 +
-  `ToolSwing.swordTool` 필드 연결 (Axe/Pickaxe와 동일 패턴)
+- [x] 다음 세션 최우선: `Player.prefab`의 `ToolAnchor`에 `Sword.prefab` 자식으로 추가 +
+  `ToolSwing.swordTool` 필드 연결 (Axe/Pickaxe와 동일 패턴) → (계속 13)에서 완료
 - [ ] 이후 Play Mode에서 검 스윙 3종(수직/수평/사선)이 실제로 다르게 보이는지 확인
 - [ ] (계속 9)~(계속 11)의 미검증 항목 전부 함께 확인
+- [ ] ② 재료·무기 다양화 착수
+
+---
+
+## 2026-08-12 (계속 13)
+
+### 검 마무리 + 몬스터 위치(더 뒤로) + 퀘스트 UI 재배치
+사용자 지시 3가지: (1) 검 작업 마무리, (2) 몬스터가 벌목장/채석장보다 더 뒤에 있어야 함,
+(3) 퀘스트 UI가 애매하니 아이디어를 같이 내달라(오른쪽 중단보다 살짝 아래 제안).
+
+**① 검 마무리** - `manage_prefabs modify_contents`가 매 호출마다 별도의 임시 프리팹 세션을
+여는 것으로 보여 `get_hierarchy`에서 얻은 instanceID가 다음 호출에선 이미 무효였음(3가지
+참조 형식 다 실패: instanceID/asset path/plain string). `open_prefab_stage`(세션이 명시적으로
+계속 열려있음) → `find_gameobjects`로 그 세션 안에서 유효한 Sword instanceID 획득 →
+`manage_components set_property`로 `ToolSwing.swordTool` 연결 → `save_prefab_stage`로 해결.
+`close_prefab_stage`는 계속되는 컴파일 때문에 5회 재시도 후 실패했지만, 디스크의
+`Player.prefab`을 직접 확인해서 `swordTool: {fileID: ...}`가 axeTool/pickaxeTool과 같은
+패턴으로 정상 저장된 것 확인 - 데이터는 안전, 프리팹 스테이지가 에디터에 열려있는 상태만 남음
+(다음 세션 첫 확인 항목).
+
+**② 몬스터 위치 수정** - `FieldMonsterSpawner`가 벌목장/채석장과 **같은 Z 선상**에 있던 걸,
+`SalesCounter`→채집지 간 실제 깊이(20m, 씬에서 읽음)를 그대로 한 번 더 적용해서 채집지 라인
+뒤로 밀어냄 - 좌표 임의 지정 없음, 반경 8m 스캐터로도 채집지 라인을 넘지 않는 여유 확보.
+`combat_design_v1.html` §3에 근거 기록(v1.3).
+
+**③ 퀘스트 UI 재검토** - 사용자 질문에 동의(저도 애매하다고 느꼈음): sortingOrder/대비를
+두 번 손봐도 계속 문제였던 건 위치·형태 자체가 원인이었다고 판단. 검토한 대안 4개
+(①우측 중단 아래 이동 ②소형 카드+라벨로 축소 ③화살표 옆 월드스페이스 라벨 ④자원 HUD에
+흡수)를 `guided_tutorial_design.html` §10에 정리, ①+②를 채택해서 구현 - 900×90 전체폭
+배너 → 320×104 카드로 축소 + 우측 중단보다 아래(세로 중앙에서 -140px)로 이동 + 상단
+"QUEST" 라벨 추가.
+
+컴파일: `read_console` 확인(여러 회, 매번 0건) - 이번 세션 내내 컴파일이 유난히 자주/오래
+걸림, CS 에러는 한 번도 없었음.
+
+### 다음에 할 일 (TODO)
+- [ ] 다음 세션: 열려있는 `Player.prefab` 프리팹 스테이지 정리(있다면 닫기) 확인
+- [ ] Play Mode에서 검 스윙 3종, 몬스터가 채집지보다 뒤에 스폰되는지, 새 퀘스트 카드 위치/가독성
+  전부 한 번에 확인
 - [ ] ② 재료·무기 다양화 착수
