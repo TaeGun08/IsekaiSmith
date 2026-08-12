@@ -1694,6 +1694,41 @@ Phase 2(장착 무기 시스템)로 잡혀있는 내용의 재확인 - 이번엔
 컴파일: `read_console` 확인(1회) - 에러 0건.
 
 ### 다음에 할 일 (TODO)
-- [ ] 다음 세션: Play Mode에서 슬라임이 실제로 벌목장/채석장 사이 가운데에 스폰되는지 확인
-  (나머지 검증 항목은 (계속 9)/(계속 10)과 동일)
+- [x] 다음 세션: Play Mode에서 슬라임이 실제로 벌목장/채석장 사이 가운데에 스폰되는지 확인
+  (나머지 검증 항목은 (계속 9)/(계속 10)과 동일) → 아래 (계속 12)로 이어서 진행, 여전히 미검증
+- [ ] ② 재료·무기 다양화 착수
+
+---
+
+## 2026-08-12 (계속 12)
+
+### 사용자 요청 - 검 전용 스윙 애니메이션(종/횡/사선 다양하게)
+"검을 휘두르는 듯한 애니메이션이 따로 있었으면 좋겠어... 종, 횡 다양한 휘두름이 있었으면
+좋겠어" - 지금까지 `PlayerCombat`이 도끼 스윙(`PlayAxeSwing`)을 임시로 재사용하던 걸 실제
+검 전용 스윙으로 교체.
+
+- **`ToolSwing.cs`**: `SwordPatterns`(3종 - 수직 내려찍기/수평 베기/사선 베기, 각각 다른 로컬
+  축으로 회전해서 실제로 다른 동작처럼 보이게) + `PlaySwordSwing()` 추가. 직전과 같은 패턴이
+  연속으로 안 나오게 매번 다른 인덱스를 뽑음. 기존 `axeTool`/`pickaxeTool`과 같은 구조로
+  `swordTool` 필드 신설.
+- **`PlayerCombat.cs`**: `PlayAxeSwing()` 호출을 `PlaySwordSwing()`으로 교체.
+- **`Sword.prefab` 신규 제작**: `Axe.prefab`/`Pickaxe.prefab`과 같은 스타일(손잡이=목재
+  머티리얼 재사용, 날=금속 머티리얼 재사용, 콜라이더 없음)로 손잡이+크로스가드+날 3파츠 구성,
+  UnityMCP로 라이브 생성 후 프리팹화 완료.
+
+### 막힌 부분 - Player.prefab에 검 연결까지는 못 함
+`Sword.prefab`을 기존 `Axe`/`Pickaxe`처럼 `Player/ToolAnchor`의 자식으로 넣고
+`ToolSwing.swordTool`에 연결하는 마지막 단계에서, `manage_prefabs modify_contents`가
+"compiling" 상태로 계속 거부됨(8회 재시도 + `refresh_unity` 60초 대기 2회 전부 실패) -
+`feedback_dont_stall_on_flaky_playmode` 방침대로 재시도 캡 걸고 다음 세션으로 미룸. 코드는
+전부 준비돼있고(`swordTool`이 null이면 `PlaySwordSwing()`이 조용히 no-op이라 지금 상태로도
+안전) `Sword.prefab` 에셋도 디스크에 존재 - 다음 세션에서 Unity가 안정되면
+`Player.prefab/ToolAnchor`에 `Sword.prefab` 인스턴스 추가 + `ToolSwing` 컴포넌트의
+`swordTool` 필드 연결만 하면 끝.
+
+### 다음에 할 일 (TODO)
+- [ ] 다음 세션 최우선: `Player.prefab`의 `ToolAnchor`에 `Sword.prefab` 자식으로 추가 +
+  `ToolSwing.swordTool` 필드 연결 (Axe/Pickaxe와 동일 패턴)
+- [ ] 이후 Play Mode에서 검 스윙 3종(수직/수평/사선)이 실제로 다르게 보이는지 확인
+- [ ] (계속 9)~(계속 11)의 미검증 항목 전부 함께 확인
 - [ ] ② 재료·무기 다양화 착수

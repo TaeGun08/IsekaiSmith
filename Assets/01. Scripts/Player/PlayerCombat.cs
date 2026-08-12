@@ -73,9 +73,11 @@ public class PlayerCombat : MonoBehaviour
             playerToolSwing = PlayerMotor.Instance.GetComponentInChildren<ToolSwing>();
         }
 
-        // Placeholder swing (no dedicated weapon visual exists yet) - real weapon models arrive
-        // with the equipped-weapon system (Phase 2).
-        playerToolSwing?.PlayAxeSwing();
+        // Dedicated sword swing (varied vertical/horizontal/diagonal patterns - see
+        // ToolSwing.PlaySwordSwing) rather than reusing the axe animation. Still a placeholder
+        // mesh, not the actual crafted weapon - the equipped-weapon system (Phase 2) will swap
+        // which sword model shows, not the swing logic itself.
+        playerToolSwing?.PlaySwordSwing();
 
         if (defeated)
         {
