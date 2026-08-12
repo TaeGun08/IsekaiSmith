@@ -41,11 +41,13 @@ public class Monster : MonoBehaviour
         return monster;
     }
 
-    public void TakeDamage(float amount)
+    // Returns whether this hit was the killing blow - lets PlayerCombat know exactly once per
+    // death (not "is currently dead") so it can roll a mana stone drop without double-rolling.
+    public bool TakeDamage(float amount)
     {
         if (dead)
         {
-            return;
+            return false;
         }
 
         currentHP -= amount;
@@ -54,7 +56,10 @@ public class Monster : MonoBehaviour
         if (currentHP <= 0f)
         {
             Defeat();
+            return true;
         }
+
+        return false;
     }
 
     private void Defeat()

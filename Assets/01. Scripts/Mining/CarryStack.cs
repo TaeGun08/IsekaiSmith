@@ -5,17 +5,27 @@ using UnityEngine;
 public enum CarryLayer
 {
     Ore,
-    Wood
+    Wood,
+    ManaStone
 }
 
 public class CarryStack : MonoBehaviour
 {
+    // Keep in sync with CarryLayer's member count - see LocalSlotPosition/Awake.
+    private const int LayerCount = 3;
+
     [SerializeField] private Transform stackAnchor;
     [SerializeField] private int oreCapacity = 8;
     [SerializeField] private int woodCapacity = 8;
+    // Starting capacity is intentionally small - field monster mana drops are meant to be a
+    // trickle, not a farm. Also the first field meant to be raised later by a gold-cost carry
+    // capacity upgrade (not built yet - see combat_design_v1.html follow-up notes).
+    [SerializeField] private int manaCapacity = 6;
     [SerializeField] private float itemHeight = 0.5f;
     [SerializeField] private float woodItemHeight = 0.4f;
+    [SerializeField] private float manaItemHeight = 0.22f;
     [SerializeField] private float woodBackOffset = 0.35f;
+    [SerializeField] private float manaSideOffset = 0.4f;
     [SerializeField] private float swayAmplitude = 6f;
     [SerializeField] private float swaySpeed = 6f;
     [SerializeField] private float flightDuration = 0.4f;
@@ -28,25 +38,33 @@ public class CarryStack : MonoBehaviour
     [SerializeField] private float depositArcHeight = 1f;
     [SerializeField] private float depositStagger = 0.08f;
 
-    private readonly List<Transform> oreItems = new List<Transform>();
-    private readonly List<Transform> woodItems = new List<Transform>();
-    private int reservedOre;
-    private int reservedWood;
+    // Indexed by (int)CarryLayer - one array instead of a field pair per layer, so a future 4th
+    // carryable layer only needs a new capacity field + LayerCount bump, not new branches
+    // scattered through every method here.
+    private readonly List<Transform>[] itemsByLayer = new List<Transform>[LayerCount];
+    private readonly int[] reservedByLayer = new int[LayerCount];
+    private int[] capacities;
     private Rigidbody body;
 
     private void Awake()
     {
         body = GetComponentInParent<Rigidbody>();
+        capacities = new[] { oreCapacity, woodCapacity, manaCapacity };
+
+        for (int i = 0; i < LayerCount; i++)
+        {
+            itemsByLayer[i] = new List<Transform>();
+        }
     }
 
     public bool IsFull(CarryLayer layer)
     {
-        return layer == CarryLayer.Ore ? reservedOre >= oreCapacity : reservedWood >= woodCapacity;
+        return reservedByLayer[(int)layer] >= capacities[(int)layer];
     }
 
     public int GetCount(CarryLayer layer)
     {
-        return layer == CarryLayer.Ore ? reservedOre : reservedWood;
+        return reservedByLayer[(int)layer];
     }
 
     public bool TryAdd(GameObject itemPrefab, Vector3 worldStartPosition, CarryLayer layer)
@@ -56,35 +74,34 @@ public class CarryStack : MonoBehaviour
             return false;
         }
 
-        int index;
-        float height;
-        float zOffset;
+        int index = reservedByLayer[(int)layer];
+        reservedByLayer[(int)layer]++;
 
-        if (layer == CarryLayer.Ore)
-        {
-            index = reservedOre;
-            reservedOre++;
-            height = itemHeight;
-            zOffset = 0f;
-        }
-        else
-        {
-            index = reservedWood;
-            reservedWood++;
-            height = woodItemHeight;
-            zOffset = -woodBackOffset;
-        }
-
-        Vector3 targetLocalPosition = new Vector3(0f, index * height, zOffset);
+        Vector3 targetLocalPosition = LocalSlotPosition(layer, index);
 
         GameObject instance = GameObjectPool.Instance.Spawn(itemPrefab, worldStartPosition, Quaternion.identity);
         StartCoroutine(FlyToStack(instance.transform, worldStartPosition, targetLocalPosition, layer));
         return true;
     }
 
+    // Each layer gets its own stacking column so piles never visually overlap: ore stacks
+    // straight up at the anchor, wood stacks up behind it, mana shards stack up to the side.
+    private Vector3 LocalSlotPosition(CarryLayer layer, int index)
+    {
+        switch (layer)
+        {
+            case CarryLayer.Wood:
+                return new Vector3(0f, index * woodItemHeight, -woodBackOffset);
+            case CarryLayer.ManaStone:
+                return new Vector3(manaSideOffset, index * manaItemHeight, 0f);
+            default:
+                return new Vector3(0f, index * itemHeight, 0f);
+        }
+    }
+
     public void Clear(CarryLayer layer)
     {
-        List<Transform> items = layer == CarryLayer.Ore ? oreItems : woodItems;
+        List<Transform> items = itemsByLayer[(int)layer];
 
         for (int i = 0; i < items.Count; i++)
         {
@@ -96,20 +113,12 @@ public class CarryStack : MonoBehaviour
         }
 
         items.Clear();
-
-        if (layer == CarryLayer.Ore)
-        {
-            reservedOre = 0;
-        }
-        else
-        {
-            reservedWood = 0;
-        }
+        reservedByLayer[(int)layer] = 0;
     }
 
     public void Deposit(CarryLayer layer, Vector3 targetPosition)
     {
-        List<Transform> items = layer == CarryLayer.Ore ? oreItems : woodItems;
+        List<Transform> items = itemsByLayer[(int)layer];
 
         for (int i = 0; i < items.Count; i++)
         {
@@ -125,15 +134,7 @@ public class CarryStack : MonoBehaviour
         }
 
         items.Clear();
-
-        if (layer == CarryLayer.Ore)
-        {
-            reservedOre = 0;
-        }
-        else
-        {
-            reservedWood = 0;
-        }
+        reservedByLayer[(int)layer] = 0;
     }
 
     private IEnumerator DepositFlightRoutine(Transform item, Vector3 targetPosition, float delay)
@@ -236,14 +237,7 @@ public class CarryStack : MonoBehaviour
         item.localPosition = targetLocalPosition;
         item.localRotation = Quaternion.identity;
 
-        if (layer == CarryLayer.Ore)
-        {
-            oreItems.Add(item);
-        }
-        else
-        {
-            woodItems.Add(item);
-        }
+        itemsByLayer[(int)layer].Add(item);
     }
 
     private void Update()
@@ -256,8 +250,10 @@ public class CarryStack : MonoBehaviour
         float speed = body != null ? body.linearVelocity.magnitude : 0f;
         float sway = Mathf.Sin(Time.time * swaySpeed) * swayAmplitude * Mathf.Clamp01(speed / 5f);
 
-        ApplySway(oreItems, sway);
-        ApplySway(woodItems, sway);
+        for (int i = 0; i < LayerCount; i++)
+        {
+            ApplySway(itemsByLayer[i], sway);
+        }
     }
 
     private static void ApplySway(List<Transform> items, float sway)

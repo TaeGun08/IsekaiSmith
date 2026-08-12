@@ -37,6 +37,7 @@ public class ResourceHUD : MonoBehaviour
         FieldMonsterSpawner.Instance.Bootstrap();
         PlayerCombat.Instance.Activate();
         PlayerHealthHUD.Instance.Show();
+        ManaStoneDepotBootstrap.Instance.Bootstrap();
     }
 
     // These six text objects were originally sized (fontSize 22) and packed (30px line spacing)

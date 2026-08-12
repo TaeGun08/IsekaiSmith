@@ -1623,7 +1623,54 @@ Unity 콘솔(`read_console`) 확인 결과 에러/경고 0건 — 컴파일 정�
 (평소 이 프로젝트 패턴 - 다음 턴에서 최종 확인 필요).
 
 ### 다음에 할 일 (TODO)
-- [ ] 다음 세션: 컴파일 최종 확인(.meta 생성 여부 포함) + Play Mode에서 슬라임 스폰/추격/공격/
-  처치/리스폰, 플레이어 HP 바 감소/사망 리스폰, HP 바가 다른 UI와 안 겹치는지 실제로 확인
+- [x] 다음 세션: 컴파일 최종 확인(.meta 생성 여부 포함) + Play Mode에서 슬라임 스폰/추격/공격/
+  처치/리스폰, 플레이어 HP 바 감소/사망 리스폰, HP 바가 다른 UI와 안 겹치는지 실제로 확인 →
+  아직 라이브 미검증(다음 세션), 대신 사용자 추가 요청으로 (계속 10) 먼저 진행
 - [ ] ② 재료·무기 다양화 착수 - 이때 `PlayerCombat.BaseDamage` 상수를 장착 무기 기반 계산식으로
   교체(코드에 TODO 표시해둠)
+
+---
+
+## 2026-08-12 (계속 10)
+
+### 사용자 요청 - 필드 몬스터 마석 드랍 + 등짐 적재
+"필드 몬스터에서 마석 엄청 품질이 낮은 마석을 얻을 수 있고, 마석은 통나무와 광석처럼 플레이어
+등에 쌓이도록 해줬으면 좋겠어. 나중에 플레이어가 쌓을 수 있는 제한 개수도 돈으로 늘릴 수 있고".
+`combat_design_v1.html` §2 ⑤1에서 "필드 몬스터 무보상 유지"로 제안했던 부분을 사용자 지시로
+대체 - §7(v1.1)에 정리, 브라우저로 다시 열어둠.
+
+### 구현
+- **`CarryStack.cs` 리팩터**: `CarryLayer`에 `ManaStone` 추가. 기존엔 Ore/Wood 두 레이어를
+  `reservedOre`/`reservedWood` 같은 필드 쌍 + 삼항연산자로 하드코딩했던 걸(레이어 3개부터는
+  삼항연산자가 감당 안 됨), `(int)CarryLayer`로 인덱싱하는 배열(`itemsByLayer`/`reservedByLayer`/
+  `capacities`) 기반으로 정리 - 나중에 레이어가 더 늘어나도 새 필드 하나 + 배열 크기만 손대면
+  됨. 기존 `oreCapacity`/`woodCapacity` 필드명은 그대로 유지(프리팹에 이미 저장된 값 보존).
+  마석 기본 적재량 6개(목재/광물의 8개보다 살짝 낮게, "엄청 낮은 품질" 설정에 맞춤).
+- **`CarryItemTemplates.cs`(신규)**: 마석 조각(보라 큐브) 캐리 비주얼을 실제 프리팹 에셋 없이
+  런타임 생성해서 재사용(`GameObjectPool`은 아무 GameObject나 인스턴스화 소스로 받아들여서
+  가능 - `UIShapes`가 스프라이트에 하는 것과 같은 방식). **주의 깊게 잡은 버그**: 템플릿을
+  `SetActive(false)`로 숨겨두려 했으나, Unity `Instantiate()`는 소스의 활성 상태를 그대로
+  복제하고 `GameObjectPool.Spawn()`의 최초 인스턴스화 경로는 `SetActive(true)`를 안 걸어줘서
+  -500 위치로 치워두는 방식으로 수정(재사용/풀링 경로는 원래도 정상 활성화됨).
+- **`StorageDepot.cs`**: `acceptedLayer`→`ResourceType` 매핑이 `Wood면 Wood 아니면 Ore`로
+  하드코딩돼있던 걸 `ManaStone` 케이스 추가한 switch로 일반화. 코드로 생성한 보관함이 레이어를
+  지정할 수 있게 `SetAcceptedLayer()` 공개 메서드 추가.
+- **`ManaStoneDepotBootstrap.cs`(신규)**: 세 번째 보관함(`StorageCrateMana`) 생성 - 위치는
+  임의 좌표가 아니라 **기존 `StorageCrate1`/`StorageCrate2`의 실제 위치·간격을 읽어서 그 선을
+  그대로 연장**해서 계산(정밀 배치 원칙). `StorageDepot` 컴포넌트를 그대로 재사용해서
+  `InteractionPadIndicator` 근접 발판도 자동으로 따라옴.
+- **`Monster.TakeDamage`**: `bool` 리턴으로 변경(이번 타격이 즉사였는지) - `PlayerCombat`이
+  중복 판정 없이 처치 순간에 정확히 한 번만 드랍을 굴리도록.
+- **`PlayerCombat.cs`**: 처치 시 45% 확률로 마석 드랍(등짐이 꽉 찼으면 그냥 스킵, 강제 없음).
+- `ResourceHUD.Start()`에 `ManaStoneDepotBootstrap.Instance.Bootstrap()` 추가.
+- **미착수(사용자 지시 대기)**: 등짐 한도를 골드로 늘리는 업그레이드 - `manaCapacity`가 단일
+  필드로 남아있어서 나중에 상점 UI 하나만 추가하면 되는 상태로만 준비해둠.
+
+컴파일: `refresh_unity(compile=request)` 요청 후 평소처럼 60초 타임아웃, 이후 `read_console`
+에러 0건 + 신규 파일 `.meta` 생성 확인(=실제로 임포트/컴파일 반영됨).
+
+### 다음에 할 일 (TODO)
+- [ ] 다음 세션: Play Mode에서 마석 드랍(붉은 슬라임 처치 후 낮은 확률로 보라 조각이 등에
+  쌓이는지), 세 번째 보관함 위치/근접 예치, 마석 HUD 텍스트(`ManaText`) 증가 확인
+- [ ] (계속 9)의 미검증 항목(슬라임 스폰/추격/공격/HP 바)도 함께 확인
+- [ ] ② 재료·무기 다양화 착수

@@ -17,6 +17,14 @@ public class StorageDepot : MonoBehaviour
     // distance, instead of a separately hardcoded distance that could drift out of sync.
     public float DepositRadius => depositRadius;
 
+    // Lets code-built depots (e.g. ManaStoneDepotBootstrap) configure which layer they accept
+    // after AddComponent<StorageDepot>() - scene-placed crates keep using the serialized
+    // Inspector value instead.
+    public void SetAcceptedLayer(CarryLayer layer)
+    {
+        acceptedLayer = layer;
+    }
+
     private void Awake()
     {
         InteractionPadIndicator.Attach(transform, depositRadius);
@@ -63,7 +71,19 @@ public class StorageDepot : MonoBehaviour
         storedAmount += amount;
         carryStack.Deposit(acceptedLayer, transform.position + Vector3.up * 0.4f);
 
-        ResourceType type = acceptedLayer == CarryLayer.Wood ? ResourceType.Wood : ResourceType.Ore;
-        ResourceBank.Add(type, amount);
+        ResourceBank.Add(ResourceTypeFor(acceptedLayer), amount);
+    }
+
+    private static ResourceType ResourceTypeFor(CarryLayer layer)
+    {
+        switch (layer)
+        {
+            case CarryLayer.Wood:
+                return ResourceType.Wood;
+            case CarryLayer.ManaStone:
+                return ResourceType.ManaStone;
+            default:
+                return ResourceType.Ore;
+        }
     }
 }

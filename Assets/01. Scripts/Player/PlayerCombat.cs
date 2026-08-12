@@ -13,6 +13,11 @@ public class PlayerCombat : MonoBehaviour
     private const float AttackInterval = 0.6f;
     private const float AttackRadius = 1.2f;
 
+    // "매우 낮은 품질" 마석 드랍 (user request) - a trickle, not a guaranteed farm; also gated by
+    // the player's mana carry capacity so a drop the player can't hold is just skipped rather than
+    // wasted or force-added. See combat_design_v1.html follow-up notes.
+    private const float ManaDropChance = 0.45f;
+
     private static PlayerCombat instance;
 
     public static PlayerCombat Instance
@@ -32,6 +37,7 @@ public class PlayerCombat : MonoBehaviour
 
     private float attackTimer;
     private ToolSwing playerToolSwing;
+    private CarryStack playerCarryStack;
 
     // Referencing Instance is enough to bootstrap this singleton - kept as an explicit call at
     // the ResourceHUD.Start() call site for readability, same as GuidedTutorial's pattern.
@@ -59,7 +65,8 @@ public class PlayerCombat : MonoBehaviour
         }
 
         attackTimer = AttackInterval;
-        target.TakeDamage(BaseDamage);
+        Vector3 targetPosition = target.transform.position;
+        bool defeated = target.TakeDamage(BaseDamage);
 
         if (playerToolSwing == null)
         {
@@ -69,6 +76,31 @@ public class PlayerCombat : MonoBehaviour
         // Placeholder swing (no dedicated weapon visual exists yet) - real weapon models arrive
         // with the equipped-weapon system (Phase 2).
         playerToolSwing?.PlayAxeSwing();
+
+        if (defeated)
+        {
+            TryDropManaStone(targetPosition);
+        }
+    }
+
+    private void TryDropManaStone(Vector3 position)
+    {
+        if (Random.value > ManaDropChance)
+        {
+            return;
+        }
+
+        if (playerCarryStack == null)
+        {
+            playerCarryStack = PlayerMotor.Instance.GetComponentInChildren<CarryStack>();
+        }
+
+        if (playerCarryStack == null || playerCarryStack.IsFull(CarryLayer.ManaStone))
+        {
+            return; // very low quality drop - not worth forcing, just skip if the player's full up
+        }
+
+        playerCarryStack.TryAdd(CarryItemTemplates.ManaStoneChip, position, CarryLayer.ManaStone);
     }
 
     private Monster FindNearestInRange()
