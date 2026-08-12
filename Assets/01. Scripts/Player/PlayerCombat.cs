@@ -78,6 +78,18 @@ public class PlayerCombat : MonoBehaviour
         Vector3 targetPosition = target.transform.position;
         bool defeated = target.TakeDamage(BaseDamage);
 
+        // Impact spark + camera shake so a landed hit actually reads as one (user report:
+        // "현재 너무 허전해") - a bigger, distinct burst on the killing blow instead of stacking
+        // both on the same hit.
+        if (defeated)
+        {
+            HitEffects.Instance.MonsterDefeated(targetPosition);
+        }
+        else
+        {
+            HitEffects.Instance.PlayerHitMonster(targetPosition);
+        }
+
         if (playerToolSwing == null)
         {
             playerToolSwing = PlayerMotor.Instance.GetComponentInChildren<ToolSwing>();

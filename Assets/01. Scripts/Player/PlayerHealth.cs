@@ -21,11 +21,13 @@ public static class PlayerHealth
     public static event Action OnDamaged;
     public static event Action OnDeath;
 
-    public static void TakeDamage(float amount)
+    // Returns whether the hit actually landed (false during invulnerability or once already
+    // dead) - lets Monster skip its hit-effect/camera-shake when nothing really happened.
+    public static bool TakeDamage(float amount)
     {
         if (IsInvulnerable || currentHP <= 0f)
         {
-            return;
+            return false;
         }
 
         currentHP = Mathf.Max(0f, currentHP - amount);
@@ -35,16 +37,18 @@ public static class PlayerHealth
         {
             Die();
         }
+
+        return true;
     }
 
-    // No teleport back to the smithy anymore (user report: playing far out for a while and
-    // suddenly getting yanked back to the counter felt disruptive, not like a real "death") -
-    // just heal in place with a brief invulnerability window so a losing fight doesn't chain into
-    // an instant second death. See combat_design_v1.html follow-up notes.
+    // Stays plain state here - no position change, no teleport. PlayerDeathPresentation
+    // subscribes to OnDeath separately and owns the actual collapse/fade/teleport/revive
+    // presentation (needs coroutines, which this static class can't run). See
+    // combat_design_v1.html follow-up notes.
     private static void Die()
     {
-        OnDeath?.Invoke();
         currentHP = MaxHP;
         invulnerableUntil = Time.time + RespawnInvulnerabilitySeconds;
+        OnDeath?.Invoke();
     }
 }

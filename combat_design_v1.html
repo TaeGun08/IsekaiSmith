@@ -192,12 +192,12 @@
       향하게 수정, "사선" 패턴도 손으로 고른 각도 대신 수직·수평 두 방향의 정확한 중간값
       (<code>Quaternion.Slerp</code>)으로 바꿔 같은 실수가 재발하지 않게 함.</li>
       <li><b>체력</b> - 최대 100. 몬스터 접촉 피해로만 감소(다른 위협 없음).</li>
-      <li><b>사망 처리</b> <span class="tag" style="background:#f3ece0; color:var(--warn);">v1.5
-      수정 - 순간이동 제거</span> - HP 0 도달 시: HP 풀회복 + 1.5초 무적(연속 사망 방지) +
-      골드/재료 손실 없음. <b>대장간으로 순간이동시키던 부분은 제거</b> - 사용자 피드백: "캐릭터가
-      장시간 멀리 있으면 판매 테이블로 순간이동하는건 없애주고" - 사냥터가 채집지보다 더 뒤로
-      밀려나면서((계속 13) 참고) 전투 중 죽을 때마다 먼 판매대까지 다시 걸어와야 하는 게 오히려
-      더 거슬리는 경험이 됐음. 지금 위치에서 그대로 회복하는 것으로 단순화.</li>
+      <li><b>사망 처리</b> - HP 0 도달 시: HP 풀회복 + 1.5초 무적(연속 사망 방지) + 골드/재료 손실
+      없음. <span class="tag" style="background:#f3ece0; color:var(--warn);">v1.5</span> 처음엔
+      대장간 순간이동을 완전히 뺐다가(사용자 피드백: "장시간 멀리 있으면 순간이동하는건 없애주고"),
+      <span class="tag" style="background:#f3ece0; color:var(--warn);">v1.6</span>에서 "차라리
+      페이드 인아웃 되면서 자연스럽게" 다시 넣는 걸로 재확정 - §7 참고, 순간이동 자체가 아니라
+      <b>연출 없이 화면이 뚝 끊기는 것</b>이 진짜 문제였던 것으로 정리.</li>
       <li><b>몬스터 조준</b> <span class="tag" style="background:#f3ece0; color:var(--warn);">v1.5
       추가</span> - 사용자 피드백("검을 휘두를 때 몬스터를 바라보면 좋겠어")으로
       <code>PlayerCombat</code>이 사정거리 안에 몬스터가 있으면(공격 쿨다운 중이어도) 매 프레임
@@ -271,11 +271,55 @@
     지시 대기.</p>
   </div>
 
-  <h2><span class="num">8.</span> 다음 단계 예고</h2>
+  <h2><span class="num">8.</span> 타격 이펙트 + 사망 연출 <span class="tag" style="background:#f3ece0; color:var(--warn);">v1.6 - "허전하다" 피드백</span></h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;">사용자 피드백: "몬스터를
+    때렸을 때 타격 이펙트나 카메라 연출 등 있었으면 좋겠어. 현재 너무 허전해" + "차라리 페이드
+    인아웃이 되면서 자연스럽게 순간이동... 캐릭터가 쓰러지고 난 후에". §4에서 뺐던 사망 순간이동을
+    <b>연출로 감싸서</b> 되살리고, 타격 자체에도 피드백을 추가합니다.</p>
+    <table class="spec">
+      <tr><th style="width:190px;">타격 스파크</th><td><code>OreNode</code>/<code>WoodNode</code>가
+      이미 쓰던 "조각 N개가 튀어나가며 축소·회전 후 소멸" 기법을 그대로 재사용(새 기법 발명 안 함) -
+      다만 이 둘은 씬에 미리 배치된 <code>fragmentPrefab</code>을 참조하는 반면, 전투 쪽은 몬스터가
+      전부 런타임 생성이라 프리팹 에셋 없이 코드로 스파크 템플릿을 직접 만듦(<code>CarryItemTemplates</code>와
+      동일 요령). 플레이어가 맞출 때는 골드색, 맞을 때는 붉은색, 처치 시엔 더 큰 초록색 버스트로
+      구분.</td></tr>
+      <tr><th>카메라 흔들림</th><td>크래프팅 미니게임에서 이미 쓰던 <code>CameraFollow.Shake()</code>를
+      그대로 재사용 - 새 카메라 이펙트 시스템을 만들지 않음. 플레이어가 맞을 때가 때릴 때보다
+      살짝 더 크게(맞는 쪽이 더 놀라워야 함).</td></tr>
+      <tr><th>사망 연출</th><td>순서대로: ① 캐릭터 모델이 앞으로 쓰러짐(0.35초) → ② 화면이
+      검게 페이드아웃(0.3초) → ③ <b>화면이 검은 동안</b> 대장간으로 순간이동 → ④ 페이드인(0.3초)
+      → ⑤ 모델을 원래 자세로 복귀. 실제로 없앴어야 했던 건 순간이동 자체가 아니라 "아무 예고
+      없이 화면이 뚝 끊기는 느낌"이었던 것으로 재해석.</td></tr>
+    </table>
+    <p class="note">전부 기존 기법 재사용(새 파티클 시스템/셰이더 없음) - <code>HitEffects</code>
+    (신규, <code>Combat/</code>), <code>ScreenFade</code>(신규, <code>UI/</code>),
+    <code>PlayerDeathPresentation</code>(신규, <code>Player/</code>, <code>PlayerHealth.OnDeath</code>
+    구독) 3개 클래스로 분리 - <code>PlayerHealth</code>는 여전히 순수 데이터 클래스로 유지.</p>
+  </div>
+
+  <h2><span class="num">9.</span> 추가 아이디어 제안 <span class="tag" style="background:#eef3ea; color:var(--good);">검토용 - 미착수</span></h2>
+  <div class="card">
+    <ul class="qa-list">
+      <li><b>데미지 숫자 팝업</b> - 맞을 때/때릴 때 위로 떠오르는 "-10" 같은 숫자. RPG류에서
+      가장 체감 큰 피드백 중 하나. 다음 손댈 때 우선순위로 제안.</li>
+      <li><b>저체력 화면 비네트</b> - HP가 낮을 때 화면 가장자리가 붉게 은은히 펄스 - 이번에
+      만든 <code>ScreenFade</code>와 같은 전체화면 오버레이 기법을 그대로 재사용 가능(새 시스템
+      불필요).</li>
+      <li><b>몬스터 처치 텍스트</b> - 처치 순간 "Defeated!" 같은 짧은 팝업(월드스페이스, 손님
+      말풍선/RUSH HOUR 라벨과 동일 기법).</li>
+      <li><b>효과음</b> - 지금 이 게임엔 게임플레이용 오디오 시스템 자체가 없음(에디터 툴인
+      AiCompanion만 <code>EditorApplication.Beep()</code> 사용) - 추가하려면 오디오 소스/클립
+      파이프라인을 새로 놓아야 해서 이번엔 범위 밖으로 보류 제안.</li>
+    </ul>
+  </div>
+
+  <h2><span class="num">10.</span> 다음 단계 예고</h2>
   <div class="phase-row">
     <div class="phase-card current">
       <h4>① 전투/사냥터 (이 문서)</h4>
-      <ul><li>필드 슬라임 + 체력/사망</li><li>자동 근접 전투</li><li>저품질 마석 드랍 + 등짐 적재</li></ul>
+      <ul><li>필드 슬라임 + 체력/사망</li><li>자동 근접 전투</li><li>저품질 마석 드랍 + 등짐 적재</li>
+      <li>타격 이펙트 + 사망 연출</li></ul>
     </div>
     <div class="phase-card">
       <h4>② 재료·무기 다양화</h4>
@@ -293,7 +337,7 @@
     </div>
   </div>
 
-  <footer>combat_design_v1.html v1.5 · 필드 전투 MVP + 마석 드랍/등짐 적재 + 검 스윙/조준 + 사망 순간이동 제거 + 버그 수정/최적화</footer>
+  <footer>combat_design_v1.html v1.6 · 필드 전투 MVP + 마석 드랍/등짐 적재 + 검 스윙/조준 + 타격 이펙트/사망 연출 + 버그 수정/최적화</footer>
 </div>
 </body>
 </html>

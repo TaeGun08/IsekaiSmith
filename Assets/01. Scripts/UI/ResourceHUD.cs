@@ -38,6 +38,7 @@ public class ResourceHUD : MonoBehaviour
         PlayerCombat.Instance.Activate();
         PlayerHealthHUD.Instance.Show();
         ManaStoneDepotBootstrap.Instance.Bootstrap();
+        PlayerDeathPresentation.Instance.Activate();
     }
 
     // These six text objects were originally sized (fontSize 22) and packed (30px line spacing)

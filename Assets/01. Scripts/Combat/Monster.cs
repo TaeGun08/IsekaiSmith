@@ -112,7 +112,13 @@ public class Monster : MonoBehaviour
             if (contactTimer <= 0f)
             {
                 contactTimer = ContactInterval;
-                PlayerHealth.TakeDamage(ContactDamage);
+
+                // Only play the hit spark/shake if the hit actually landed (skips it during the
+                // player's post-respawn invulnerability window, where nothing really happened).
+                if (PlayerHealth.TakeDamage(ContactDamage))
+                {
+                    HitEffects.Instance.MonsterHitPlayer(playerPos);
+                }
             }
             return;
         }
