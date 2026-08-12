@@ -37,17 +37,14 @@ public static class PlayerHealth
         }
     }
 
+    // No teleport back to the smithy anymore (user report: playing far out for a while and
+    // suddenly getting yanked back to the counter felt disruptive, not like a real "death") -
+    // just heal in place with a brief invulnerability window so a losing fight doesn't chain into
+    // an instant second death. See combat_design_v1.html follow-up notes.
     private static void Die()
     {
         OnDeath?.Invoke();
         currentHP = MaxHP;
         invulnerableUntil = Time.time + RespawnInvulnerabilitySeconds;
-
-        if (PlayerMotor.Instance != null)
-        {
-            GameObject counterGO = GameObject.Find("SalesCounter");
-            Vector3 respawnPoint = counterGO != null ? counterGO.transform.position : PlayerMotor.Instance.transform.position;
-            PlayerMotor.Instance.transform.position = respawnPoint;
-        }
     }
 }

@@ -23,6 +23,19 @@ public class ToolSwing : MonoBehaviour
 
     private const float SwordSweepHalfAngle = 65f;
 
+    // Vertical's hold keeps the blade's length axis pointing local +Y (up) - a neutral "held
+    // upright" pose that never points back through the body.
+    private static readonly Quaternion SwordVerticalHold = Quaternion.Euler(0f, 90f, 0f);
+    // Horizontal's hold rotates the blade's length axis to point local +Z (forward, away from the
+    // body) instead of -Z (back through the torso) - the original version used Euler(-90,0,0),
+    // which pointed the blade backward at rest. Combined with the player not necessarily facing
+    // the monster (now fixed in PlayerCombat), that's exactly what read as "clips through the
+    // player's body" / "doesn't even look aimed at the monster".
+    private static readonly Quaternion SwordHorizontalHold = Quaternion.Euler(90f, 0f, 0f);
+    // Diagonal is just the midpoint between the two verified-safe holds above, instead of a
+    // separately hand-picked Euler angle that could reintroduce the same backward-pointing bug.
+    private static readonly Quaternion SwordDiagonalHold = Quaternion.Slerp(SwordVerticalHold, SwordHorizontalHold, 0.5f);
+
     // Three visually distinct swing shapes (user request: "사선으로 휘두르다던가 등... 종, 횡
     // 다양한 휘두름"), but ALL of them rotate around the sword's own local Z axis - the blade's
     // thickness axis, running parallel to its two flat faces. Rotating around that specific axis
@@ -35,14 +48,9 @@ public class ToolSwing : MonoBehaviour
     // randomly per swing (never repeating the immediately previous one) in PlaySwordSwing().
     private static readonly SwingPattern[] SwordPatterns =
     {
-        // Vertical overhead chop - holds the blade with its edge-axis pointing sideways, so the
-        // shared local-Z swing sweeps the blade up-down in front of the player.
-        MakeSwordPattern(Quaternion.Euler(0f, 90f, 0f)),
-        // Horizontal slash - holds the blade laid toward the target, so the same swing sweeps it
-        // left-right instead.
-        MakeSwordPattern(Quaternion.Euler(-90f, 0f, 0f)),
-        // Diagonal slash - a hold orientation halfway between the two above.
-        MakeSwordPattern(Quaternion.Euler(-45f, 45f, 0f)),
+        MakeSwordPattern(SwordVerticalHold),
+        MakeSwordPattern(SwordHorizontalHold),
+        MakeSwordPattern(SwordDiagonalHold),
     };
 
     private static SwingPattern MakeSwordPattern(Quaternion holdOrientation)

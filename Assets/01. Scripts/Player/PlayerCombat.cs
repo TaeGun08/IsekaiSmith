@@ -54,13 +54,22 @@ public class PlayerCombat : MonoBehaviour
         }
 
         attackTimer -= Time.deltaTime;
-        if (attackTimer > 0f)
+
+        Monster target = FindNearestInRange();
+        if (target == null)
         {
             return;
         }
 
-        Monster target = FindNearestInRange();
-        if (target == null)
+        // Face the monster while it's in range, same gate PlayerWoodcutting uses for trees (don't
+        // fight the player's own steering while they're actively moving) - user report: swings
+        // didn't look aimed at the monster at all.
+        if (!PlayerMotor.Instance.HasMovementInput)
+        {
+            PlayerMotor.Instance.FaceTarget(target.transform.position);
+        }
+
+        if (attackTimer > 0f)
         {
             return;
         }
