@@ -76,7 +76,11 @@ public class ResourceHUD : MonoBehaviour
     private void Update()
     {
         int wood = ResourceBank.Get(ResourceType.Wood);
-        int ore = ResourceBank.Get(ResourceType.Ore);
+        // Graded stock (OreBank), not the flat ResourceBank.Ore count - that one is now a
+        // write-only "lifetime deposited" signal GuidedTutorial reads, no longer actual current
+        // stock once crafting started spending from OreBank instead. See
+        // weapon_diversity_design_v1.html §3.
+        int ore = OreBank.TotalCurrent;
         int mana = ResourceBank.Get(ResourceType.ManaStone);
         int tool = ToolInventory.Total;
         int gold = SalesCurrency.Gold;

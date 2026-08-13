@@ -7,10 +7,11 @@ using UnityEngine;
 // component to wire this to. See combat_design_v1.html §4.
 public class PlayerCombat : MonoBehaviour
 {
-    // TODO Phase 2 (game_design_doc.html §9 / combat_design_v1.html §6): once the equipped-weapon
-    // system exists, replace this fixed value with a calculation based on the equipped weapon's
-    // ore grade instead.
-    private const float BaseDamage = 10f;
+    // Follows the best-owned sword's ore grade (ToolInventory.BestOreGrade) instead of a flat
+    // value - "장착 무기 = 내가 만든 그 무기" (game_design_doc.html §9), minus a real equip-
+    // selection UI for now (weapon_diversity_design_v1.html §1). Iron's AttackPower matches the
+    // old flat 10 exactly, so a session with nothing crafted yet plays identically to before.
+    private static float BaseDamage => OreGradeUtility.AttackPower(ToolInventory.BestOreGrade);
     private const float AttackInterval = 0.6f;
     private const float AttackRadius = 1.2f;
 

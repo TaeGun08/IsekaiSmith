@@ -72,6 +72,15 @@ public class StorageDepot : MonoBehaviour
         carryStack.Deposit(acceptedLayer, transform.position + Vector3.up * 0.4f);
 
         ResourceBank.Add(ResourceTypeFor(acceptedLayer), amount);
+
+        // Ore additionally rolls into the graded bank (weapon_diversity_design_v1.html §3) -
+        // ResourceBank.Ore above is left untouched on purpose (GuidedTutorial watches it to
+        // detect "ore was deposited"), OreBank is the new real source of truth crafting spends
+        // from.
+        if (acceptedLayer == CarryLayer.Ore)
+        {
+            OreBank.DepositMined(amount);
+        }
     }
 
     private static ResourceType ResourceTypeFor(CarryLayer layer)

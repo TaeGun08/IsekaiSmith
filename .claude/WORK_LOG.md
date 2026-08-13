@@ -1924,10 +1924,51 @@ Phase 2(장착 무기 시스템)로 잡혀있는 내용의 재확인 - 이번엔
 
 ### 다음에 할 일 (TODO)
 - [ ] 다음 세션: Play Mode에서 플레이어가 맞을 때 몸이 빨갛게 플래시되는지 확인
-- [ ] **② 재료·무기 다양화 착수 - 새 세션 권장** (이번 세션이 전투 MVP 전체(①)를 처음부터
-  끝까지 진행하며 매우 길어짐 - `feedback_long_session_token_growth` 방침대로 다음 세션에서
-  시작 제안). 시작할 때 참고할 것: `combat_design_v1.html`(전투 ① 전체 기록, §6이 "다음 단계
-  예고" 로드맵), `game_design_doc.html` §3(광물 철→강철→미스릴→오리하르콘, 검/도끼/망치/단검
-  매트릭스, 마석 인챈트). 이번 세션에서 이미 깔아둔 확장 지점: `PlayerCombat.BaseDamage`
-  상수(TODO 주석 있음, 장착 무기 스탯 계산으로 교체 예정), `CarryStack`의 배열 기반 레이어
-  구조(레이어 추가 쉬움).
+- [x] ② 재료·무기 다양화 착수 - 새 세션을 제안했으나 사용자가 "계속 진행해줘"로 이 세션에서
+  이어가기로 결정, 아래 (계속 18)에서 진행
+
+---
+
+## 2026-08-12 (계속 18)
+
+### ② 재료·무기 다양화 - 검 세로축 MVP 구현
+새 세션 제안을 사용자가 "계속 진행해줘"로 넘기고 이 세션에서 이어감. `game_design_doc.html`
+§3(광물 등급 철→강철→미스릴→오리하르콘)을 실제 구현 가능한 1단계로 구체화 -
+`weapon_diversity_design_v1.html`(신규) 작성 후 구현.
+
+### 조사 중 발견한 기존 구조
+- `CraftingSilhouetteUI`(재료를 슬롯에 드래그해 넣는 기존 UI)는 슬롯에 재료를 "채웠는지"만
+  보고 실제 소모는 `CraftingStation`의 고정 필드(`oreType`/`oreAmount`)를 그대로 씀 - 슬롯
+  선택과 실제 소모가 이미 분리되어 있었음(이번에 만든 문제 아님, 기존 상태). 이 연결 자체는
+  범위가 커서 이번엔 손 안 대고 "자동으로 최고 등급 사용"으로 우회(§1에 기록).
+  `weapon_diversity_design_v1.html`
+- `GuidedTutorial`이 `ResourceBank.Get(ResourceType.Ore)`를 "광물 늘었나" 감지용으로 읽고 있어서,
+  이 값을 건드리면 튜토리얼이 멈춤 - 그대로 두고 `OreBank`를 병행 시스템으로 추가.
+
+### 구현
+- **`OreGrade.cs`/`OreBank.cs`(신규, `Mining/`)**: `ToolInventory`와 같은 등급별 딕셔너리
+  패턴. 해금 조건은 `OrderQueueManager.minGradeCeiling`이 이미 쓰던 "누적치가 오르면 상한선
+  아래 등급이 랜덤하게 섞여 나옴" 패턴 재사용 - 채석장 누적 예치량 기준(철 시작 / 강철 60개 /
+  미스릴 180개 / 오리하르콘 360개). 던전(로드맵 ③)이 생기면 `Ceiling` 조건 하나만 교체하면 됨.
+- **`StorageDepot.cs`**: 광물 예치 시 기존 `ResourceBank.Add(Ore, ...)`는 그대로 두고(튜토리얼
+  호환) `OreBank.DepositMined()` 병행 호출.
+- **`ResourceHUD.cs`**: "Ore" 표시를 `OreBank.TotalCurrent`(등급 합산)로 교체.
+- **`CraftingStation.cs`**: 입력 판정/소모를 `OreBank.TryGetBestAvailable`/`TrySpend`로 교체 -
+  보유한 가장 좋은 등급 자동 사용. 결과 등급을 `ToolInventory`/`CraftingMinigameUI.ShowGradeResult`
+  로 전달해서 "Steel Fine! x1"처럼 표시.
+- **`ToolInventory.cs`**: 키를 `CraftGrade` 하나에서 `(OreGrade, CraftGrade)` 조합으로 확장,
+  `BestOreGrade`(보유 중 최고 광물 등급) 신규 노출 - 손님 주문은 여전히 품질만 확인(범위 밖).
+- **`PlayerCombat.cs`**: `BaseDamage` 고정 상수(10)를
+  `OreGradeUtility.AttackPower(ToolInventory.BestOreGrade)` 계산 프로퍼티로 교체 - 철 공격력을
+  기존 값과 동일하게 맞춰서 미제작 세션은 체감 안 바뀜(철10/강철16/미스릴24/오리하르콘34).
+
+### 막힌 부분 (즉시 해결)
+컴파일 에러 2건 - `OreBank.cs`의 `Random` 모호성(`System`/`UnityEngine`, 이 프로젝트에서
+반복된 패턴 - `UnityEngine.Random`으로 명시해서 해결), `ShowGradeResult` 시그니처 변경이
+한 텀 늦게 반영되며 발생한 일시적 불일치(재컴파일로 자연 해소). 재확인 후 에러 0건.
+
+### 다음에 할 일 (TODO)
+- [ ] 다음 세션: Play Mode에서 광물 채굴→예치→제작까지 한 바퀴 돌며 등급 표시("Steel Fine!"
+  등)와 전투 공격력이 실제로 바뀌는지 확인 (누적 60개 예치로 강철 해금 테스트 필요)
+- [ ] 도끼/망치/단검 - §3 매트릭스 나머지 (검 세로축 검증 후)
+- [ ] ③ 해금 게이트 - 던전이 생기면 `OreBank.Ceiling`의 임시 조건을 던전 클리어 플래그로 교체

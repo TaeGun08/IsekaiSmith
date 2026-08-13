@@ -90,14 +90,16 @@ public class CraftingStation : MonoBehaviour
             InteractionPromptUI.Instance.Show(
                 stationTitle,
                 () => StartCoroutine(CraftWithSilhouetteAndMinigames()),
-                () => ApplyCraft(0.5f, 0, true, out _));
+                () => ApplyCraft(0.5f, 0, true, out _, out _));
             promptShown = true;
         }
     }
 
+    // Ore now comes from the graded OreBank (weapon_diversity_design_v1.html §3) - oreType stays
+    // serialized only for wood/mana, which haven't gained tiers yet.
     private bool HasEnoughInputs()
     {
-        return ResourceBank.Get(oreType) >= oreAmount && ResourceBank.Get(woodType) >= woodAmount;
+        return OreBank.TryGetBestAvailable(oreAmount, out _) && ResourceBank.Get(woodType) >= woodAmount;
     }
 
     // Public read of the same eligibility check Update() uses for the interaction prompt -
@@ -109,7 +111,7 @@ public class CraftingStation : MonoBehaviour
     // actual need instead of "whichever resource node happens to be physically closer", which
     // can get stuck looping on one resource type forever if its field is nearer to the player's
     // usual path than the other.
-    public bool NeedsOre => ResourceBank.Get(oreType) < oreAmount;
+    public bool NeedsOre => !OreBank.TryGetBestAvailable(oreAmount, out _);
     public bool NeedsWood => ResourceBank.Get(woodType) < woodAmount;
 
     // Read-only recipe amounts - lets GuidedTutorial set its "gather N wood/ore" targets from the
@@ -133,7 +135,7 @@ public class CraftingStation : MonoBehaviour
             return false;
         }
 
-        grade = ApplyCraft(0.5f, 0, true, out amount);
+        grade = ApplyCraft(0.5f, 0, true, out amount, out _);
         return true;
     }
 
@@ -168,21 +170,22 @@ public class CraftingStation : MonoBehaviour
             q => hammerQuality = q);
 
         float quality = (meltQuality + hammerQuality) * 0.5f;
-        CraftGrade grade = ApplyCraft(quality, manaSpent, false, out int amount);
-        yield return CraftingMinigameUI.Instance.ShowGradeResult(grade, amount);
+        CraftGrade grade = ApplyCraft(quality, manaSpent, false, out int amount, out OreGrade oreGrade);
+        yield return CraftingMinigameUI.Instance.ShowGradeResult(oreGrade, grade, amount);
         isCrafting = false;
     }
 
-    private CraftGrade ApplyCraft(float quality, int manaSpent, bool isQuickCraft, out int amount)
+    private CraftGrade ApplyCraft(float quality, int manaSpent, bool isQuickCraft, out int amount, out OreGrade oreGrade)
     {
         amount = 0;
+        oreGrade = OreGrade.Iron;
 
-        if (!HasEnoughInputs())
+        if (!HasEnoughInputs() || !OreBank.TryGetBestAvailable(oreAmount, out oreGrade))
         {
             return CraftGrade.Rough;
         }
 
-        ResourceBank.TrySpend(oreType, oreAmount);
+        OreBank.TrySpend(oreGrade, oreAmount);
         ResourceBank.TrySpend(woodType, woodAmount);
 
         if (manaSpent > 0)
@@ -193,7 +196,7 @@ public class CraftingStation : MonoBehaviour
 
         CraftGrade grade = CraftGradeUtility.GradeFor(quality);
         amount = outputAmount + CraftGradeUtility.BonusAmount(grade);
-        ToolInventory.Add(grade, amount);
+        ToolInventory.Add(oreGrade, grade, amount);
         OnCrafted?.Invoke(isQuickCraft);
         return grade;
     }
