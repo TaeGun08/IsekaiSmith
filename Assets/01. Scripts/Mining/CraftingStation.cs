@@ -14,7 +14,8 @@ public class CraftingStation : MonoBehaviour
     public static event Action<bool> OnCrafted;
 
 
-    [SerializeField] private ResourceType oreType = ResourceType.Ore;
+    // No oreType field - ore is always graded (OreBank.TryGetBestAvailable/TrySpend), unlike
+    // wood/mana which are still flat ResourceBank counts. See weapon_diversity_design_v1.html §3.
     [SerializeField] private int oreAmount = 2;
     [SerializeField] private ResourceType woodType = ResourceType.Wood;
     [SerializeField] private int woodAmount = 1;
@@ -95,8 +96,6 @@ public class CraftingStation : MonoBehaviour
         }
     }
 
-    // Ore now comes from the graded OreBank (weapon_diversity_design_v1.html §3) - oreType stays
-    // serialized only for wood/mana, which haven't gained tiers yet.
     private bool HasEnoughInputs()
     {
         return OreBank.TryGetBestAvailable(oreAmount, out _) && ResourceBank.Get(woodType) >= woodAmount;

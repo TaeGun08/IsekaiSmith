@@ -45,15 +45,28 @@ public class PlayerDeathPresentation : MonoBehaviour
         PlayerHealth.OnDeath -= HandleDeath;
     }
 
+    private bool sequenceRunning;
+
     private void HandleDeath()
     {
+        // Guards against a second OnDeath firing while a sequence is already mid-flight (the
+        // 1.5s invulnerability window should already prevent that in practice, but overlapping
+        // coroutines would otherwise fight over the same model.localRotation and glitch visibly).
+        if (sequenceRunning)
+        {
+            return;
+        }
+
         StartCoroutine(DeathSequence());
     }
 
     private IEnumerator DeathSequence()
     {
+        sequenceRunning = true;
+
         if (PlayerMotor.Instance == null)
         {
+            sequenceRunning = false;
             yield break;
         }
 
@@ -72,6 +85,8 @@ public class PlayerDeathPresentation : MonoBehaviour
         {
             model.localRotation = Quaternion.identity;
         }
+
+        sequenceRunning = false;
     }
 
     private static IEnumerator Collapse(Transform model)

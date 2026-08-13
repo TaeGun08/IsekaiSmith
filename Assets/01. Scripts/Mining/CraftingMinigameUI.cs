@@ -81,6 +81,13 @@ public class CraftingMinigameUI : MonoBehaviour
         canvasGO.transform.SetParent(transform, false);
         var canvas = canvasGO.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        // Was left at the default (0) - exactly tied with FloatingJoystick's full-screen touch
+        // zone (HUD Canvas, also order 0), so touches during the hammering minigame could win on
+        // the joystick instead of the drag handle, moving the character mid-swing (user report:
+        // "망치질 부분에서 터치를 하면 조이스틱이 활성화하고 캐릭터가 움직여"). Matches
+        // CraftingSilhouetteUI's order (10) - the two run sequentially in the same crafting flow
+        // and never show at once, so sharing a value is fine.
+        canvas.sortingOrder = 10;
         var scaler = canvasGO.GetComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1080, 1920);

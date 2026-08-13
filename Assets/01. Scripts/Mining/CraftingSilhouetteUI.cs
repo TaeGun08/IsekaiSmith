@@ -318,7 +318,11 @@ public class CraftingSilhouetteUI : MonoBehaviour
 
         foreach (ResourceType type in MaterialCategoryUtility.AllInCategory(slot.Category))
         {
-            int owned = ResourceBank.Get(type);
+            // Ore's real current stock now lives in OreBank (weapon_diversity_design_v1.html §3) -
+            // ResourceBank.Ore itself became a write-only "lifetime deposited" counter that never
+            // decreases once CraftingStation started spending from OreBank instead, so reading it
+            // here would show an ever-growing, wrong "owned" count.
+            int owned = type == ResourceType.Ore ? OreBank.TotalCurrent : ResourceBank.Get(type);
             if (owned <= 0 && slot.Filled != type)
             {
                 continue;
