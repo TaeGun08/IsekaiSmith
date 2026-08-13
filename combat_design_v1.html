@@ -192,12 +192,14 @@
       향하게 수정, "사선" 패턴도 손으로 고른 각도 대신 수직·수평 두 방향의 정확한 중간값
       (<code>Quaternion.Slerp</code>)으로 바꿔 같은 실수가 재발하지 않게 함.</li>
       <li><b>체력</b> - 최대 100. 몬스터 접촉 피해로만 감소(다른 위협 없음).</li>
-      <li><b>사망 처리</b> - HP 0 도달 시: HP 풀회복 + 1.5초 무적(연속 사망 방지) + 골드/재료 손실
-      없음. <span class="tag" style="background:#f3ece0; color:var(--warn);">v1.5</span> 처음엔
+      <li><b>사망 처리</b> - HP 0 도달 시: HP 풀회복 + 1.5초 무적(연속 사망 방지). <span class="tag" style="background:#f3ece0; color:var(--warn);">v1.5</span> 처음엔
       대장간 순간이동을 완전히 뺐다가(사용자 피드백: "장시간 멀리 있으면 순간이동하는건 없애주고"),
       <span class="tag" style="background:#f3ece0; color:var(--warn);">v1.6</span>에서 "차라리
       페이드 인아웃 되면서 자연스럽게" 다시 넣는 걸로 재확정 - §7 참고, 순간이동 자체가 아니라
-      <b>연출 없이 화면이 뚝 끊기는 것</b>이 진짜 문제였던 것으로 정리.</li>
+      <b>연출 없이 화면이 뚝 끊기는 것</b>이 진짜 문제였던 것으로 정리. <span class="tag" style="background:#f3ece0; color:var(--warn);">v1.8</span>
+      사용자 요청으로 <b>등짐(미예치 목재/광물/마석)은 화면이 검은 동안 전부 소실</b> - 이미
+      은행/골드/제작된 도구는 안전, "죽으면 갖고 있던 것만 위험해진다"는 실질적인 리스크가 처음
+      생김. 죽어도 손실이 아예 없던 원래 방침은 이 부분만 수정.</li>
       <li><b>몬스터 조준</b> <span class="tag" style="background:#f3ece0; color:var(--warn);">v1.5
       추가</span> - 사용자 피드백("검을 휘두를 때 몬스터를 바라보면 좋겠어")으로
       <code>PlayerCombat</code>이 사정거리 안에 몬스터가 있으면(공격 쿨다운 중이어도) 매 프레임
@@ -342,7 +344,7 @@
     </div>
   </div>
 
-  <footer>combat_design_v1.html v1.7 · 필드 전투 MVP + 마석 드랍/등짐 적재 + 검 스윙/조준 + 타격 이펙트(플레이어 피격 플래시 포함)/사망 연출 + 버그 수정/최적화</footer>
+  <footer>combat_design_v1.html v1.8 · 필드 전투 MVP + 마석 드랍/등짐 적재 + 검 스윙/조준 + 타격 이펙트/사망 연출(등짐 소실 포함) + 버그 수정/최적화</footer>
 </div>
 </body>
 </html>

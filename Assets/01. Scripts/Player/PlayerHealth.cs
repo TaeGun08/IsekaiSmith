@@ -3,8 +3,10 @@ using UnityEngine;
 
 // Pure state - same convention as ResourceBank/ToolInventory/SalesCurrency/Reputation. Combat
 // classes (Monster) call into TakeDamage(); PlayerHealthHUD polls Percent01 each frame to render
-// a bar. No gold/material loss on death (matches Reputation's soft penalty for missed orders -
-// this game has consistently avoided hard punishment). See combat_design_v1.html §4.
+// a bar. Banked stock/gold/crafted tools survive death untouched (matches Reputation's soft
+// penalty for missed orders - this game has generally avoided hard punishment); only unbanked
+// *carried* resources are lost, handled by PlayerDeathPresentation (see CarryStack.ClearAll()).
+// See combat_design_v1.html §4.
 public static class PlayerHealth
 {
     private const float MaxHP = 100f;

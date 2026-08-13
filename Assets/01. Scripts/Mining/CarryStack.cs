@@ -116,6 +116,17 @@ public class CarryStack : MonoBehaviour
         reservedByLayer[(int)layer] = 0;
     }
 
+    // Drops everything carried, across every layer at once - used when the player dies (user
+    // request: "죽게 되면, 플레이어 등에 있는 자원들은 다 사라지게"). Loops by index instead of
+    // hardcoding each CarryLayer so a future 4th layer doesn't need a matching update here too.
+    public void ClearAll()
+    {
+        for (int i = 0; i < LayerCount; i++)
+        {
+            Clear((CarryLayer)i);
+        }
+    }
+
     public void Deposit(CarryLayer layer, Vector3 targetPosition)
     {
         List<Transform> items = itemsByLayer[(int)layer];

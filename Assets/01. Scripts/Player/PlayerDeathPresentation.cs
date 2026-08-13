@@ -78,7 +78,7 @@ public class PlayerDeathPresentation : MonoBehaviour
         }
 
         bool faded = false;
-        ScreenFade.Instance.FadeOutAndIn(TeleportToSmithy, () => faded = true);
+        ScreenFade.Instance.FadeOutAndIn(HandleBlackout, () => faded = true);
         yield return new WaitUntil(() => faded);
 
         if (model != null)
@@ -105,6 +105,14 @@ public class PlayerDeathPresentation : MonoBehaviour
         model.localRotation = collapsed;
     }
 
+    // Runs while the screen is fully black - teleport + dropping carried resources both happen
+    // invisibly here, same reasoning as the teleport alone used to.
+    private static void HandleBlackout()
+    {
+        TeleportToSmithy();
+        DropCarriedResources();
+    }
+
     private static void TeleportToSmithy()
     {
         if (PlayerMotor.Instance == null)
@@ -115,5 +123,19 @@ public class PlayerDeathPresentation : MonoBehaviour
         GameObject counterGO = GameObject.Find("SalesCounter");
         Vector3 respawnPoint = counterGO != null ? counterGO.transform.position : PlayerMotor.Instance.transform.position;
         PlayerMotor.Instance.transform.position = respawnPoint;
+    }
+
+    // User request: "죽게 되면, 플레이어 등에 있는 자원들은 다 사라지게" - unbanked carried
+    // wood/ore/mana is lost on death (already-deposited stock/gold/crafted tools are untouched -
+    // this only affects what was still on the player's back).
+    private static void DropCarriedResources()
+    {
+        if (PlayerMotor.Instance == null)
+        {
+            return;
+        }
+
+        CarryStack carryStack = PlayerMotor.Instance.GetComponentInChildren<CarryStack>();
+        carryStack?.ClearAll();
     }
 }
