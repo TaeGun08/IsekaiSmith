@@ -140,7 +140,7 @@ public class CustomerVisualManager : MonoBehaviour
             {
                 int slotIndex = i;
                 Color tint = Color.HSVToRGB((order.Id * 0.618033f) % 1f, 0.55f, 0.85f);
-                customers[i] = Customer.Spawn(spawnPoint.position, tint, () => manager.TryFulfill(slotIndex));
+                customers[i] = Customer.Spawn(spawnPoint.position, tint, () => manager.TryFulfill(slotIndex), transform);
                 customers[i].WalkTo(queuePoints[i].position);
                 trackedOrderIds[i] = order.Id;
             }

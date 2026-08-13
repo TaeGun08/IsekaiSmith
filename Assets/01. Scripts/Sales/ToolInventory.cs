@@ -30,6 +30,26 @@ public static class ToolInventory
         public override int GetHashCode() => HashCode.Combine(Weapon, Ore, Craft, Element);
     }
 
+    // Read-only view of one owned stack - lets PlayerInventoryUI list everything the player has
+    // without needing its own copy of the (WeaponType, OreGrade, CraftGrade, ManaElement) loop.
+    public readonly struct Entry
+    {
+        public readonly WeaponType Weapon;
+        public readonly OreGrade Ore;
+        public readonly CraftGrade Craft;
+        public readonly ManaElement Element;
+        public readonly int Count;
+
+        public Entry(WeaponType weapon, OreGrade ore, CraftGrade craft, ManaElement element, int count)
+        {
+            Weapon = weapon;
+            Ore = ore;
+            Craft = craft;
+            Element = element;
+            Count = count;
+        }
+    }
+
     private static readonly Dictionary<Key, int> counts = new Dictionary<Key, int>();
     private static readonly WeaponType[] AscendingWeaponTypes = (WeaponType[])Enum.GetValues(typeof(WeaponType));
     private static readonly CraftGrade[] AscendingCraftGrades = (CraftGrade[])Enum.GetValues(typeof(CraftGrade));
@@ -86,6 +106,31 @@ public static class ToolInventory
         oreGrade = OreGrade.Iron;
         element = ManaElement.None;
         return false;
+    }
+
+    // Every distinct stack currently owned (count > 0), highest ore grade first then highest
+    // quality first - the order PlayerInventoryUI displays them in.
+    public static IEnumerable<Entry> AllOwned()
+    {
+        for (int i = AscendingOreGrades.Length - 1; i >= 0; i--)
+        {
+            OreGrade oreGrade = AscendingOreGrades[i];
+            foreach (WeaponType weapon in AscendingWeaponTypes)
+            {
+                for (int j = AscendingCraftGrades.Length - 1; j >= 0; j--)
+                {
+                    CraftGrade grade = AscendingCraftGrades[j];
+                    foreach (ManaElement element in AllElements)
+                    {
+                        int count = Get(weapon, oreGrade, grade, element);
+                        if (count > 0)
+                        {
+                            yield return new Entry(weapon, oreGrade, grade, element, count);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     public static void Add(WeaponType weapon, OreGrade oreGrade, CraftGrade grade, ManaElement element, int amount)

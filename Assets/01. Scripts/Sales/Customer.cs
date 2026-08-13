@@ -25,9 +25,10 @@ public class Customer : MonoBehaviour
     private Vector3 walkTarget;
     private bool despawnOnArrive;
 
-    public static Customer Spawn(Vector3 groundPosition, Color tint, UnityEngine.Events.UnityAction onTap)
+    public static Customer Spawn(Vector3 groundPosition, Color tint, UnityEngine.Events.UnityAction onTap, Transform parent = null)
     {
         var root = new GameObject("Customer");
+        root.transform.SetParent(parent, false);
         root.transform.position = groundPosition;
 
         var body = GameObject.CreatePrimitive(PrimitiveType.Capsule);

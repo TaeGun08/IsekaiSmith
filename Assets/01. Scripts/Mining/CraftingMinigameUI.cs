@@ -24,6 +24,7 @@ public class CraftingMinigameUI : MonoBehaviour
                 var go = new GameObject("CraftingMinigameUI");
                 instance = go.AddComponent<CraftingMinigameUI>();
                 DontDestroyOnLoad(go);
+                go.transform.SetParent(RuntimeSystemsRoot.Instance, false);
             }
 
             return instance;

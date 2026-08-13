@@ -23,6 +23,7 @@ public class DevAutoPlayController : MonoBehaviour
                 var go = new GameObject("DevAutoPlayController");
                 instance = go.AddComponent<DevAutoPlayController>();
                 DontDestroyOnLoad(go);
+                go.transform.SetParent(RuntimeSystemsRoot.Instance, false);
             }
 
             return instance;

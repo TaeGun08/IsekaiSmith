@@ -22,6 +22,7 @@ public class ScreenFade : MonoBehaviour
                 var go = new GameObject("ScreenFade");
                 instance = go.AddComponent<ScreenFade>();
                 DontDestroyOnLoad(go);
+                go.transform.SetParent(RuntimeSystemsRoot.Instance, false);
             }
 
             return instance;

@@ -24,6 +24,7 @@ public class PlayerHealthHUD : MonoBehaviour
                 var go = new GameObject("PlayerHealthHUD");
                 instance = go.AddComponent<PlayerHealthHUD>();
                 DontDestroyOnLoad(go);
+                go.transform.SetParent(RuntimeSystemsRoot.Instance, false);
             }
 
             return instance;

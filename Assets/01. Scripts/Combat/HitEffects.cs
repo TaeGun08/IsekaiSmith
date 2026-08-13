@@ -36,6 +36,7 @@ public class HitEffects : MonoBehaviour
                 var go = new GameObject("HitEffects");
                 instance = go.AddComponent<HitEffects>();
                 DontDestroyOnLoad(go);
+                go.transform.SetParent(RuntimeSystemsRoot.Instance, false);
             }
 
             return instance;
@@ -185,6 +186,7 @@ public class HitEffects : MonoBehaviour
             sparkTemplate.transform.localScale = Vector3.one * 0.12f;
             Object.Destroy(sparkTemplate.GetComponent<Collider>());
             Object.DontDestroyOnLoad(sparkTemplate);
+            sparkTemplate.transform.SetParent(RuntimeSystemsRoot.Instance, false);
         }
 
         return sparkTemplate;

@@ -23,6 +23,7 @@ public class PlayerDeathPresentation : MonoBehaviour
                 var go = new GameObject("PlayerDeathPresentation");
                 instance = go.AddComponent<PlayerDeathPresentation>();
                 DontDestroyOnLoad(go);
+                go.transform.SetParent(RuntimeSystemsRoot.Instance, false);
             }
 
             return instance;

@@ -26,6 +26,7 @@ public class CraftingSilhouetteUI : MonoBehaviour
                 var go = new GameObject("CraftingSilhouetteUI");
                 instance = go.AddComponent<CraftingSilhouetteUI>();
                 DontDestroyOnLoad(go);
+                go.transform.SetParent(RuntimeSystemsRoot.Instance, false);
             }
 
             return instance;

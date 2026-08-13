@@ -19,6 +19,7 @@ public class InteractionPromptUI : MonoBehaviour
                 var go = new GameObject("InteractionPromptUI");
                 instance = go.AddComponent<InteractionPromptUI>();
                 DontDestroyOnLoad(go);
+                go.transform.SetParent(RuntimeSystemsRoot.Instance, false);
             }
 
             return instance;

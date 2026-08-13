@@ -27,6 +27,7 @@ public class FieldMonsterSpawner : MonoBehaviour
                 var go = new GameObject("FieldMonsterSpawner");
                 instance = go.AddComponent<FieldMonsterSpawner>();
                 DontDestroyOnLoad(go);
+                go.transform.SetParent(RuntimeSystemsRoot.Instance, false);
             }
 
             return instance;
@@ -82,7 +83,7 @@ public class FieldMonsterSpawner : MonoBehaviour
         {
             Vector3 position = FindSpawnPosition(placed);
             placed.Add(position);
-            monsters.Add(Monster.Spawn(position));
+            monsters.Add(Monster.Spawn(position, transform));
             respawnTimers.Add(0f);
         }
     }

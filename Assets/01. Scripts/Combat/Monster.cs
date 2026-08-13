@@ -31,10 +31,11 @@ public class Monster : MonoBehaviour
 
     public bool IsAvailable => !dead;
 
-    public static Monster Spawn(Vector3 groundPosition)
+    public static Monster Spawn(Vector3 groundPosition, Transform parent = null)
     {
         var body = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         body.name = "Slime";
+        body.transform.SetParent(parent, false);
         body.transform.position = groundPosition + Vector3.up * 0.5f;
         body.transform.localScale = Vector3.one * 0.9f;
         Object.Destroy(body.GetComponent<Collider>()); // visual only - AI uses plain distance checks

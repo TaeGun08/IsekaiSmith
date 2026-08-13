@@ -22,6 +22,7 @@ public class ManaStoneDepotBootstrap : MonoBehaviour
                 var go = new GameObject("ManaStoneDepotBootstrap");
                 instance = go.AddComponent<ManaStoneDepotBootstrap>();
                 DontDestroyOnLoad(go);
+                go.transform.SetParent(RuntimeSystemsRoot.Instance, false);
             }
 
             return instance;

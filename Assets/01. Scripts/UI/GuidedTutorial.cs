@@ -23,6 +23,7 @@ public class GuidedTutorial : MonoBehaviour
                 var go = new GameObject("GuidedTutorial");
                 instance = go.AddComponent<GuidedTutorial>();
                 DontDestroyOnLoad(go);
+                go.transform.SetParent(RuntimeSystemsRoot.Instance, false);
             }
 
             return instance;

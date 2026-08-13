@@ -26,6 +26,7 @@ public class PlayerCombat : MonoBehaviour
                 var go = new GameObject("PlayerCombat");
                 instance = go.AddComponent<PlayerCombat>();
                 DontDestroyOnLoad(go);
+                go.transform.SetParent(RuntimeSystemsRoot.Instance, false);
             }
 
             return instance;

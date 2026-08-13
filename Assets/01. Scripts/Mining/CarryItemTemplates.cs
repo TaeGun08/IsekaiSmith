@@ -31,6 +31,7 @@ public static class CarryItemTemplates
                 manaStoneChip.GetComponent<Renderer>().material.color = new Color(0.55f, 0.4f, 0.75f);
                 Object.Destroy(manaStoneChip.GetComponent<Collider>());
                 Object.DontDestroyOnLoad(manaStoneChip);
+                manaStoneChip.transform.SetParent(RuntimeSystemsRoot.Instance, false);
             }
 
             return manaStoneChip;
