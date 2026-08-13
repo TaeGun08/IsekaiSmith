@@ -3,8 +3,9 @@ using UnityEngine;
 // Self-built field "잡몹" (weak monster) - a tinted Sphere primitive, same low-fidelity vector
 // convention as Player/Customer (Capsule) and resource nodes (Box). Spawned and pooled by
 // FieldMonsterSpawner. Pure distance-check AI (no colliders/triggers), matching every other
-// interactable class in this project (CraftingStation/StorageDepot/OrderQueueManager). See
-// combat_design_v1.html §3.
+// interactable class in this project (CraftingStation/StorageDepot/OrderQueueManager). Can carry
+// one ManaElement status effect at a time (a fresh application replaces whatever was active - see
+// weapon_diversity_design_v1.html §6). See combat_design_v1.html §3.
 public class Monster : MonoBehaviour
 {
     private const float MaxHP = 30f;
@@ -19,6 +20,11 @@ public class Monster : MonoBehaviour
     private float contactTimer;
     private float flashTimer;
     private bool dead;
+
+    private ManaElement activeStatus;
+    private float statusTimer;
+    private float statusTickClock;
+    private int statusTicksRemaining;
 
     private Material bodyMaterial; // cached once - repeatedly reading Renderer.material has real overhead
     private Color baseColor;
@@ -62,9 +68,43 @@ public class Monster : MonoBehaviour
         return false;
     }
 
+    // Applied by an enchanted weapon hit (PlayerCombat, via ToolInventory.TryGetBestWeapon).
+    // Fire/Poison tick bonus damage over time; Lightning stuns (no movement/attack); Frost slows
+    // movement. Only one status is ever active - a fresh application replaces whatever was
+    // running, rather than stacking (keeps this simple for a placeholder-level enchant system).
+    public void ApplyStatusEffect(ManaElement element)
+    {
+        if (dead || element == ManaElement.None)
+        {
+            return;
+        }
+
+        activeStatus = element;
+        statusTickClock = 0f;
+
+        switch (element)
+        {
+            case ManaElement.Fire:
+                statusTicksRemaining = ManaElementUtility.FireTicks;
+                statusTimer = ManaElementUtility.FireTickInterval * ManaElementUtility.FireTicks;
+                break;
+            case ManaElement.Poison:
+                statusTicksRemaining = ManaElementUtility.PoisonTicks;
+                statusTimer = ManaElementUtility.PoisonTickInterval * ManaElementUtility.PoisonTicks;
+                break;
+            case ManaElement.Lightning:
+                statusTimer = ManaElementUtility.LightningStunDuration;
+                break;
+            case ManaElement.Frost:
+                statusTimer = ManaElementUtility.FrostSlowDuration;
+                break;
+        }
+    }
+
     private void Defeat()
     {
         dead = true;
+        activeStatus = ManaElement.None;
         gameObject.SetActive(false);
     }
 
@@ -76,6 +116,7 @@ public class Monster : MonoBehaviour
         currentHP = MaxHP;
         contactTimer = 0f;
         dead = false;
+        activeStatus = ManaElement.None;
 
         // The killing blow always leaves flashTimer > 0 (TakeDamage sets it before checking for
         // death) and Update() stops running the instant the object deactivates, so that leftover
@@ -95,10 +136,25 @@ public class Monster : MonoBehaviour
             return;
         }
 
+        UpdateStatusEffect();
+
         if (flashTimer > 0f)
         {
             flashTimer -= Time.deltaTime;
             bodyMaterial.color = flashTimer > 0f ? Color.red : baseColor;
+        }
+        else
+        {
+            // Sits between hit-flashes - a mild persistent tint showing an active burn/poison/
+            // stun/slow, so the effect reads as ongoing rather than a one-off spark.
+            bodyMaterial.color = activeStatus != ManaElement.None
+                ? Color.Lerp(baseColor, ManaElementUtility.SparkColor(activeStatus), 0.5f)
+                : baseColor;
+        }
+
+        if (dead) // a DoT tick inside UpdateStatusEffect() above may have just finished it off
+        {
+            return;
         }
 
         Vector3 playerPos = PlayerMotor.Instance.transform.position;
@@ -106,8 +162,16 @@ public class Monster : MonoBehaviour
         toPlayer.y = 0f;
         float sqrDist = toPlayer.sqrMagnitude;
 
+        bool stunned = activeStatus == ManaElement.Lightning;
+
         if (sqrDist <= AttackRadius * AttackRadius)
         {
+            if (stunned)
+            {
+                contactTimer = 0f; // stays primed so it attacks right away once the stun ends
+                return;
+            }
+
             contactTimer -= Time.deltaTime;
             if (contactTimer <= 0f)
             {
@@ -125,10 +189,46 @@ public class Monster : MonoBehaviour
 
         contactTimer = 0f;
 
-        if (sqrDist <= AggroRadius * AggroRadius)
+        if (!stunned && sqrDist <= AggroRadius * AggroRadius)
         {
+            float effectiveSpeed = activeStatus == ManaElement.Frost ? MoveSpeed * ManaElementUtility.FrostSlowMultiplier : MoveSpeed;
             Vector3 direction = toPlayer.normalized;
-            transform.position += direction * MoveSpeed * Time.deltaTime;
+            transform.position += direction * effectiveSpeed * Time.deltaTime;
+        }
+    }
+
+    private void UpdateStatusEffect()
+    {
+        if (activeStatus == ManaElement.None)
+        {
+            return;
+        }
+
+        statusTimer -= Time.deltaTime;
+
+        if (activeStatus == ManaElement.Fire || activeStatus == ManaElement.Poison)
+        {
+            statusTickClock -= Time.deltaTime;
+            if (statusTickClock <= 0f && statusTicksRemaining > 0)
+            {
+                bool isFire = activeStatus == ManaElement.Fire;
+                statusTickClock = isFire ? ManaElementUtility.FireTickInterval : ManaElementUtility.PoisonTickInterval;
+                float tickDamage = isFire ? ManaElementUtility.FireTickDamage : ManaElementUtility.PoisonTickDamage;
+                statusTicksRemaining--;
+
+                // No mana-stone-drop roll here (that's PlayerCombat's job off a direct hit) - a
+                // DoT kill still gets the same defeat visual burst as a normal one, just without
+                // the drop chance, so this stays a self-contained Monster/status concern.
+                if (TakeDamage(tickDamage))
+                {
+                    HitEffects.Instance.MonsterDefeated(transform.position);
+                }
+            }
+        }
+
+        if (statusTimer <= 0f)
+        {
+            activeStatus = ManaElement.None;
         }
     }
 }

@@ -14,6 +14,11 @@ public class CraftingStation : MonoBehaviour
     public static event Action<bool> OnCrafted;
 
 
+    // Which weapon this station forges (game_design_doc.html §3 matrix) - only Sword exists so
+    // far, but a future Axe/Hammer/Dagger station is just a second CraftingStation instance with
+    // this field set differently, not a new class. See weapon_diversity_design_v1.html §6.
+    [SerializeField] private WeaponType weaponType = WeaponType.Sword;
+
     // No oreType field - ore is always graded (OreBank.TryGetBestAvailable/TrySpend), unlike
     // wood/mana which are still flat ResourceBank counts. See weapon_diversity_design_v1.html §3.
     [SerializeField] private int oreAmount = 2;
@@ -91,7 +96,7 @@ public class CraftingStation : MonoBehaviour
             InteractionPromptUI.Instance.Show(
                 stationTitle,
                 () => StartCoroutine(CraftWithSilhouetteAndMinigames()),
-                () => ApplyCraft(0.5f, 0, true, out _, out _));
+                () => ApplyCraft(0.5f, 0, true, out _, out _, out _));
             promptShown = true;
         }
     }
@@ -134,7 +139,7 @@ public class CraftingStation : MonoBehaviour
             return false;
         }
 
-        grade = ApplyCraft(0.5f, 0, true, out amount, out _);
+        grade = ApplyCraft(0.5f, 0, true, out amount, out _, out _);
         return true;
     }
 
@@ -169,15 +174,16 @@ public class CraftingStation : MonoBehaviour
             q => hammerQuality = q);
 
         float quality = (meltQuality + hammerQuality) * 0.5f;
-        CraftGrade grade = ApplyCraft(quality, manaSpent, false, out int amount, out OreGrade oreGrade);
-        yield return CraftingMinigameUI.Instance.ShowGradeResult(oreGrade, grade, amount);
+        CraftGrade grade = ApplyCraft(quality, manaSpent, false, out int amount, out OreGrade oreGrade, out ManaElement element);
+        yield return CraftingMinigameUI.Instance.ShowGradeResult(oreGrade, element, grade, amount);
         isCrafting = false;
     }
 
-    private CraftGrade ApplyCraft(float quality, int manaSpent, bool isQuickCraft, out int amount, out OreGrade oreGrade)
+    private CraftGrade ApplyCraft(float quality, int manaSpent, bool isQuickCraft, out int amount, out OreGrade oreGrade, out ManaElement element)
     {
         amount = 0;
         oreGrade = OreGrade.Iron;
+        element = ManaElement.None;
 
         if (!HasEnoughInputs() || !OreBank.TryGetBestAvailable(oreAmount, out oreGrade))
         {
@@ -191,11 +197,20 @@ public class CraftingStation : MonoBehaviour
         {
             int actualMana = Mathf.Min(manaSpent, ResourceBank.Get(manaStoneType));
             ResourceBank.TrySpend(manaStoneType, actualMana);
+
+            // Field-dropped mana carries no element of its own yet (combat_design_v1.html §7),
+            // so which element the enchant lands on is rolled rather than chosen - see
+            // ManaElementUtility.RollRandom(). Quick Craft never spends mana (no silhouette step
+            // to feed it in through), so it can never produce an enchanted result.
+            if (actualMana > 0)
+            {
+                element = ManaElementUtility.RollRandom();
+            }
         }
 
         CraftGrade grade = CraftGradeUtility.GradeFor(quality);
         amount = outputAmount + CraftGradeUtility.BonusAmount(grade);
-        ToolInventory.Add(oreGrade, grade, amount);
+        ToolInventory.Add(weaponType, oreGrade, grade, element, amount);
         OnCrafted?.Invoke(isQuickCraft);
         return grade;
     }

@@ -592,7 +592,7 @@ public class CraftingMinigameUI : MonoBehaviour
         hitMarks.Add(markGO);
     }
 
-    public IEnumerator ShowGradeResult(OreGrade oreGrade, CraftGrade grade, int amount)
+    public IEnumerator ShowGradeResult(OreGrade oreGrade, ManaElement element, CraftGrade grade, int amount)
     {
         SetVisible(true);
         titleText.text = "Complete!";
@@ -600,8 +600,9 @@ public class CraftingMinigameUI : MonoBehaviour
 
         string trait = CraftGradeUtility.RollTrait(grade);
         string traitSuffix = trait != null ? " (" + trait + ")" : "";
-        resultText.text = OreGradeUtility.DisplayName(oreGrade) + " " + CraftGradeUtility.DisplayName(grade) + "!  x" + amount + traitSuffix;
-        resultText.color = GradeColor(grade);
+        string elementPrefix = element != ManaElement.None ? ManaElementUtility.DisplayName(element) + " " : "";
+        resultText.text = elementPrefix + OreGradeUtility.DisplayName(oreGrade) + " " + CraftGradeUtility.DisplayName(grade) + "!  x" + amount + traitSuffix;
+        resultText.color = element != ManaElement.None ? ManaElementUtility.SparkColor(element) : GradeColor(grade);
 
         if (grade == CraftGrade.Masterwork || grade == CraftGrade.Legendary)
         {

@@ -1,22 +1,44 @@
 using System;
 using System.Collections.Generic;
 
-// Finished-goods inventory, kept separate from ResourceBank (raw materials). ResourceBank only
-// ever counted Tool as a flat total with no grade attached, but customer orders need "at least
-// this grade" (customer_order_design.html §2), so this tracks counts per CraftGrade instead.
-// Now also tracks OreGrade (game_design_doc.html §3's other axis) alongside CraftGrade - a sword
-// is both a material tier (Iron/Steel/Mithril/Orichalcum) and a finish quality (Rough~Legendary)
-// at once. See weapon_diversity_design_v1.html §3. Deliberately not a general item-instance
-// system - just enough to match orders against stock and read back the best-owned material tier.
+// Finished-goods inventory, kept separate from ResourceBank (raw materials). Keyed on all four
+// independent axes a crafted weapon can vary on: WeaponType (Sword today, Axe/Hammer/Dagger
+// later - game_design_doc.html §3), OreGrade (material tier), CraftGrade (finish quality), and
+// ManaElement (optional enchant). Deliberately built this way from the start rather than
+// Sword-only, per user direction: "구조 자체를... 유동적으로 계속해서 무언가를 추가할 수 있게".
+// See weapon_diversity_design_v1.html §6. Deliberately not a general item-instance system - just
+// enough to match orders against stock and read back the best-owned weapon.
 public static class ToolInventory
 {
-    private static readonly Dictionary<(OreGrade, CraftGrade), int> counts = new Dictionary<(OreGrade, CraftGrade), int>();
+    private readonly struct Key : IEquatable<Key>
+    {
+        public readonly WeaponType Weapon;
+        public readonly OreGrade Ore;
+        public readonly CraftGrade Craft;
+        public readonly ManaElement Element;
+
+        public Key(WeaponType weapon, OreGrade ore, CraftGrade craft, ManaElement element)
+        {
+            Weapon = weapon;
+            Ore = ore;
+            Craft = craft;
+            Element = element;
+        }
+
+        public bool Equals(Key other) => Weapon == other.Weapon && Ore == other.Ore && Craft == other.Craft && Element == other.Element;
+        public override bool Equals(object obj) => obj is Key other && Equals(other);
+        public override int GetHashCode() => HashCode.Combine(Weapon, Ore, Craft, Element);
+    }
+
+    private static readonly Dictionary<Key, int> counts = new Dictionary<Key, int>();
+    private static readonly WeaponType[] AscendingWeaponTypes = (WeaponType[])Enum.GetValues(typeof(WeaponType));
     private static readonly CraftGrade[] AscendingCraftGrades = (CraftGrade[])Enum.GetValues(typeof(CraftGrade));
     private static readonly OreGrade[] AscendingOreGrades = (OreGrade[])Enum.GetValues(typeof(OreGrade));
+    private static readonly ManaElement[] AllElements = (ManaElement[])Enum.GetValues(typeof(ManaElement));
 
-    public static int Get(OreGrade oreGrade, CraftGrade grade)
+    public static int Get(WeaponType weapon, OreGrade oreGrade, CraftGrade grade, ManaElement element)
     {
-        return counts.TryGetValue((oreGrade, grade), out int value) ? value : 0;
+        return counts.TryGetValue(new Key(weapon, oreGrade, grade, element), out int value) ? value : 0;
     }
 
     public static int Total
@@ -33,45 +55,55 @@ public static class ToolInventory
         }
     }
 
-    // Highest ore grade among anything owned, any quality - stands in for "the equipped weapon"
-    // until a real equip-selection UI exists (weapon_diversity_design_v1.html §1 "다음 단계로
-    // 미룸"). Iron (the default) if nothing's been crafted yet.
-    public static OreGrade BestOreGrade
+    // The single best-owned weapon (highest ore grade, any weapon type/quality/element) - stands
+    // in for "the equipped weapon" until a real equip-selection UI exists
+    // (weapon_diversity_design_v1.html §1 "다음 단계로 미룸"). Defaults (Sword/Iron/None) if
+    // nothing's been crafted yet, so combat plays identically to before this system existed.
+    public static bool TryGetBestWeapon(out WeaponType weapon, out OreGrade oreGrade, out ManaElement element)
     {
-        get
+        for (int i = AscendingOreGrades.Length - 1; i >= 0; i--)
         {
-            for (int i = AscendingOreGrades.Length - 1; i >= 0; i--)
+            OreGrade candidateOre = AscendingOreGrades[i];
+            foreach (WeaponType candidateWeapon in AscendingWeaponTypes)
             {
-                OreGrade oreGrade = AscendingOreGrades[i];
                 foreach (CraftGrade grade in AscendingCraftGrades)
                 {
-                    if (Get(oreGrade, grade) > 0)
+                    foreach (ManaElement candidateElement in AllElements)
                     {
-                        return oreGrade;
+                        if (Get(candidateWeapon, candidateOre, grade, candidateElement) > 0)
+                        {
+                            weapon = candidateWeapon;
+                            oreGrade = candidateOre;
+                            element = candidateElement;
+                            return true;
+                        }
                     }
                 }
             }
-
-            return OreGrade.Iron;
         }
+
+        weapon = WeaponType.Sword;
+        oreGrade = OreGrade.Iron;
+        element = ManaElement.None;
+        return false;
     }
 
-    public static void Add(OreGrade oreGrade, CraftGrade grade, int amount)
+    public static void Add(WeaponType weapon, OreGrade oreGrade, CraftGrade grade, ManaElement element, int amount)
     {
         if (amount <= 0)
         {
             return;
         }
 
-        (OreGrade, CraftGrade) key = (oreGrade, grade);
-        counts[key] = Get(oreGrade, grade) + amount;
+        Key key = new Key(weapon, oreGrade, grade, element);
+        counts[key] = Get(weapon, oreGrade, grade, element) + amount;
     }
 
-    // Spends the lowest-graded item (checking ore grade ascending within each quality step) that
-    // still satisfies minGrade, so higher-grade stock stays in reserve for orders that actually
-    // demand it instead of getting burned on an easy order. Ore grade doesn't factor into order
-    // eligibility yet (orders only ever asked for a minimum quality - see
-    // weapon_diversity_design_v1.html §1) so any ore grade combo works, cheapest first.
+    // Spends the lowest-graded item that still satisfies minGrade, so higher-grade stock stays in
+    // reserve for orders that actually demand it instead of getting burned on an easy order.
+    // Weapon type/ore grade/element don't factor into order eligibility yet (orders only ever
+    // asked for a minimum quality - see weapon_diversity_design_v1.html §1) so any combo works,
+    // cheapest first.
     public static bool TrySpendAtLeast(CraftGrade minGrade, out CraftGrade spentGrade)
     {
         foreach (CraftGrade grade in AscendingCraftGrades)
@@ -81,16 +113,23 @@ public static class ToolInventory
                 continue;
             }
 
-            foreach (OreGrade oreGrade in AscendingOreGrades)
+            foreach (WeaponType weapon in AscendingWeaponTypes)
             {
-                if (Get(oreGrade, grade) <= 0)
+                foreach (OreGrade oreGrade in AscendingOreGrades)
                 {
-                    continue;
-                }
+                    foreach (ManaElement element in AllElements)
+                    {
+                        if (Get(weapon, oreGrade, grade, element) <= 0)
+                        {
+                            continue;
+                        }
 
-                counts[(oreGrade, grade)] = Get(oreGrade, grade) - 1;
-                spentGrade = grade;
-                return true;
+                        Key key = new Key(weapon, oreGrade, grade, element);
+                        counts[key] = counts[key] - 1;
+                        spentGrade = grade;
+                        return true;
+                    }
+                }
             }
         }
 

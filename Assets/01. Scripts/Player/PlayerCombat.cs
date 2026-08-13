@@ -7,11 +7,6 @@ using UnityEngine;
 // component to wire this to. See combat_design_v1.html §4.
 public class PlayerCombat : MonoBehaviour
 {
-    // Follows the best-owned sword's ore grade (ToolInventory.BestOreGrade) instead of a flat
-    // value - "장착 무기 = 내가 만든 그 무기" (game_design_doc.html §9), minus a real equip-
-    // selection UI for now (weapon_diversity_design_v1.html §1). Iron's AttackPower matches the
-    // old flat 10 exactly, so a session with nothing crafted yet plays identically to before.
-    private static float BaseDamage => OreGradeUtility.AttackPower(ToolInventory.BestOreGrade);
     private const float AttackInterval = 0.6f;
     private const float AttackRadius = 1.2f;
 
@@ -75,20 +70,35 @@ public class PlayerCombat : MonoBehaviour
             return;
         }
 
+        // Follows the best-owned weapon (ToolInventory.TryGetBestWeapon) instead of a flat value -
+        // "장착 무기 = 내가 만든 그 무기" (game_design_doc.html §9), minus a real equip-selection
+        // UI for now (weapon_diversity_design_v1.html §1). Iron/no-element's AttackPower matches
+        // the old flat 10 exactly, so a session with nothing crafted yet plays identically to
+        // before this system existed.
+        ToolInventory.TryGetBestWeapon(out _, out OreGrade equippedOreGrade, out ManaElement equippedElement);
+        float damage = OreGradeUtility.AttackPower(equippedOreGrade);
+
         attackTimer = AttackInterval;
         Vector3 targetPosition = target.transform.position;
-        bool defeated = target.TakeDamage(BaseDamage);
+        bool defeated = target.TakeDamage(damage);
+
+        // No point afflicting a monster that's already gone.
+        if (!defeated && equippedElement != ManaElement.None)
+        {
+            target.ApplyStatusEffect(equippedElement);
+        }
 
         // Impact spark + camera shake so a landed hit actually reads as one (user report:
         // "현재 너무 허전해") - a bigger, distinct burst on the killing blow instead of stacking
-        // both on the same hit.
+        // both on the same hit. Tinted by the weapon's enchant element when it has one, instead of
+        // the flat default gold.
         if (defeated)
         {
             HitEffects.Instance.MonsterDefeated(targetPosition);
         }
         else
         {
-            HitEffects.Instance.PlayerHitMonster(targetPosition);
+            HitEffects.Instance.PlayerHitMonster(targetPosition, ManaElementUtility.SparkColor(equippedElement));
         }
 
         if (playerToolSwing == null)

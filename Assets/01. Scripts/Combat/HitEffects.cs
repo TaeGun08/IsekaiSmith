@@ -46,7 +46,14 @@ public class HitEffects : MonoBehaviour
     // getting hit does.
     public void PlayerHitMonster(Vector3 position)
     {
-        SpawnSparks(position, PlayerHitColor, SparkCount);
+        PlayerHitMonster(position, PlayerHitColor);
+    }
+
+    // Overload for an enchanted weapon - tints the spark by element (ManaElementUtility.SparkColor)
+    // instead of the flat default gold, so an elemental hit reads differently at a glance.
+    public void PlayerHitMonster(Vector3 position, Color sparkColor)
+    {
+        SpawnSparks(position, sparkColor, SparkCount);
         Shake(0.08f, 0.08f);
     }
 
