@@ -14,6 +14,7 @@ public class HitEffects : MonoBehaviour
     private const int DefeatSparkCount = 8;
     private const float SparkSpeed = 3.5f;
     private const float SparkLifetime = 0.25f;
+    private const float PlayerFlashDuration = 0.15f; // matches Monster's own FlashDuration
 
     private static readonly Color PlayerHitColor = new Color(1f, 0.9f, 0.4f); // warm gold spark
     private static readonly Color MonsterHitColor = new Color(0.85f, 0.25f, 0.2f); // red - "you got hit"
@@ -21,6 +22,10 @@ public class HitEffects : MonoBehaviour
 
     private static HitEffects instance;
     private static GameObject sparkTemplate;
+
+    private Material playerMaterial; // cached once - same reasoning as Monster's own bodyMaterial cache
+    private Color playerBaseColor;
+    private Coroutine playerFlashRoutine;
 
     public static HitEffects Instance
     {
@@ -46,11 +51,60 @@ public class HitEffects : MonoBehaviour
     }
 
     // Monster's contact attack connecting with the player - a bit stronger, getting hit should
-    // read as more alarming than landing one.
+    // read as more alarming than landing one. Also flashes the player's own model red (user
+    // report: "플레이어도 맞았을 때, 효과가 있었으면 좋겠어") - the sparks/shake alone happened
+    // near the player but never actually touched their body, same gap Monster's own red flash
+    // already fixed on the receiving end of a player attack.
     public void MonsterHitPlayer(Vector3 position)
     {
         SpawnSparks(position, MonsterHitColor, SparkCount);
         Shake(0.12f, 0.1f);
+        FlashPlayer();
+    }
+
+    private void FlashPlayer()
+    {
+        if (playerMaterial == null && !TryCachePlayerMaterial())
+        {
+            return;
+        }
+
+        if (playerFlashRoutine != null)
+        {
+            StopCoroutine(playerFlashRoutine);
+        }
+
+        playerFlashRoutine = StartCoroutine(PlayerFlashRoutine());
+    }
+
+    private bool TryCachePlayerMaterial()
+    {
+        if (PlayerMotor.Instance == null)
+        {
+            return false;
+        }
+
+        // Same reliable lookup PlayerDeathPresentation uses - GetComponentInChildren<Renderer>()
+        // isn't safe here since carried wood/ore/mana items are also child renderers and could
+        // be found first.
+        Transform model = PlayerMotor.Instance.transform.Find("Model");
+        Renderer renderer = model != null ? model.GetComponent<Renderer>() : null;
+        if (renderer == null)
+        {
+            return false;
+        }
+
+        playerMaterial = renderer.material;
+        playerBaseColor = playerMaterial.color;
+        return true;
+    }
+
+    private IEnumerator PlayerFlashRoutine()
+    {
+        playerMaterial.color = MonsterHitColor;
+        yield return new WaitForSeconds(PlayerFlashDuration);
+        playerMaterial.color = playerBaseColor;
+        playerFlashRoutine = null;
     }
 
     // A bigger burst specifically on the killing blow, distinct from the regular per-hit sparks.
