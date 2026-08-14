@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>이세계 대장장이 - 마석 등급 &amp; 재료선택 UI 개선안 (브리핑)</title>
+<style>
+  :root {
+    --ink: #2b2420; --paper: #f6f1e7; --card: #ffffff; --border: #dcd3c2;
+    --accent: #b5651d; --ok: #4f8f5f; --warn: #a8461f; --todo: #9c9284;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 20px 100px; background: var(--paper); color: var(--ink);
+    font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .doc { width: 100%; max-width: 1040px; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 8px; color: #6b6155; font-size: 14px; }
+  p.pitch {
+    font-size: 15px; line-height: 1.7; background: var(--card); border: 1px solid var(--border);
+    border-left: 4px solid var(--accent); border-radius: 8px; padding: 16px 18px; margin: 16px 0 32px;
+  }
+  h2 {
+    font-size: 20px; margin: 46px 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+  }
+  h2 .num { color: var(--accent); }
+  h3 { font-size: 15px; margin: 22px 0 8px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); margin-bottom: 14px;
+  }
+  .status { font-size: 12px; padding: 2px 10px; border-radius: 20px; margin-left: 6px; font-weight: 600; }
+  .status.done { background: #e3efe2; color: var(--ok); }
+  .status.todo { background: #f1e6da; color: var(--todo); }
+  .status.decide { background: #f7e2d6; color: var(--warn); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 10px 0; }
+  th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: #efe7d8; }
+  code { background: #efe7d8; padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+  .note { font-size: 12.5px; color: #6b6155; margin-top: 8px; }
+  .grade-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; margin-right: 6px; vertical-align: -2px; }
+  ol, ul { line-height: 1.8; font-size: 14.5px; }
+  .qbox { background: #fbf3e6; border: 1px dashed var(--accent); border-radius: 8px; padding: 12px 16px; margin: 10px 0; font-size: 14px; }
+  .qbox b { color: var(--accent); }
+  footer { text-align: center; color: #9c9284; font-size: 12px; margin-top: 60px; }
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>마석 등급 시스템 &amp; 재료선택 UI 개선 - 브리핑</h1>
+  <p class="sub">mana_grade_and_ui_design_v1.html · weapon_diversity_design_v1.html §6(마석 인챈트)의 후속 확장안 · 구현 전 검토용</p>
+  <p class="pitch">
+    요청하신 4가지 중 완료 2건(HTML 문서 정리, FORGE/CANCEL 버튼 겹침 수정)은 이미 반영했습니다.
+    남은 2건(마석 등급 시스템, 재료선택 UI 레이아웃 개선)은 기존 구조(<code>OreGrade</code>/<code>OreBank</code>의
+    등급·상한선 패턴)에 어떻게 끼워 넣을지 구조적 결정이 필요해서, 구현 전에 먼저 안을 정리했습니다.
+    아래 내용 검토 후 진행하겠습니다.
+  </p>
+
+  <h2><span class="num">0.</span> 이미 완료된 작업 <span class="status done">완료</span></h2>
+  <div class="card">
+    <h3>안 쓰는 HTML 문서 정리</h3>
+    <p>코드/다른 문서에서 전혀 참조되지 않거나, 상위 버전에 명시적으로 대체된 문서 4개를 삭제했습니다.</p>
+    <table>
+      <tr><th>삭제</th><th>사유</th></tr>
+      <tr><td><code>customer_order_design_v2.html</code></td><td>v3에 의해 대체, 현재 코드는 v4만 참조</td></tr>
+      <tr><td><code>customer_order_design_v3.html</code></td><td>v4에 의해 전면 개정, 현재 코드는 v4만 참조</td></tr>
+      <tr><td><code>tutorial_design.html</code></td><td>guided_tutorial_design.html이 명시적으로 대체("최종 형태로 교체")</td></tr>
+      <tr><td><code>tutorial_guide.html</code></td><td>전투/마석 시스템 도입 이전 초안(당시 "몬스터 없음", "마석 얻을 방법 없음" 서술) - 어디서도 참조되지 않음</td></tr>
+    </table>
+    <p class="note">유지: game_design_doc.html, combat_design_v1.html, weapon_diversity_design_v1.html, guided_tutorial_design.html,
+      interaction_range_indicator_design.html, customer_order_design.html(§1/§2/§5/§6이 아직 코드에서 직접 참조됨), customer_order_design_v4.html,
+      crafting_design_v3.html(현재 구현된 재료선택 UI의 원 설계 문서), dev_autoplay_design.html - 모두 현재 코드에서 실제로 참조 중.</p>
+  </div>
+  <div class="card">
+    <h3>FORGE / CANCEL 버튼 오작동 수정</h3>
+    <p><code>CraftingSilhouetteUI.cs</code> - 두 버튼이 290px 폭에 중앙 간격 30px로 붙어 있어 FORGE 경계 부근을 누르면 CANCEL이
+      반응하는 문제였습니다. 폭을 260px로 줄이고 중심을 ±160→±210으로 벌려 <b>사석 간격을 30px→140px</b>로 확대,
+      버튼 높이도 100→110px로 키워 터치 정확도를 높였습니다.</p>
+  </div>
+
+  <h2><span class="num">1.</span> 마석 등급 시스템 - 제안 구조 <span class="status decide">결정 필요</span></h2>
+  <div class="card">
+    <h3>왜 OreBank 패턴을 그대로 복제하는가</h3>
+    <p>광물은 이미 <code>OreGrade</code>(4단계) + <code>OreBank</code>(등급별 재고 + 누적 채굴량 기반 <code>Ceiling</code>)로
+      정확히 같은 문제(등급 존재, 필드에서 처음엔 낮은 등급만, 점진적으로 상한 개방)를 풀어놓은 상태입니다.
+      마석도 완전히 동일한 구조가 필요하므로, 새 개념을 발명하지 않고 <b>같은 패턴을 그대로 복제</b>하는 것을 제안합니다.
+      (검 하나에 올인하지 않고 유동적으로 확장 가능해야 한다는 기존 방향과도 일치 - 이 축은 나중에 다른 소재/자원에도 재사용 가능한 형태로 남습니다.)</p>
+  </div>
+  <div class="card">
+    <h3>등급 5단계 (제안)</h3>
+    <table>
+      <tr><th>등급</th><th>표시명</th><th>효과 배율(제안)</th><th>필드 드랍</th></tr>
+      <tr><td><span class="grade-swatch" style="background:#8a8378"></span>0</td><td>최하급 (Crude)</td><td>×1.0 (현재 수치 그대로)</td><td><b>지금 바로 개방</b></td></tr>
+      <tr><td><span class="grade-swatch" style="background:#7fae6e"></span>1</td><td>하급 (Common)</td><td>×1.4</td><td>추후 상한 개방(2단계 목표)</td></tr>
+      <tr><td><span class="grade-swatch" style="background:#5c9ac9"></span>2</td><td>중급 (Refined)</td><td>×1.9</td><td>필드 상한 대상 아님(설계상 미개방)</td></tr>
+      <tr><td><span class="grade-swatch" style="background:#a86bc9"></span>3</td><td>상급 (Greater)</td><td>×2.5</td><td>미개방(스테이지/던전 전용, 로드맵 ③)</td></tr>
+      <tr><td><span class="grade-swatch" style="background:#d9a441"></span>4</td><td>최상급 (Pristine)</td><td>×3.2</td><td>미개방(스테이지/던전 전용)</td></tr>
+    </table>
+    <p class="note">요청하신 "필드에서는 하급~중하급까지, 일단은 최하급만"을 반영: 필드 상한 게이트는 처음엔 최하급 고정,
+      나중에 문턱값 하나만 올리면 하급까지 열립니다(OreBank.Ceiling과 동일한 방식 - 던전 시스템이 아직 없어
+      "누적 채집량" 문턱을 임시 대역으로 사용). 중급 이상은 처음부터 필드가 아닌 스테이지/던전 전용으로 설계해
+      나중에 로드맵 ③이 붙을 자리를 미리 비워둡니다.</p>
+    <p class="note">효과 배율은 상태이상 수치(화상/중독 틱 데미지, 번개 기절 시간, 냉기 둔화 지속시간)에 곱해집니다.
+      최하급 배율을 정확히 ×1.0으로 맞춰서, 지금 튜닝된 수치가 그대로 유지되고 기존 플레이가 깨지지 않습니다.</p>
+  </div>
+  <div class="card">
+    <h3>구조 변경 범위</h3>
+    <table>
+      <tr><th>파일</th><th>변경</th></tr>
+      <tr><td><code>ManaGrade.cs</code> (신규)</td><td><code>OreGrade.cs</code> 미러 - enum 5단계 + <code>ManaGradeUtility</code>(DisplayName, PowerMultiplier)</td></tr>
+      <tr><td><code>ManaBank.cs</code> (신규)</td><td><code>OreBank.cs</code> 미러 - 등급별 재고 dictionary + <code>TotalGathered</code> + <code>Ceiling</code>(문턱값 기반) + <code>DepositGathered</code>/<code>TrySpend</code>/<code>TryGetBestAvailable</code></td></tr>
+      <tr><td><code>StorageDepot.cs</code></td><td>마석 예치 시 기존 <code>ResourceBank.Add(ManaStone,...)</code> 옆에 <code>ManaBank.DepositGathered(amount)</code> 추가 (Ore와 동일하게 병행 기록 - 기존 리더는 안 깨짐)</td></tr>
+      <tr><td><code>CraftingStation.ApplyCraft</code></td><td><code>ResourceBank.TrySpend(ManaStone,...)</code> 대신 <code>ManaBank.TryGetBestAvailable</code>/<code>TrySpend</code>로 전환 (Ore와 동일 패턴) - 소모된 등급을 결과에 반영</td></tr>
+      <tr><td><code>ToolInventory.cs</code></td><td><b>Key에 축 하나 추가</b>: (WeaponType, OreGrade, CraftGrade, ManaElement) → <b>+ ManaGrade</b>. 마석을 안 쓴 크래프트는 ManaGrade 필드를 의미 없는 기본값(Crude)으로 두되 Element==None으로 구분(기존 관례 유지)</td></tr>
+      <tr><td><code>PlayerCombat.cs</code></td><td><code>TryGetBestWeapon</code>이 ManaGrade도 함께 반환 → <code>Monster.ApplyStatusEffect(element, powerMultiplier)</code>로 배율 전달</td></tr>
+      <tr><td><code>Monster.cs</code></td><td><code>ApplyStatusEffect</code>에 배율 파라미터 추가, 틱 데미지/기절·둔화 지속시간에 곱함</td></tr>
+      <tr><td><code>CraftingMinigameUI.ShowGradeResult</code>, <code>PlayerInventoryUI</code></td><td>결과/목록 표시에 마석 등급명도 함께 노출 (예: "Crude Fire Sword")</td></tr>
+    </table>
+  </div>
+  <div class="qbox">
+    <b>확인 필요 1</b> - 재료선택 시트에서 마석 등급을 <u>플레이어가 직접 고르게</u> 할지, 아니면 광물처럼
+    <u>자동으로 최고 등급을 소모</u>하게 할지. 지금 광물 슬롯도 등급별 칩을 보여주지 않고 "Ore" 칩 하나만 보여준 뒤
+    내부적으로 <code>OreBank.TryGetBestAvailable</code>(최고 등급 우선)로 자동 소모합니다. 같은 방식이면 UI가
+    지금처럼 단순하게 유지되고, 필드에 최하급만 있는 지금 시점엔 사실상 차이도 없습니다. <b>기본은 이 방식(자동)으로
+    제안</b>하고, 나중에 등급이 다양해지면 그때 수동 선택 UI를 추가하는 걸 권장합니다.
+  </div>
+
+  <h2><span class="num">2.</span> 재료선택 UI 레이아웃 &amp; 가독성 개선안 <span class="status decide">결정 필요</span></h2>
+  <div class="card">
+    <h3>현재 문제</h3>
+    <ul>
+      <li>슬롯 5개(광물·마석×3·목재)가 역할 구분 없이 한 줄에 동일한 간격으로 나열됨 - "필수 재료"와 "선택 인챈트"가
+        시각적으로 구분되지 않음</li>
+      <li>슬롯 라벨 글자 크기(20)가 작아 초기 상태("Ore"/"Mana"/"Wood")와 선택 후 상태를 빠르게 구분하기 어려움</li>
+      <li>크래프트 결과(등급/등급 조합)를 FORGE를 누르기 전에는 전혀 미리 볼 수 없음 - 칼날/손잡이 색조 변화만으로 유추해야 함</li>
+      <li>시트(재료 목록) 칩 글자 크기(22)도 작은 편</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>개선안</h3>
+    <ol>
+      <li><b>슬롯 재배치 + 그룹 구분선</b>: 현재 순서(광물-마석-마석-마석-목재)를 <b>광물·목재(필수)를 왼쪽</b>,
+        <b>마석×3(선택 인챈트)을 오른쪽</b>으로 재배치하고, 두 그룹 사이에 얇은 구분선 + 그룹 라벨("REQUIRED" /
+        "ENCHANT · OPTIONAL")을 추가합니다.</li>
+      <li><b>슬롯 라벨 확대</b>: 20→24, 굵게. 채워진 슬롯은 테두리를 추가해 미채움과의 대비를 높입니다.</li>
+      <li><b>결과 미리보기 줄 추가</b>: FORGE 버튼 위에 한 줄("Iron Sword" 처럼 현재 슬롯 상태로 만들어질 아이템 이름)을
+        추가해 누르기 전에 결과를 바로 읽을 수 있게 합니다. (등급/품질은 미니게임 이후 정해지므로 여기엔 소재 조합만 표시)</li>
+      <li><b>시트 칩 글자 확대</b>: 22→26, 보유 개수 표시도 더 굵게.</li>
+      <li><b>힌트 텍스트 대비 강화</b>: 현재 회색(0.75,0.72,0.68)이 어두운 배경과 대비가 약함 - 밝기를 살짝 올림.</li>
+    </ol>
+    <p class="note">구조적 변경(등급/축 추가) 없이 순수 배치·타이포 조정이라 마석 등급 작업과 독립적으로 먼저 진행해도 되고,
+      같이 진행해도 됩니다. 마석 슬롯을 오른쪽 그룹으로 모아두면 나중에 마석 등급 칩이 늘어나도 레이아웃이 안 깨집니다.</p>
+  </div>
+
+  <h2><span class="num">3.</span> 추가로 고려할 만한 것들 (의견)</h2>
+  <div class="card">
+    <ul>
+      <li><b>마석 등급 시각 구분</b>: 인벤토리/시트에서 등급별로 살짝 다른 테두리 색(위 표의 스와치처럼)을 쓰면
+        나중에 등급이 여러 개 섞였을 때 한눈에 구분됩니다.</li>
+      <li><b>필드 상한 문턱값</b>: 광물의 SteelThreshold=60처럼, 마석도 "누적 마석 획득량 N개부터 하급 개방" 식의
+        숫자가 필요합니다 - 정확한 숫자는 플레이 템포를 보면서 나중에 튜닝하는 걸 권장(우선 하급 개방 없이 시작,
+        추후 요청 시 문턱값만 추가).</li>
+      <li><b>마석 슬롯 3개 각각 다른 원소를 넣을 수 있는 현재 UI</b>이지만 실제로는 <code>ApplyCraft</code>가
+        소모된 총 개수만 보고 원소 하나를 랜덤으로 굴립니다(3개를 넣어도 결과는 원소 1개). 등급 시스템이 들어가면
+        "3개를 넣으면 등급도 더 잘 나온다" 같은 규칙을 추가할 수도 있는데, 이번 스코프에는 포함하지 않고
+        일단 배율은 등급에만 연동하는 걸 제안합니다(범위를 너무 넓히지 않기 위해).</li>
+    </ul>
+  </div>
+
+  <footer>mana_grade_and_ui_design_v1.html v1 · 확인 후 §1(마석 등급) → §2(레이아웃) 순으로 구현 진행 예정</footer>
+</div>
+</body>
+</html>

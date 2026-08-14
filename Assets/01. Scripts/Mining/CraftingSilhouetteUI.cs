@@ -147,8 +147,11 @@ public class CraftingSilhouetteUI : MonoBehaviour
         handleImage.color = handleBaseColor;
         MakeText(handleGO.transform, "Label", 20, new Vector2(0f, 24f), new Vector2(200f, 30f)).text = "HANDLE";
 
-        forgeButton = MakeButton(panel.transform, "ForgeButton", new Vector2(-160f, 65f), new Vector2(290f, 100f), "FORGE", new Color(0.35f, 0.6f, 0.35f));
-        cancelButton = MakeButton(panel.transform, "CancelButton", new Vector2(160f, 65f), new Vector2(290f, 100f), "CANCEL", new Color(0.5f, 0.3f, 0.28f));
+        // Widened gap (was 30px between two 290-wide buttons at +-160 - narrow enough that a
+        // FORGE tap near the shared edge sometimes registered on CANCEL instead, per user
+        // report). Now 260 wide at +-210, leaving a 140px dead zone between them.
+        forgeButton = MakeButton(panel.transform, "ForgeButton", new Vector2(-210f, 65f), new Vector2(260f, 110f), "FORGE", new Color(0.35f, 0.6f, 0.35f));
+        cancelButton = MakeButton(panel.transform, "CancelButton", new Vector2(210f, 65f), new Vector2(260f, 110f), "CANCEL", new Color(0.5f, 0.3f, 0.28f));
 
         BuildSheet();
         sheet.SetActive(false);
