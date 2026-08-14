@@ -180,7 +180,7 @@ public class PlayerInventoryUI : MonoBehaviour
         Color tint = entry.Element != ManaElement.None ? ManaElementUtility.SparkColor(entry.Element) : new Color(0.3f, 0.28f, 0.25f);
         rowGO.GetComponent<Image>().color = new Color(tint.r, tint.g, tint.b, 0.25f);
 
-        string elementPrefix = entry.Element != ManaElement.None ? ManaElementUtility.DisplayName(entry.Element) + " " : "";
+        string elementPrefix = entry.Element != ManaElement.None ? ManaGradeUtility.DisplayName(entry.ManaGrade) + " " + ManaElementUtility.DisplayName(entry.Element) + " " : "";
         string itemName = elementPrefix + OreGradeUtility.DisplayName(entry.Ore) + " " + WeaponTypeUtility.DisplayName(entry.Weapon);
         string quality = CraftGradeUtility.DisplayName(entry.Craft);
 

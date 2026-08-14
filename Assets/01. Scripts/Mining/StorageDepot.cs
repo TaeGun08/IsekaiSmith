@@ -81,6 +81,13 @@ public class StorageDepot : MonoBehaviour
         {
             OreBank.DepositMined(amount);
         }
+
+        // Mana additionally rolls into the graded bank (mana_grade_and_ui_design_v1.html §1) -
+        // same parallel-write pattern as Ore above.
+        if (acceptedLayer == CarryLayer.ManaStone)
+        {
+            ManaBank.DepositGathered(amount);
+        }
     }
 
     private static ResourceType ResourceTypeFor(CarryLayer layer)

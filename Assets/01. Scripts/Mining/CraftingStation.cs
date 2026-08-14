@@ -96,7 +96,7 @@ public class CraftingStation : MonoBehaviour
             InteractionPromptUI.Instance.Show(
                 stationTitle,
                 () => StartCoroutine(CraftWithSilhouetteAndMinigames()),
-                () => ApplyCraft(0.5f, 0, true, out _, out _, out _));
+                () => ApplyCraft(0.5f, 0, true, out _, out _, out _, out _));
             promptShown = true;
         }
     }
@@ -139,7 +139,7 @@ public class CraftingStation : MonoBehaviour
             return false;
         }
 
-        grade = ApplyCraft(0.5f, 0, true, out amount, out _, out _);
+        grade = ApplyCraft(0.5f, 0, true, out amount, out _, out _, out _);
         return true;
     }
 
@@ -174,16 +174,17 @@ public class CraftingStation : MonoBehaviour
             q => hammerQuality = q);
 
         float quality = (meltQuality + hammerQuality) * 0.5f;
-        CraftGrade grade = ApplyCraft(quality, manaSpent, false, out int amount, out OreGrade oreGrade, out ManaElement element);
-        yield return CraftingMinigameUI.Instance.ShowGradeResult(oreGrade, element, grade, amount);
+        CraftGrade grade = ApplyCraft(quality, manaSpent, false, out int amount, out OreGrade oreGrade, out ManaElement element, out ManaGrade manaGrade);
+        yield return CraftingMinigameUI.Instance.ShowGradeResult(oreGrade, element, manaGrade, grade, amount);
         isCrafting = false;
     }
 
-    private CraftGrade ApplyCraft(float quality, int manaSpent, bool isQuickCraft, out int amount, out OreGrade oreGrade, out ManaElement element)
+    private CraftGrade ApplyCraft(float quality, int manaSpent, bool isQuickCraft, out int amount, out OreGrade oreGrade, out ManaElement element, out ManaGrade manaGrade)
     {
         amount = 0;
         oreGrade = OreGrade.Iron;
         element = ManaElement.None;
+        manaGrade = ManaGrade.Crude;
 
         if (!HasEnoughInputs() || !OreBank.TryGetBestAvailable(oreAmount, out oreGrade))
         {
@@ -195,22 +196,25 @@ public class CraftingStation : MonoBehaviour
 
         if (manaSpent > 0)
         {
-            int actualMana = Mathf.Min(manaSpent, ResourceBank.Get(manaStoneType));
-            ResourceBank.TrySpend(manaStoneType, actualMana);
-
-            // Field-dropped mana carries no element of its own yet (combat_design_v1.html §7),
-            // so which element the enchant lands on is rolled rather than chosen - see
-            // ManaElementUtility.RollRandom(). Quick Craft never spends mana (no silhouette step
-            // to feed it in through), so it can never produce an enchanted result.
-            if (actualMana > 0)
+            // Graded mana now lives in ManaBank (mana_grade_and_ui_design_v1.html §1), same split
+            // as Ore/OreBank - ResourceBank.ManaStone stays a write-only "lifetime deposited"
+            // signal. Auto-picks the best-graded stock with enough units, same rule OreBank uses.
+            int actualMana = Mathf.Min(manaSpent, ManaBank.TotalCurrent);
+            if (actualMana > 0 && ManaBank.TryGetBestAvailable(actualMana, out manaGrade))
             {
+                ManaBank.TrySpend(manaGrade, actualMana);
+
+                // Field-dropped mana carries no element of its own yet (combat_design_v1.html §7),
+                // so which element the enchant lands on is rolled rather than chosen - see
+                // ManaElementUtility.RollRandom(). Quick Craft never spends mana (no silhouette
+                // step to feed it in through), so it can never produce an enchanted result.
                 element = ManaElementUtility.RollRandom();
             }
         }
 
         CraftGrade grade = CraftGradeUtility.GradeFor(quality);
         amount = outputAmount + CraftGradeUtility.BonusAmount(grade);
-        ToolInventory.Add(weaponType, oreGrade, grade, element, amount);
+        ToolInventory.Add(weaponType, oreGrade, grade, element, manaGrade, amount);
         OnCrafted?.Invoke(isQuickCraft);
         return grade;
     }

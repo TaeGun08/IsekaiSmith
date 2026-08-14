@@ -25,6 +25,7 @@ public class Monster : MonoBehaviour
     private float statusTimer;
     private float statusTickClock;
     private int statusTicksRemaining;
+    private float statusPowerMultiplier = 1f;
 
     private Material bodyMaterial; // cached once - repeatedly reading Renderer.material has real overhead
     private Color baseColor;
@@ -73,7 +74,11 @@ public class Monster : MonoBehaviour
     // Fire/Poison tick bonus damage over time; Lightning stuns (no movement/attack); Frost slows
     // movement. Only one status is ever active - a fresh application replaces whatever was
     // running, rather than stacking (keeps this simple for a placeholder-level enchant system).
-    public void ApplyStatusEffect(ManaElement element)
+    // powerMultiplier comes from ManaGradeUtility.PowerMultiplier(equippedManaGrade) - Crude is
+    // x1.0 so an un-graded (pre-ManaGrade-system) hit plays identically to before. Fire/Poison
+    // scale tick damage (duration/tick count unchanged); Lightning/Frost scale duration (Frost's
+    // slow *strength* stays flat - see mana_grade_and_ui_design_v1.html §1).
+    public void ApplyStatusEffect(ManaElement element, float powerMultiplier = 1f)
     {
         if (dead || element == ManaElement.None)
         {
@@ -81,6 +86,7 @@ public class Monster : MonoBehaviour
         }
 
         activeStatus = element;
+        statusPowerMultiplier = powerMultiplier;
         statusTickClock = 0f;
 
         switch (element)
@@ -94,10 +100,10 @@ public class Monster : MonoBehaviour
                 statusTimer = ManaElementUtility.PoisonTickInterval * ManaElementUtility.PoisonTicks;
                 break;
             case ManaElement.Lightning:
-                statusTimer = ManaElementUtility.LightningStunDuration;
+                statusTimer = ManaElementUtility.LightningStunDuration * powerMultiplier;
                 break;
             case ManaElement.Frost:
-                statusTimer = ManaElementUtility.FrostSlowDuration;
+                statusTimer = ManaElementUtility.FrostSlowDuration * powerMultiplier;
                 break;
         }
     }
@@ -214,7 +220,7 @@ public class Monster : MonoBehaviour
             {
                 bool isFire = activeStatus == ManaElement.Fire;
                 statusTickClock = isFire ? ManaElementUtility.FireTickInterval : ManaElementUtility.PoisonTickInterval;
-                float tickDamage = isFire ? ManaElementUtility.FireTickDamage : ManaElementUtility.PoisonTickDamage;
+                float tickDamage = (isFire ? ManaElementUtility.FireTickDamage : ManaElementUtility.PoisonTickDamage) * statusPowerMultiplier;
                 statusTicksRemaining--;
 
                 // No mana-stone-drop roll here (that's PlayerCombat's job off a direct hit) - a

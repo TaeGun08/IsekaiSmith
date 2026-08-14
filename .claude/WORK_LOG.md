@@ -2156,3 +2156,43 @@ Phase 2(장착 무기 시스템)로 잡혀있는 내용의 재확인 - 이번엔
 ### 다음에 할 일 (TODO)
 - [ ] `mana_grade_and_ui_design_v1.html` 브리핑에 대한 사용자 피드백 확인 후 구현 착수
 - [ ] 다음 세션: Play Mode에서 하이어라키/인벤토리 패널 정상 동작 확인 (계속 이월)
+
+## 2026-08-14 (계속 24)
+
+### 브리핑 승인 -> 마석 등급 시스템 + 재료선택 UI 레이아웃 구현
+"내용이 괜찮은 것 같아. 일단 진행시켜보고 아니면 보완하자." - mana_grade_and_ui_design_v1.html
+승인, §1/§2 순서대로 구현.
+
+### ① 마석 등급 시스템
+- **`ManaGrade.cs`**(신규) - `OreGrade.cs` 미러: enum 5단계(Crude/Common/Refined/Greater/
+  Pristine) + `ManaGradeUtility.PowerMultiplier`(Crude=x1.0 그대로 유지, Common~Pristine
+  x1.4~x3.2).
+- **`ManaBank.cs`**(신규) - `OreBank.cs` 미러: 등급별 재고 + `TotalGathered` + `Ceiling`.
+  `CommonThreshold = int.MaxValue`로 필드는 지금 최하급 고정("일단은 최하급만" 요청 반영) -
+  숫자 하나만 낮추면 하급 개방. Refined 이상은 Ceiling 로직 자체가 절대 못 넘도록 설계
+  (스테이지/던전 전용, 로드맵 ③ 자리 비워둠).
+- **`StorageDepot.cs`** - 마석 예치 시 `ManaBank.DepositGathered` 병행 기록(Ore와 동일 패턴).
+- **`ToolInventory.cs`** - Key/Entry에 `ManaGrade` 축 추가(4축→5축), `TryGetBestWeapon`/
+  `AllOwned`/`Add`/`TrySpendAtLeast` 전부 갱신.
+- **`Monster.ApplyStatusEffect`** - `powerMultiplier` 파라미터 추가, 화상/중독 틱데미지 및
+  번개 기절·냉기 둔화 지속시간에 곱함.
+- **`PlayerCombat.cs`** - 장착 마석 등급의 `PowerMultiplier`를 상태이상 적용 시 전달.
+- **`CraftingStation.ApplyCraft`** - `ResourceBank.ManaStone` 대신 `ManaBank`에서 소모(광물과
+  동일하게 최고 등급 자동 선택), 결과 등급을 `ToolInventory.Add`/`ShowGradeResult`에 반영.
+- **`CraftingMinigameUI.ShowGradeResult`**, **`PlayerInventoryUI`** - 결과/목록에 마석 등급명도
+  함께 표시(예: "Crude Fire Sword").
+
+### ② 재료선택 UI 레이아웃/가독성 개선
+`CraftingSilhouetteUI.cs`:
+- 슬롯을 역할별로 재배치 - 광물+목재(필수)는 왼쪽, 마석x3(선택 인챈트)은 오른쪽, 사이에
+  구분선 + "REQUIRED"/"ENCHANT (OPTIONAL)" 그룹 라벨 추가.
+- 슬롯 라벨 20→24 굵게, 채워진 슬롯에 흰 테두리(Outline) 추가로 대비 강화.
+- FORGE 버튼 위에 결과 미리보기 줄 신설("Add ore + wood to forge" / "Ready to forge" /
+  "Ready to forge - Enchant xN").
+- 시트 칩 글자 22→26, 힌트 텍스트 밝기 상향(대비 강화).
+
+컴파일: `refresh_unity` 재요청 후 `read_console` - 에러/경고 0건.
+
+### 다음에 할 일 (TODO)
+- [ ] 다음 세션: Play Mode에서 마석 등급 드랍/소모, 재배치된 재료선택 UI 실제 동작 확인
+- [ ] 필드 마석 상한 개방 시점(ManaBank.CommonThreshold) - 사용자 요청 시 튜닝

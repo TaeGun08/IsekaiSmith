@@ -1,13 +1,15 @@
 using System;
 using System.Collections.Generic;
 
-// Finished-goods inventory, kept separate from ResourceBank (raw materials). Keyed on all four
+// Finished-goods inventory, kept separate from ResourceBank (raw materials). Keyed on all five
 // independent axes a crafted weapon can vary on: WeaponType (Sword today, Axe/Hammer/Dagger
-// later - game_design_doc.html §3), OreGrade (material tier), CraftGrade (finish quality), and
-// ManaElement (optional enchant). Deliberately built this way from the start rather than
-// Sword-only, per user direction: "구조 자체를... 유동적으로 계속해서 무언가를 추가할 수 있게".
-// See weapon_diversity_design_v1.html §6. Deliberately not a general item-instance system - just
-// enough to match orders against stock and read back the best-owned weapon.
+// later - game_design_doc.html §3), OreGrade (material tier), CraftGrade (finish quality),
+// ManaElement (which enchant, if any), and ManaGrade (how strong that enchant is - meaningless
+// when ManaElement is None). Deliberately built this way from the start rather than Sword-only,
+// per user direction: "구조 자체를... 유동적으로 계속해서 무언가를 추가할 수 있게".
+// See weapon_diversity_design_v1.html §6, mana_grade_and_ui_design_v1.html §1. Deliberately not a
+// general item-instance system - just enough to match orders against stock and read back the
+// best-owned weapon.
 public static class ToolInventory
 {
     private readonly struct Key : IEquatable<Key>
@@ -16,36 +18,41 @@ public static class ToolInventory
         public readonly OreGrade Ore;
         public readonly CraftGrade Craft;
         public readonly ManaElement Element;
+        public readonly ManaGrade ManaGrade;
 
-        public Key(WeaponType weapon, OreGrade ore, CraftGrade craft, ManaElement element)
+        public Key(WeaponType weapon, OreGrade ore, CraftGrade craft, ManaElement element, ManaGrade manaGrade)
         {
             Weapon = weapon;
             Ore = ore;
             Craft = craft;
             Element = element;
+            ManaGrade = manaGrade;
         }
 
-        public bool Equals(Key other) => Weapon == other.Weapon && Ore == other.Ore && Craft == other.Craft && Element == other.Element;
+        public bool Equals(Key other) => Weapon == other.Weapon && Ore == other.Ore && Craft == other.Craft && Element == other.Element && ManaGrade == other.ManaGrade;
         public override bool Equals(object obj) => obj is Key other && Equals(other);
-        public override int GetHashCode() => HashCode.Combine(Weapon, Ore, Craft, Element);
+        public override int GetHashCode() => HashCode.Combine(Weapon, Ore, Craft, Element, ManaGrade);
     }
 
     // Read-only view of one owned stack - lets PlayerInventoryUI list everything the player has
-    // without needing its own copy of the (WeaponType, OreGrade, CraftGrade, ManaElement) loop.
+    // without needing its own copy of the (WeaponType, OreGrade, CraftGrade, ManaElement,
+    // ManaGrade) loop.
     public readonly struct Entry
     {
         public readonly WeaponType Weapon;
         public readonly OreGrade Ore;
         public readonly CraftGrade Craft;
         public readonly ManaElement Element;
+        public readonly ManaGrade ManaGrade;
         public readonly int Count;
 
-        public Entry(WeaponType weapon, OreGrade ore, CraftGrade craft, ManaElement element, int count)
+        public Entry(WeaponType weapon, OreGrade ore, CraftGrade craft, ManaElement element, ManaGrade manaGrade, int count)
         {
             Weapon = weapon;
             Ore = ore;
             Craft = craft;
             Element = element;
+            ManaGrade = manaGrade;
             Count = count;
         }
     }
@@ -55,10 +62,11 @@ public static class ToolInventory
     private static readonly CraftGrade[] AscendingCraftGrades = (CraftGrade[])Enum.GetValues(typeof(CraftGrade));
     private static readonly OreGrade[] AscendingOreGrades = (OreGrade[])Enum.GetValues(typeof(OreGrade));
     private static readonly ManaElement[] AllElements = (ManaElement[])Enum.GetValues(typeof(ManaElement));
+    private static readonly ManaGrade[] AscendingManaGrades = (ManaGrade[])Enum.GetValues(typeof(ManaGrade));
 
-    public static int Get(WeaponType weapon, OreGrade oreGrade, CraftGrade grade, ManaElement element)
+    public static int Get(WeaponType weapon, OreGrade oreGrade, CraftGrade grade, ManaElement element, ManaGrade manaGrade)
     {
-        return counts.TryGetValue(new Key(weapon, oreGrade, grade, element), out int value) ? value : 0;
+        return counts.TryGetValue(new Key(weapon, oreGrade, grade, element, manaGrade), out int value) ? value : 0;
     }
 
     public static int Total
@@ -75,11 +83,11 @@ public static class ToolInventory
         }
     }
 
-    // The single best-owned weapon (highest ore grade, any weapon type/quality/element) - stands
-    // in for "the equipped weapon" until a real equip-selection UI exists
-    // (weapon_diversity_design_v1.html §1 "다음 단계로 미룸"). Defaults (Sword/Iron/None) if
+    // The single best-owned weapon (highest ore grade, any weapon type/quality/element/mana grade)
+    // - stands in for "the equipped weapon" until a real equip-selection UI exists
+    // (weapon_diversity_design_v1.html §1 "다음 단계로 미룸"). Defaults (Sword/Iron/None/Crude) if
     // nothing's been crafted yet, so combat plays identically to before this system existed.
-    public static bool TryGetBestWeapon(out WeaponType weapon, out OreGrade oreGrade, out ManaElement element)
+    public static bool TryGetBestWeapon(out WeaponType weapon, out OreGrade oreGrade, out ManaElement element, out ManaGrade manaGrade)
     {
         for (int i = AscendingOreGrades.Length - 1; i >= 0; i--)
         {
@@ -90,12 +98,16 @@ public static class ToolInventory
                 {
                     foreach (ManaElement candidateElement in AllElements)
                     {
-                        if (Get(candidateWeapon, candidateOre, grade, candidateElement) > 0)
+                        foreach (ManaGrade candidateManaGrade in AscendingManaGrades)
                         {
-                            weapon = candidateWeapon;
-                            oreGrade = candidateOre;
-                            element = candidateElement;
-                            return true;
+                            if (Get(candidateWeapon, candidateOre, grade, candidateElement, candidateManaGrade) > 0)
+                            {
+                                weapon = candidateWeapon;
+                                oreGrade = candidateOre;
+                                element = candidateElement;
+                                manaGrade = candidateManaGrade;
+                                return true;
+                            }
                         }
                     }
                 }
@@ -105,6 +117,7 @@ public static class ToolInventory
         weapon = WeaponType.Sword;
         oreGrade = OreGrade.Iron;
         element = ManaElement.None;
+        manaGrade = ManaGrade.Crude;
         return false;
     }
 
@@ -122,10 +135,13 @@ public static class ToolInventory
                     CraftGrade grade = AscendingCraftGrades[j];
                     foreach (ManaElement element in AllElements)
                     {
-                        int count = Get(weapon, oreGrade, grade, element);
-                        if (count > 0)
+                        foreach (ManaGrade manaGrade in AscendingManaGrades)
                         {
-                            yield return new Entry(weapon, oreGrade, grade, element, count);
+                            int count = Get(weapon, oreGrade, grade, element, manaGrade);
+                            if (count > 0)
+                            {
+                                yield return new Entry(weapon, oreGrade, grade, element, manaGrade, count);
+                            }
                         }
                     }
                 }
@@ -133,22 +149,22 @@ public static class ToolInventory
         }
     }
 
-    public static void Add(WeaponType weapon, OreGrade oreGrade, CraftGrade grade, ManaElement element, int amount)
+    public static void Add(WeaponType weapon, OreGrade oreGrade, CraftGrade grade, ManaElement element, ManaGrade manaGrade, int amount)
     {
         if (amount <= 0)
         {
             return;
         }
 
-        Key key = new Key(weapon, oreGrade, grade, element);
-        counts[key] = Get(weapon, oreGrade, grade, element) + amount;
+        Key key = new Key(weapon, oreGrade, grade, element, manaGrade);
+        counts[key] = Get(weapon, oreGrade, grade, element, manaGrade) + amount;
     }
 
     // Spends the lowest-graded item that still satisfies minGrade, so higher-grade stock stays in
     // reserve for orders that actually demand it instead of getting burned on an easy order.
-    // Weapon type/ore grade/element don't factor into order eligibility yet (orders only ever
-    // asked for a minimum quality - see weapon_diversity_design_v1.html §1) so any combo works,
-    // cheapest first.
+    // Weapon type/ore grade/element/mana grade don't factor into order eligibility yet (orders only
+    // ever asked for a minimum quality - see weapon_diversity_design_v1.html §1) so any combo
+    // works, cheapest first.
     public static bool TrySpendAtLeast(CraftGrade minGrade, out CraftGrade spentGrade)
     {
         foreach (CraftGrade grade in AscendingCraftGrades)
@@ -164,15 +180,18 @@ public static class ToolInventory
                 {
                     foreach (ManaElement element in AllElements)
                     {
-                        if (Get(weapon, oreGrade, grade, element) <= 0)
+                        foreach (ManaGrade manaGrade in AscendingManaGrades)
                         {
-                            continue;
-                        }
+                            if (Get(weapon, oreGrade, grade, element, manaGrade) <= 0)
+                            {
+                                continue;
+                            }
 
-                        Key key = new Key(weapon, oreGrade, grade, element);
-                        counts[key] = counts[key] - 1;
-                        spentGrade = grade;
-                        return true;
+                            Key key = new Key(weapon, oreGrade, grade, element, manaGrade);
+                            counts[key] = counts[key] - 1;
+                            spentGrade = grade;
+                            return true;
+                        }
                     }
                 }
             }

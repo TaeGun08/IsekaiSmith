@@ -76,7 +76,7 @@ public class PlayerCombat : MonoBehaviour
         // UI for now (weapon_diversity_design_v1.html §1). Iron/no-element's AttackPower matches
         // the old flat 10 exactly, so a session with nothing crafted yet plays identically to
         // before this system existed.
-        ToolInventory.TryGetBestWeapon(out _, out OreGrade equippedOreGrade, out ManaElement equippedElement);
+        ToolInventory.TryGetBestWeapon(out _, out OreGrade equippedOreGrade, out ManaElement equippedElement, out ManaGrade equippedManaGrade);
         float damage = OreGradeUtility.AttackPower(equippedOreGrade);
 
         attackTimer = AttackInterval;
@@ -86,7 +86,7 @@ public class PlayerCombat : MonoBehaviour
         // No point afflicting a monster that's already gone.
         if (!defeated && equippedElement != ManaElement.None)
         {
-            target.ApplyStatusEffect(equippedElement);
+            target.ApplyStatusEffect(equippedElement, ManaGradeUtility.PowerMultiplier(equippedManaGrade));
         }
 
         // Impact spark + camera shake so a landed hit actually reads as one (user report:

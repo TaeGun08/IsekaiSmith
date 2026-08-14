@@ -39,11 +39,13 @@ public class CraftingSilhouetteUI : MonoBehaviour
         public ResourceType? Filled;
         public Image SlotImage;
         public TMP_Text SlotLabel;
+        public Outline SlotBorder;
     }
 
     private GameObject panel;
     private TMP_Text titleText;
     private TMP_Text hintText;
+    private TMP_Text previewText;
 
     private Image bladeImage;
     private Image handleImage;
@@ -103,14 +105,37 @@ public class CraftingSilhouetteUI : MonoBehaviour
         titleText = MakeText(panel.transform, "Title", 38, new Vector2(0f, -46f), new Vector2(880f, 52f));
         hintText = MakeText(panel.transform, "Hint", 24, new Vector2(0f, -104f), new Vector2(880f, 40f));
         hintText.text = "Tap a slot to choose a material";
-        hintText.color = new Color(0.75f, 0.72f, 0.68f);
+        hintText.color = new Color(0.85f, 0.82f, 0.78f);
 
-        float[] slotX = { -300f, -150f, 0f, 150f, 300f };
-        oreSlot = BuildSlot(panel.transform, MaterialCategory.Ore, slotX[0], -170f, "Ore");
-        manaSlots[0] = BuildSlot(panel.transform, MaterialCategory.ManaStone, slotX[1], -170f, "Mana");
-        manaSlots[1] = BuildSlot(panel.transform, MaterialCategory.ManaStone, slotX[2], -170f, "Mana");
-        manaSlots[2] = BuildSlot(panel.transform, MaterialCategory.ManaStone, slotX[3], -170f, "Mana");
-        woodSlot = BuildSlot(panel.transform, MaterialCategory.Wood, slotX[4], -170f, "Wood");
+        // Slots grouped by role instead of one undifferentiated row (user report: layout/
+        // readability) - required materials (ore, wood) on the left, optional enchant (mana x3) on
+        // the right, with a divider + group labels between them so the two roles read apart at a
+        // glance instead of five identical squares in a line.
+        const float oreX = -345f, woodX = -195f;
+        float[] manaX = { 40f, 190f, 340f };
+        const float groupLabelY = -148f;
+        const float slotY = -170f;
+
+        MakeText(panel.transform, "RequiredLabel", 18, new Vector2((oreX + woodX) * 0.5f, groupLabelY), new Vector2(220f, 26f)).text = "REQUIRED";
+        TMP_Text enchantLabel = MakeText(panel.transform, "EnchantLabel", 18, new Vector2((manaX[0] + manaX[2]) * 0.5f, groupLabelY), new Vector2(320f, 26f));
+        enchantLabel.text = "ENCHANT (OPTIONAL)";
+        enchantLabel.color = new Color(0.78f, 0.62f, 0.85f);
+
+        var dividerGO = new GameObject("GroupDivider", typeof(RectTransform), typeof(Image));
+        dividerGO.transform.SetParent(panel.transform, false);
+        var dividerRect = dividerGO.GetComponent<RectTransform>();
+        dividerRect.anchorMin = new Vector2(0.5f, 1f);
+        dividerRect.anchorMax = new Vector2(0.5f, 1f);
+        dividerRect.pivot = new Vector2(0.5f, 1f);
+        dividerRect.anchoredPosition = new Vector2((woodX + manaX[0]) * 0.5f, groupLabelY - 4f);
+        dividerRect.sizeDelta = new Vector2(2f, 160f);
+        dividerGO.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.12f);
+
+        oreSlot = BuildSlot(panel.transform, MaterialCategory.Ore, oreX, slotY, "Ore");
+        woodSlot = BuildSlot(panel.transform, MaterialCategory.Wood, woodX, slotY, "Wood");
+        manaSlots[0] = BuildSlot(panel.transform, MaterialCategory.ManaStone, manaX[0], slotY, "Mana");
+        manaSlots[1] = BuildSlot(panel.transform, MaterialCategory.ManaStone, manaX[1], slotY, "Mana");
+        manaSlots[2] = BuildSlot(panel.transform, MaterialCategory.ManaStone, manaX[2], slotY, "Mana");
 
         // Blade/handle silhouette - decorative, reflects what's been slotted in with a tint.
         var bladeGO = new GameObject("BladeVisual", typeof(RectTransform), typeof(Image));
@@ -147,6 +172,23 @@ public class CraftingSilhouetteUI : MonoBehaviour
         handleImage.color = handleBaseColor;
         MakeText(handleGO.transform, "Label", 20, new Vector2(0f, 24f), new Vector2(200f, 30f)).text = "HANDLE";
 
+        // Readable-at-a-glance readiness line above the buttons - previously the only way to tell
+        // whether a craft was ready was the FORGE button's own enabled/disabled tint (user report:
+        // layout/readability). Bottom-anchored (like the buttons below it), not MakeText's usual
+        // top anchor, so its position stays tied to the button row instead of the panel top.
+        var previewGO = new GameObject("Preview", typeof(RectTransform));
+        previewGO.transform.SetParent(panel.transform, false);
+        var previewRect = previewGO.GetComponent<RectTransform>();
+        previewRect.anchorMin = new Vector2(0.5f, 0f);
+        previewRect.anchorMax = new Vector2(0.5f, 0f);
+        previewRect.pivot = new Vector2(0.5f, 0f);
+        previewRect.anchoredPosition = new Vector2(0f, 150f); // 30px above the button row's top edge (65 + 110/2 = 120)
+        previewRect.sizeDelta = new Vector2(700f, 40f);
+        previewText = previewGO.AddComponent<TextMeshProUGUI>();
+        previewText.fontSize = 24;
+        previewText.alignment = TextAlignmentOptions.Center;
+        previewText.fontStyle = FontStyles.Bold;
+
         // Widened gap (was 30px between two 290-wide buttons at +-160 - narrow enough that a
         // FORGE tap near the shared edge sometimes registered on CANCEL instead, per user
         // report). Now 260 wide at +-210, leaving a 140px dead zone between them.
@@ -172,7 +214,7 @@ public class CraftingSilhouetteUI : MonoBehaviour
         sheetTitleText = MakeText(sheet.transform, "SheetTitle", 28, new Vector2(0f, -24f), new Vector2(880f, 44f));
         var sheetHintText = MakeText(sheet.transform, "SheetHint", 22, new Vector2(0f, -56f), new Vector2(880f, 32f));
         sheetHintText.text = "Drag a material upward to place it";
-        sheetHintText.color = new Color(0.75f, 0.72f, 0.68f);
+        sheetHintText.color = new Color(0.85f, 0.82f, 0.78f);
 
         var gridGO = new GameObject("Grid", typeof(RectTransform));
         gridGO.transform.SetParent(sheet.transform, false);
@@ -201,20 +243,29 @@ public class CraftingSilhouetteUI : MonoBehaviour
         var image = go.GetComponent<Image>();
         image.color = slotEmptyColor;
 
-        var text = MakeText(go.transform, "Label", 20, Vector2.zero, new Vector2(130f, 130f));
+        // Filled/empty now also differ by a white border (not just fill color) - a flat color
+        // swap alone read weakly against the dark panel background (user report: readability).
+        var border = go.AddComponent<Outline>();
+        border.effectColor = new Color(1f, 1f, 1f, 0.9f);
+        border.effectDistance = new Vector2(2f, -2f);
+        border.enabled = false;
+
+        var text = MakeText(go.transform, "Label", 24, Vector2.zero, new Vector2(130f, 130f));
         var textRect = text.GetComponent<RectTransform>();
         textRect.anchorMin = Vector2.zero;
         textRect.anchorMax = Vector2.one;
         textRect.pivot = new Vector2(0.5f, 0.5f);
         textRect.anchoredPosition = Vector2.zero;
         text.text = label;
+        text.fontStyle = FontStyles.Bold;
 
         var slot = new MaterialSlot
         {
             Category = category,
             Filled = null,
             SlotImage = image,
-            SlotLabel = text
+            SlotLabel = text,
+            SlotBorder = border
         };
 
         go.GetComponent<Button>().onClick.AddListener(() => OpenSheet(slot));
@@ -322,11 +373,24 @@ public class CraftingSilhouetteUI : MonoBehaviour
 
         foreach (ResourceType type in MaterialCategoryUtility.AllInCategory(slot.Category))
         {
-            // Ore's real current stock now lives in OreBank (weapon_diversity_design_v1.html §3) -
-            // ResourceBank.Ore itself became a write-only "lifetime deposited" counter that never
-            // decreases once CraftingStation started spending from OreBank instead, so reading it
-            // here would show an ever-growing, wrong "owned" count.
-            int owned = type == ResourceType.Ore ? OreBank.TotalCurrent : ResourceBank.Get(type);
+            // Ore/Mana's real current stock now live in OreBank/ManaBank (weapon_diversity_design_v1.html
+            // §3, mana_grade_and_ui_design_v1.html §1) - the matching ResourceBank counts became
+            // write-only "lifetime deposited" counters that never decrease once CraftingStation
+            // started spending from the graded banks instead, so reading them here would show an
+            // ever-growing, wrong "owned" count.
+            int owned;
+            if (type == ResourceType.Ore)
+            {
+                owned = OreBank.TotalCurrent;
+            }
+            else if (type == ResourceType.ManaStone)
+            {
+                owned = ManaBank.TotalCurrent;
+            }
+            else
+            {
+                owned = ResourceBank.Get(type);
+            }
             if (owned <= 0 && slot.Filled != type)
             {
                 continue;
@@ -364,7 +428,7 @@ public class CraftingSilhouetteUI : MonoBehaviour
         rect.sizeDelta = new Vector2(chipSize, rowHeight - chipGap);
         go.GetComponent<Image>().color = color;
 
-        var text = MakeText(go.transform, "Label", 22, Vector2.zero, new Vector2(chipSize, rowHeight - chipGap));
+        var text = MakeText(go.transform, "Label", 26, Vector2.zero, new Vector2(chipSize, rowHeight - chipGap));
         var textRect = text.GetComponent<RectTransform>();
         textRect.anchorMin = Vector2.zero;
         textRect.anchorMax = Vector2.one;
@@ -403,6 +467,9 @@ public class CraftingSilhouetteUI : MonoBehaviour
             slot.SlotImage.color = slotEmptyColor;
             slot.SlotLabel.text = MaterialCategoryUtility.DisplayName(slot.Category);
         }
+
+        slot.SlotBorder.enabled = slot.Filled.HasValue;
+        UpdatePreviewText();
     }
 
     private Color ChipColor(MaterialCategory category)
@@ -441,6 +508,20 @@ public class CraftingSilhouetteUI : MonoBehaviour
     private void UpdateHandleVisual()
     {
         handleImage.color = woodSlot.Filled.HasValue ? handleWoodColor : handleBaseColor;
+    }
+
+    private void UpdatePreviewText()
+    {
+        if (!oreSlot.Filled.HasValue || !woodSlot.Filled.HasValue)
+        {
+            previewText.text = "Add ore + wood to forge";
+            previewText.color = new Color(0.6f, 0.58f, 0.54f);
+            return;
+        }
+
+        int manaCount = CountFilledMana();
+        previewText.text = manaCount > 0 ? "Ready to forge - Enchant x" + manaCount : "Ready to forge";
+        previewText.color = manaCount > 0 ? manaFilledColor : new Color(0.55f, 0.85f, 0.55f);
     }
 
     private int CountFilledMana()
