@@ -495,21 +495,20 @@ public class CraftingMinigameUI : MonoBehaviour
                 yield return null;
             }
 
-            if (released)
-            {
-                StartCoroutine(PlayHammerSwing(markerPos));
-            }
-
             int actualPercent = Mathf.RoundToInt(power * 100f);
             int diff = Mathf.Abs(actualPercent - targetPercent);
             float roundScore;
             float shakeAmplitude;
+            Color sparkColor;
+            int sparkCount;
 
             if (diff <= perfectTolerancePercent)
             {
                 roundScore = 1f;
                 shakeAmplitude = 0.16f;
                 resultText.text = "Perfect! (" + actualPercent + "%)";
+                sparkColor = new Color(1f, 0.85f, 0.3f);
+                sparkCount = 10;
                 SpawnHitMark(markerPos);
             }
             else if (diff <= goodTolerancePercent)
@@ -517,6 +516,8 @@ public class CraftingMinigameUI : MonoBehaviour
                 roundScore = 0.6f;
                 shakeAmplitude = 0.1f;
                 resultText.text = "Good (" + actualPercent + "%)";
+                sparkColor = new Color(1f, 0.7f, 0.35f);
+                sparkCount = 6;
                 SpawnHitMark(markerPos);
             }
             else
@@ -524,6 +525,17 @@ public class CraftingMinigameUI : MonoBehaviour
                 roundScore = 0.15f;
                 shakeAmplitude = 0f;
                 resultText.text = released ? "Miss (" + actualPercent + "%)" : "Too Slow";
+                sparkColor = new Color(0.6f, 0.56f, 0.52f);
+                sparkCount = 3;
+            }
+
+            // Every real strike throws sparks (user report: "망치질할 때 스파크 튀거나 하는
+            // 이펙트가 추가되었으면 해"), not just Perfect/Good hits - a Miss still physically
+            // connects with the blade, just fewer/duller sparks. "Too Slow" never released, so no
+            // swing (and no sparks) plays at all.
+            if (released)
+            {
+                StartCoroutine(PlayHammerSwing(markerPos, sparkColor, sparkCount));
             }
 
             if (shakeAmplitude > 0f && CameraFollow.Instance != null)
@@ -546,7 +558,7 @@ public class CraftingMinigameUI : MonoBehaviour
 
     // Sells "I'm hitting this exact spot" - plays on every release, so it always reads as a
     // real hammer strike.
-    private IEnumerator PlayHammerSwing(Vector2 position)
+    private IEnumerator PlayHammerSwing(Vector2 position, Color sparkColor, int sparkCount)
     {
         hammerIconRect.gameObject.SetActive(true);
         Vector2 upPosition = position + new Vector2(0f, 130f);
@@ -563,6 +575,10 @@ public class CraftingMinigameUI : MonoBehaviour
             hammerIconRect.localRotation = Quaternion.Euler(0f, 0f, Mathf.Lerp(-25f, 0f, p));
             yield return null;
         }
+
+        // Hammer just connected - impact sparks right at the moment of contact, tinted/sized by
+        // how accurate the strike was (see the caller's Perfect/Good/Miss branch).
+        SpawnHammerSparks(position, sparkColor, sparkCount);
 
         t = 0f;
         const float upDuration = 0.16f;
@@ -591,6 +607,53 @@ public class CraftingMinigameUI : MonoBehaviour
         image.color = new Color(0.15f, 0.14f, 0.13f, 0.85f);
         image.raycastTarget = false;
         hitMarks.Add(markGO);
+    }
+
+    // UI-space impact sparks for the hammering minigame - same "radial burst + shrink + fade"
+    // technique HitEffects.SpawnSparks uses in world space, adapted to RectTransform/anchoredPosition
+    // since this canvas isn't tied to a world position. Not pooled (unlike HitEffects) - short-lived,
+    // low-volume (a handful of small Images per hammer round), self-destructs when done.
+    private void SpawnHammerSparks(Vector2 origin, Color color, int count)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            var sparkGO = new GameObject("HammerSpark", typeof(RectTransform), typeof(Image));
+            sparkGO.transform.SetParent(bladeRect, false);
+            var rect = sparkGO.GetComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = origin;
+            rect.sizeDelta = Vector2.one * 16f;
+            var image = sparkGO.GetComponent<Image>();
+            image.sprite = UIShapes.Circle();
+            image.color = color;
+            image.raycastTarget = false;
+
+            Vector2 direction = UnityEngine.Random.insideUnitCircle.normalized;
+            StartCoroutine(HammerSparkRoutine(rect, origin, direction));
+        }
+    }
+
+    private IEnumerator HammerSparkRoutine(RectTransform spark, Vector2 origin, Vector2 direction)
+    {
+        const float lifetime = 0.22f;
+        const float speed = 220f;
+        float elapsed = 0f;
+
+        while (elapsed < lifetime && spark != null)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / lifetime);
+            spark.anchoredPosition = origin + direction * speed * t;
+            spark.localScale = Vector3.one * (1f - t);
+            yield return null;
+        }
+
+        if (spark != null)
+        {
+            Destroy(spark.gameObject);
+        }
     }
 
     public IEnumerator ShowGradeResult(OreGrade oreGrade, ManaElement element, ManaGrade manaGrade, CraftGrade grade, int amount)

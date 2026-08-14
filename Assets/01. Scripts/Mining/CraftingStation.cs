@@ -19,12 +19,13 @@ public class CraftingStation : MonoBehaviour
     // this field set differently, not a new class. See weapon_diversity_design_v1.html §6.
     [SerializeField] private WeaponType weaponType = WeaponType.Sword;
 
-    // No oreType field - ore is always graded (OreBank.TryGetBestAvailable/TrySpend), unlike
-    // wood/mana which are still flat ResourceBank counts. See weapon_diversity_design_v1.html §3.
+    // No oreType field - ore is always graded (OreBank.TryGetBestAvailable/TrySpend). Mana is now
+    // graded too (ManaBank.TryGetBestAvailable/TrySpend) - see mana_grade_and_ui_design_v1.html §1
+    // - so it no longer needs a ResourceType field either, only wood is still a flat ResourceBank
+    // count.
     [SerializeField] private int oreAmount = 2;
     [SerializeField] private ResourceType woodType = ResourceType.Wood;
     [SerializeField] private int woodAmount = 1;
-    [SerializeField] private ResourceType manaStoneType = ResourceType.ManaStone;
     [SerializeField] private int outputAmount = 1;
     [SerializeField] private float interactRadius = 2.5f;
     [SerializeField] private string stationTitle = "Forge: Sword";
