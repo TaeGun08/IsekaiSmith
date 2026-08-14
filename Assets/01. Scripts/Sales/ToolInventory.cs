@@ -121,6 +121,23 @@ public static class ToolInventory
         return false;
     }
 
+    // Whether any craft-grade stack of this (weapon, ore, element, mana grade) combo is currently
+    // owned, ignoring CraftGrade - used by EquippedWeapon to check "is the player's explicit pick
+    // still in stock" without caring which quality copy backs it, since CraftGrade doesn't affect
+    // combat stats (only WeaponType/OreGrade/ManaElement/ManaGrade do).
+    public static bool OwnsAny(WeaponType weapon, OreGrade oreGrade, ManaElement element, ManaGrade manaGrade)
+    {
+        foreach (CraftGrade grade in AscendingCraftGrades)
+        {
+            if (Get(weapon, oreGrade, grade, element, manaGrade) > 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     // Every distinct stack currently owned (count > 0), highest ore grade first then highest
     // quality first - the order PlayerInventoryUI displays them in.
     public static IEnumerable<Entry> AllOwned()

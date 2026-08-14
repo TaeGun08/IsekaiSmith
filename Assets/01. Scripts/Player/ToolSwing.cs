@@ -87,7 +87,10 @@ public class ToolSwing : MonoBehaviour
         axeSwingRoutine = StartCoroutine(SwingRoutine(axeTool, restRotation, swungRotation, axeSwingDuration));
     }
 
-    public void PlayPickaxeSwing()
+    // durationScale lets a caller stretch/compress the swing without a second copy of this method -
+    // PlayWeaponSwing uses it for Hammer (see below) to reuse this same downward-strike shape at a
+    // slower, heavier pace instead of authoring a dedicated hammer mesh/animation.
+    public void PlayPickaxeSwing(float durationScale = 1f)
     {
         if (pickaxeTool == null)
         {
@@ -102,13 +105,15 @@ public class ToolSwing : MonoBehaviour
         // Y stays at 90 and Z sweeps from -30 to 90 for a downward pick strike.
         Quaternion restRotation = Quaternion.Euler(0f, 90f, -30f);
         Quaternion swungRotation = Quaternion.Euler(0f, 90f, 90f);
-        pickaxeSwingRoutine = StartCoroutine(SwingRoutine(pickaxeTool, restRotation, swungRotation, pickaxeSwingDuration));
+        pickaxeSwingRoutine = StartCoroutine(SwingRoutine(pickaxeTool, restRotation, swungRotation, pickaxeSwingDuration * durationScale));
     }
 
     // Combat's attack swing (see PlayerCombat.cs) - picks one of SwordPatterns each call so
     // repeated attacks read as a varied flurry (vertical/horizontal/diagonal) instead of the same
     // single-direction chop every time.
-    public void PlaySwordSwing()
+    // durationScale (see PlayPickaxeSwing) lets PlayWeaponSwing reuse this same blade-leading arc
+    // at a quicker pace for Dagger instead of a dedicated dagger mesh/animation.
+    public void PlaySwordSwing(float durationScale = 1f)
     {
         if (swordTool == null)
         {
@@ -121,7 +126,34 @@ public class ToolSwing : MonoBehaviour
         }
 
         SwingPattern pattern = SwordPatterns[NextSwordPatternIndex()];
-        swordSwingRoutine = StartCoroutine(SwingRoutine(swordTool, pattern.Rest, pattern.Swung, swordSwingDuration));
+        swordSwingRoutine = StartCoroutine(SwingRoutine(swordTool, pattern.Rest, pattern.Swung, swordSwingDuration * durationScale));
+    }
+
+    // Combat's single entry point for "play whatever swing this weapon type should look like" -
+    // PlayerCombat doesn't need to know which tool mesh backs which WeaponType. No dedicated
+    // axe/hammer/dagger meshes exist yet, so this reuses the tool visuals already on the player
+    // (axeTool/pickaxeTool from woodcutting/mining, swordTool from Sword combat) rather than
+    // inventing new art - Hammer borrows the pickaxe's downward strike (slowed down to read as
+    // heavier), Dagger borrows the sword's arc (sped up into a quick jab). See
+    // weapon_diversity_design_v1.html §8.
+    public void PlayWeaponSwing(WeaponType weaponType)
+    {
+        switch (weaponType)
+        {
+            case WeaponType.Axe:
+                PlayAxeSwing();
+                break;
+            case WeaponType.Hammer:
+                PlayPickaxeSwing(1.6f);
+                break;
+            case WeaponType.Dagger:
+                PlaySwordSwing(0.55f);
+                break;
+            case WeaponType.Sword:
+            default:
+                PlaySwordSwing();
+                break;
+        }
     }
 
     private int NextSwordPatternIndex()

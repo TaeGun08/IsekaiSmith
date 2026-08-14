@@ -112,6 +112,13 @@ public class PlayerInventoryUI : MonoBehaviour
         title.text = "Inventory";
         title.fontStyle = FontStyles.Bold;
 
+        // Real equip-selection UI (weapon_diversity_design_v1.html §1 "다음 단계로 미룸", now
+        // done in §8) - tapping a row below equips it via EquippedWeapon instead of always
+        // auto-using the best-owned weapon.
+        var equipHint = MakeText(panel.transform, "EquipHint", 20, new Vector2(0f, -72f), new Vector2(700f, 30f));
+        equipHint.text = "Tap a weapon to equip it";
+        equipHint.color = new Color(0.75f, 0.72f, 0.66f);
+
         Button closeButton = MakeButton(panel.transform, "CloseButton", new Vector2(0f, 40f), new Vector2(240f, 90f), "CLOSE", new Color(0.4f, 0.38f, 0.34f));
         closeButton.onClick.AddListener(TogglePanel);
 
@@ -168,7 +175,7 @@ public class PlayerInventoryUI : MonoBehaviour
 
     private void BuildRow(int index, ToolInventory.Entry entry)
     {
-        var rowGO = new GameObject("Row", typeof(RectTransform), typeof(Image));
+        var rowGO = new GameObject("Row", typeof(RectTransform), typeof(Image), typeof(Button));
         rowGO.transform.SetParent(rowsContainer, false);
         var rowRect = rowGO.GetComponent<RectTransform>();
         rowRect.anchorMin = new Vector2(0.5f, 1f);
@@ -180,15 +187,31 @@ public class PlayerInventoryUI : MonoBehaviour
         Color tint = entry.Element != ManaElement.None ? ManaElementUtility.SparkColor(entry.Element) : new Color(0.3f, 0.28f, 0.25f);
         rowGO.GetComponent<Image>().color = new Color(tint.r, tint.g, tint.b, 0.25f);
 
+        // CraftGrade doesn't factor into which stack is "equipped" (EquippedWeapon ignores it -
+        // it has no combat effect), so every row sharing the same (Weapon, Ore, Element, ManaGrade)
+        // would show the same equipped state regardless of its own quality.
+        bool isEquipped = EquippedWeapon.IsEquipped(entry.Weapon, entry.Ore, entry.Element, entry.ManaGrade);
+        var border = rowGO.AddComponent<Outline>();
+        border.effectColor = new Color(1f, 0.86f, 0.4f, 0.9f);
+        border.effectDistance = new Vector2(2f, -2f);
+        border.enabled = isEquipped;
+
         string elementPrefix = entry.Element != ManaElement.None ? ManaGradeUtility.DisplayName(entry.ManaGrade) + " " + ManaElementUtility.DisplayName(entry.Element) + " " : "";
-        string itemName = elementPrefix + OreGradeUtility.DisplayName(entry.Ore) + " " + WeaponTypeUtility.DisplayName(entry.Weapon);
+        string itemName = (isEquipped ? "> " : "") + elementPrefix + OreGradeUtility.DisplayName(entry.Ore) + " " + WeaponTypeUtility.DisplayName(entry.Weapon);
         string quality = CraftGradeUtility.DisplayName(entry.Craft);
 
         TMP_Text nameText = MakeRowText(rowGO.transform, "Name", new Vector2(20f, 0f), new Vector2(460f, RowHeight - 6f), TextAlignmentOptions.MidlineLeft);
         nameText.text = itemName + " (" + quality + ")";
+        nameText.color = isEquipped ? new Color(1f, 0.86f, 0.4f) : Color.white;
 
         TMP_Text countText = MakeRowText(rowGO.transform, "Count", new Vector2(-20f, 0f), new Vector2(140f, RowHeight - 6f), TextAlignmentOptions.MidlineRight);
         countText.text = "x" + entry.Count;
+
+        rowGO.GetComponent<Button>().onClick.AddListener(() =>
+        {
+            EquippedWeapon.Equip(entry.Weapon, entry.Ore, entry.Element, entry.ManaGrade);
+            RefreshRows();
+        });
     }
 
     // Anchored to the row's left/right edge, vertical middle - used for the name/count columns.

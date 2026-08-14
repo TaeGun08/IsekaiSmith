@@ -14,15 +14,18 @@ public class CraftingStation : MonoBehaviour
     public static event Action<bool> OnCrafted;
 
 
-    // Which weapon this station forges (game_design_doc.html §3 matrix) - only Sword exists so
-    // far, but a future Axe/Hammer/Dagger station is just a second CraftingStation instance with
-    // this field set differently, not a new class. See weapon_diversity_design_v1.html §6.
-    [SerializeField] private WeaponType weaponType = WeaponType.Sword;
+    // Fallback weapon type for QUICK CRAFT only - that path skips CraftingSilhouetteUI entirely so
+    // there's no weapon-type picker to read from. The precise Craft flow instead lets the player
+    // choose from any WeaponType via the silhouette panel's <Forge: X> selector, so one station
+    // now forges all weapon types rather than needing a separate CraftingStation instance per type.
+    // See weapon_diversity_design_v1.html §8.
+    [SerializeField] private WeaponType quickCraftWeaponType = WeaponType.Sword;
 
     // No oreType field - ore is always graded (OreBank.TryGetBestAvailable/TrySpend). Mana is now
     // graded too (ManaBank.TryGetBestAvailable/TrySpend) - see mana_grade_and_ui_design_v1.html §1
     // - so it no longer needs a ResourceType field either, only wood is still a flat ResourceBank
-    // count.
+    // count. Same recipe cost regardless of which WeaponType the player selects in the silhouette
+    // panel - per-weapon recipe costs are deferred (weapon_diversity_design_v1.html §8).
     [SerializeField] private int oreAmount = 2;
     [SerializeField] private ResourceType woodType = ResourceType.Wood;
     [SerializeField] private int woodAmount = 1;
@@ -97,7 +100,7 @@ public class CraftingStation : MonoBehaviour
             InteractionPromptUI.Instance.Show(
                 stationTitle,
                 () => StartCoroutine(CraftWithSilhouetteAndMinigames()),
-                () => ApplyCraft(0.5f, 0, true, out _, out _, out _, out _));
+                () => ApplyCraft(0.5f, 0, true, quickCraftWeaponType, out _, out _, out _, out _));
             promptShown = true;
         }
     }
@@ -140,7 +143,7 @@ public class CraftingStation : MonoBehaviour
             return false;
         }
 
-        grade = ApplyCraft(0.5f, 0, true, out amount, out _, out _, out _);
+        grade = ApplyCraft(0.5f, 0, true, quickCraftWeaponType, out amount, out _, out _, out _);
         return true;
     }
 
@@ -152,10 +155,12 @@ public class CraftingStation : MonoBehaviour
 
         bool loaded = false;
         int manaSpent = 0;
-        yield return CraftingSilhouetteUI.Instance.RunSilhouette(stationTitle, (started, mana) =>
+        WeaponType chosenWeapon = quickCraftWeaponType;
+        yield return CraftingSilhouetteUI.Instance.RunSilhouette((started, mana, weapon) =>
         {
             loaded = started;
             manaSpent = mana;
+            chosenWeapon = weapon;
         });
 
         if (!loaded)
@@ -175,12 +180,12 @@ public class CraftingStation : MonoBehaviour
             q => hammerQuality = q);
 
         float quality = (meltQuality + hammerQuality) * 0.5f;
-        CraftGrade grade = ApplyCraft(quality, manaSpent, false, out int amount, out OreGrade oreGrade, out ManaElement element, out ManaGrade manaGrade);
-        yield return CraftingMinigameUI.Instance.ShowGradeResult(oreGrade, element, manaGrade, grade, amount);
+        CraftGrade grade = ApplyCraft(quality, manaSpent, false, chosenWeapon, out int amount, out OreGrade oreGrade, out ManaElement element, out ManaGrade manaGrade);
+        yield return CraftingMinigameUI.Instance.ShowGradeResult(chosenWeapon, oreGrade, element, manaGrade, grade, amount);
         isCrafting = false;
     }
 
-    private CraftGrade ApplyCraft(float quality, int manaSpent, bool isQuickCraft, out int amount, out OreGrade oreGrade, out ManaElement element, out ManaGrade manaGrade)
+    private CraftGrade ApplyCraft(float quality, int manaSpent, bool isQuickCraft, WeaponType weapon, out int amount, out OreGrade oreGrade, out ManaElement element, out ManaGrade manaGrade)
     {
         amount = 0;
         oreGrade = OreGrade.Iron;
@@ -215,7 +220,7 @@ public class CraftingStation : MonoBehaviour
 
         CraftGrade grade = CraftGradeUtility.GradeFor(quality);
         amount = outputAmount + CraftGradeUtility.BonusAmount(grade);
-        ToolInventory.Add(weaponType, oreGrade, grade, element, manaGrade, amount);
+        ToolInventory.Add(weapon, oreGrade, grade, element, manaGrade, amount);
         OnCrafted?.Invoke(isQuickCraft);
         return grade;
     }

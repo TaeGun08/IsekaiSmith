@@ -7,7 +7,10 @@ using UnityEngine;
 // component to wire this to. See combat_design_v1.html §4.
 public class PlayerCombat : MonoBehaviour
 {
-    private const float AttackInterval = 0.6f;
+    // Base interval before WeaponTypeUtility.AttackIntervalMultiplier scales it per equipped
+    // weapon type (see below) - this exact value is Sword's multiplier of 1x, so the pre-weapon-
+    // types combat feel is unchanged.
+    private const float BaseAttackInterval = 0.6f;
     private const float AttackRadius = 1.2f;
 
     // "매우 낮은 품질" 마석 드랍 (user request) - a trickle, not a guaranteed farm; also gated by
@@ -71,15 +74,15 @@ public class PlayerCombat : MonoBehaviour
             return;
         }
 
-        // Follows the best-owned weapon (ToolInventory.TryGetBestWeapon) instead of a flat value -
-        // "장착 무기 = 내가 만든 그 무기" (game_design_doc.html §9), minus a real equip-selection
-        // UI for now (weapon_diversity_design_v1.html §1). Iron/no-element's AttackPower matches
-        // the old flat 10 exactly, so a session with nothing crafted yet plays identically to
-        // before this system existed.
-        ToolInventory.TryGetBestWeapon(out _, out OreGrade equippedOreGrade, out ManaElement equippedElement, out ManaGrade equippedManaGrade);
-        float damage = OreGradeUtility.AttackPower(equippedOreGrade);
+        // Follows the player's equipped weapon (EquippedWeapon.Resolve) instead of a flat value -
+        // "장착 무기 = 내가 만든 그 무기" (game_design_doc.html §9). Falls back to the best-owned
+        // weapon when nothing's been explicitly equipped yet (weapon_diversity_design_v1.html §8),
+        // and Iron Sword/no-element's stats match the old flat 10dmg/0.6s exactly, so a session
+        // with nothing crafted yet plays identically to before this system existed.
+        EquippedWeapon.Resolve(out WeaponType equippedWeaponType, out OreGrade equippedOreGrade, out ManaElement equippedElement, out ManaGrade equippedManaGrade);
+        float damage = OreGradeUtility.AttackPower(equippedOreGrade) * WeaponTypeUtility.AttackPowerMultiplier(equippedWeaponType);
 
-        attackTimer = AttackInterval;
+        attackTimer = BaseAttackInterval * WeaponTypeUtility.AttackIntervalMultiplier(equippedWeaponType);
         Vector3 targetPosition = target.transform.position;
         bool defeated = target.TakeDamage(damage);
 
@@ -107,11 +110,9 @@ public class PlayerCombat : MonoBehaviour
             playerToolSwing = PlayerMotor.Instance.GetComponentInChildren<ToolSwing>();
         }
 
-        // Dedicated sword swing (varied vertical/horizontal/diagonal patterns - see
-        // ToolSwing.PlaySwordSwing) rather than reusing the axe animation. Still a placeholder
-        // mesh, not the actual crafted weapon - the equipped-weapon system (Phase 2) will swap
-        // which sword model shows, not the swing logic itself.
-        playerToolSwing?.PlaySwordSwing();
+        // Swing shape follows the equipped weapon type (see ToolSwing.PlayWeaponSwing) - still
+        // placeholder meshes, not the actual crafted weapon's own model.
+        playerToolSwing?.PlayWeaponSwing(equippedWeaponType);
 
         if (defeated)
         {

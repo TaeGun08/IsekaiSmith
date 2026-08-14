@@ -42,10 +42,21 @@ public class CraftingSilhouetteUI : MonoBehaviour
         public Outline SlotBorder;
     }
 
+    private static readonly WeaponType[] AllWeaponTypes = (WeaponType[])Enum.GetValues(typeof(WeaponType));
+
     private GameObject panel;
     private TMP_Text titleText;
     private TMP_Text hintText;
     private TMP_Text previewText;
+
+    // Which weapon this craft will produce - a station-wide selection (not per-slot) since the
+    // materials/minigames are identical regardless of shape; only which enum value ends up in
+    // ToolInventory changes. Persists across opens (this class is a singleton) so re-visiting the
+    // forge remembers the player's last pick instead of resetting to Sword every time. See
+    // weapon_diversity_design_v1.html §8.
+    private WeaponType selectedWeaponType = WeaponType.Sword;
+    private Button weaponPrevButton;
+    private Button weaponNextButton;
 
     private Image bladeImage;
     private Image handleImage;
@@ -102,10 +113,18 @@ public class CraftingSilhouetteUI : MonoBehaviour
         panelRect.sizeDelta = new Vector2(980f, 1700f);
         panel.GetComponent<Image>().color = new Color(0.08f, 0.07f, 0.06f, 0.94f);
 
-        titleText = MakeText(panel.transform, "Title", 38, new Vector2(0f, -46f), new Vector2(880f, 52f));
+        titleText = MakeText(panel.transform, "Title", 38, new Vector2(0f, -46f), new Vector2(700f, 52f));
         hintText = MakeText(panel.transform, "Hint", 24, new Vector2(0f, -104f), new Vector2(880f, 40f));
         hintText.text = "Tap a slot to choose a material";
         hintText.color = new Color(0.85f, 0.82f, 0.78f);
+
+        // Flanking arrows cycle which WeaponType this craft produces (weapon_diversity_design_v1.html
+        // §8) - kept well clear of the title's 700-wide text box (panel half-width is 490) so they
+        // never overlap the label.
+        weaponPrevButton = MakeButton(panel.transform, "WeaponPrevButton", new Vector2(-430f, -46f), new Vector2(80f, 60f), "<", new Color(0.3f, 0.28f, 0.26f));
+        weaponNextButton = MakeButton(panel.transform, "WeaponNextButton", new Vector2(430f, -46f), new Vector2(80f, 60f), ">", new Color(0.3f, 0.28f, 0.26f));
+        weaponPrevButton.onClick.AddListener(() => CycleWeaponType(-1));
+        weaponNextButton.onClick.AddListener(() => CycleWeaponType(1));
 
         // Slots grouped by role instead of one undifferentiated row (user report: layout/
         // readability) - required materials (ore, wood) on the left, optional enchant (mana x3) on
@@ -312,9 +331,22 @@ public class CraftingSilhouetteUI : MonoBehaviour
         return go.GetComponent<Button>();
     }
 
-    public IEnumerator RunSilhouette(string title, Action<bool, int> onComplete)
+    private void CycleWeaponType(int direction)
     {
-        titleText.text = title;
+        int currentIndex = Array.IndexOf(AllWeaponTypes, selectedWeaponType);
+        int nextIndex = (currentIndex + direction + AllWeaponTypes.Length) % AllWeaponTypes.Length;
+        selectedWeaponType = AllWeaponTypes[nextIndex];
+        UpdateWeaponTypeLabel();
+    }
+
+    private void UpdateWeaponTypeLabel()
+    {
+        titleText.text = "Forge: " + WeaponTypeUtility.DisplayName(selectedWeaponType);
+    }
+
+    public IEnumerator RunSilhouette(Action<bool, int, WeaponType> onComplete)
+    {
+        UpdateWeaponTypeLabel();
         started = false;
         cancelled = false;
 
@@ -344,7 +376,7 @@ public class CraftingSilhouetteUI : MonoBehaviour
         }
 
         panel.SetActive(false);
-        onComplete?.Invoke(started, CountFilledMana());
+        onComplete?.Invoke(started, CountFilledMana(), selectedWeaponType);
     }
 
     private void OpenSheet(MaterialSlot slot)

@@ -247,7 +247,48 @@
     UI들과 동일한 코드 생성 캔버스 관례.</p>
   </div>
 
-  <footer>weapon_diversity_design_v1.html v1.2 · 검 세로축(광물 등급) MVP + 마석 인챈트(4속성) + WeaponType/ManaElement 확장 구조 + 터치 인벤토리 뷰어</footer>
+  <h2><span class="num">8.</span> 도끼/망치/단검 + 진짜 장착 UI <span class="tag">v2 - 구현 완료</span></h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;">§1에서 "다음 단계로 미룸"으로
+    남겨뒀던 두 항목(무기 종류 확장, 실제 장착 선택 UI)을 이번에 채움. §6에서 이미 인벤토리/전투
+    코드를 <code>WeaponType</code> 축으로 다뤄지도록 만들어놨던 덕분에, 이번엔 그 구조를 실제로
+    쓰기만 하면 됐음(<code>ToolInventory</code>/<code>PlayerCombat</code> 자체는 손 안 댐).</p>
+
+    <h3 style="font-size:14.5px; margin:16px 0 8px;">대장간 한 곳에서 4종류 다 제작</h3>
+    <p class="note">§1이 원래 제안했던 "도끼 전용 대장간을 새로 짓는다" 대신, 기존
+    <code>CraftingSilhouetteUI</code> 제작 패널 제목 옆에 <code>&lt; Forge: Sword &gt;</code> 좌우
+    화살표를 넣어 <b>같은 대장간에서 무기 종류를 골라</b> 만들도록 바꿈 - 새 맵 오브젝트 배치가
+    전혀 필요 없어서, 필드 배치는 사용자가 직접 한다는 원칙과도 자연히 맞음. 재료 소모량은
+    무기 종류와 무관하게 동일(차등화는 다음 단계로 다시 미룸). QUICK CRAFT는 선택 UI를 거치지
+    않는 경로라 <code>CraftingStation.quickCraftWeaponType</code> 고정값(기본 Sword)을 그대로 씀.</p>
+
+    <h3 style="font-size:14.5px; margin:16px 0 8px;">무기별 전투 손맛</h3>
+    <table class="spec">
+      <tr><th style="width:150px;">검 Sword</th><td>공격력 x1.0 / 공격속도 x1.0 - 기존 그대로(기준점)</td></tr>
+      <tr><th>도끼 Axe</th><td>공격력 x1.3 / 공격속도 x1.15(느림) - 살짝 더 세고 살짝 더 느림</td></tr>
+      <tr><th>망치 Hammer</th><td>공격력 x1.8 / 공격속도 x1.7(느림) - 가끔 크게 때림</td></tr>
+      <tr><th>단검 Dagger</th><td>공격력 x0.6 / 공격속도 x0.55(빠름) - 자주 약하게 때림, 인챈트
+      상태 효과 재적용도 더 잦음</td></tr>
+    </table>
+    <p class="note">철 등급 기준 지속 DPS는 16.7~18.8로 서로 비슷하게 맞췄지만, 타격 빈도가
+    크게 달라서 체감은 확실히 다름 - 순수 상위호환이 아니라 플레이스타일 선택이 되도록.</p>
+
+    <h3 style="font-size:14.5px; margin:16px 0 8px;">스윙 비주얼 - 새 메시 없이 재사용</h3>
+    <p class="note">전용 도끼/망치/단검 메시가 아직 없어서, 플레이어에게 이미 달려있는 도구
+    비주얼을 그대로 재사용 - 도끼(벌목용과 동일 모션), 망치(곡괭이의 내려찍기를 1.6배 느리게),
+    단검(검 스윙을 0.55배 빠르게). <code>ToolSwing.PlayWeaponSwing(WeaponType)</code>이 이 매핑을
+    전담해서 <code>PlayerCombat</code>은 어떤 메시가 어떤 무기에 쓰이는지 몰라도 됨.</p>
+
+    <h3 style="font-size:14.5px; margin:16px 0 8px;">장착 선택 UI</h3>
+    <p class="note">신규 <code>EquippedWeapon</code>(정적 클래스) - 인벤토리 패널(§7)에서 무기
+    한 줄을 탭하면 그 조합(무기 종류/광물 등급/속성/마석 등급)으로 장착. 아직 아무것도 안 골랐거나
+    장착한 조합이 재고 소진(주문 판매 등)으로 사라지면 §1 이전의 "보유한 것 중 최고 등급 자동
+    사용"으로 자동 폴백 - 새 시스템 도입 이전 세션도 그대로 동작. 장착 중인 줄은 노란 테두리 +
+    이름 앞 "&gt; " 표시로 구분. <code>CraftGrade</code>(품질)는 장착 식별에서 제외 - 전투 스탯에
+    영향이 없어서, 같은 조합이면 품질이 달라도 "같은 무기"로 취급.</p>
+  </div>
+
+  <footer>weapon_diversity_design_v1.html v2 · 검 세로축(광물 등급) MVP + 마석 인챈트(4속성) + WeaponType/ManaElement 확장 구조 + 터치 인벤토리 뷰어 + 도끼/망치/단검 + 장착 UI</footer>
 </div>
 </body>
 </html>
