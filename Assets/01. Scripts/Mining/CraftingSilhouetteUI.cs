@@ -142,7 +142,7 @@ public class CraftingSilhouetteUI : MonoBehaviour
         // 모르겠어"). Every WeaponType gets its own button reading its name; the selected one is
         // highlighted amber. See weapon_diversity_design_v1.html §9.
         MakeText(panel.transform, "WeaponTypeLabel", 18, new Vector2(0f, -104f), new Vector2(300f, 26f)).text = "CHOOSE WEAPON";
-        //BuildWeaponTypeRow();
+        BuildWeaponTypeRow();
 
         // Pushed down from the original -104 by exactly the 120px the weapon type row above needed
         // - every gap from here down is untouched, the whole block below just moved as one unit.
