@@ -56,8 +56,25 @@ public class PlayerInventoryUI : MonoBehaviour
     {
     }
 
+    private bool uiBuilt;
+
     private void Awake()
     {
+        EnsureUIBuilt();
+    }
+
+    // Guarded, idempotent build - CraftingSilhouetteUI hit a reproducible crash from Awake not
+    // always finishing before its first real use (weapon_diversity_design_v1.html follow-up), so
+    // every entry point into this panel (the icon's own click handler) goes through this instead
+    // of trusting Awake alone to have run first.
+    private void EnsureUIBuilt()
+    {
+        if (uiBuilt)
+        {
+            return;
+        }
+
+        uiBuilt = true;
         BuildIcon();
         BuildPanel();
         panel.SetActive(false);
@@ -215,6 +232,7 @@ public class PlayerInventoryUI : MonoBehaviour
 
     private void TogglePanel()
     {
+        EnsureUIBuilt();
         panelOpen = !panelOpen;
         panel.SetActive(panelOpen);
 

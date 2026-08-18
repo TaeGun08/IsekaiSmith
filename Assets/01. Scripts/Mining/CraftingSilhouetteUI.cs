@@ -85,9 +85,25 @@ public class CraftingSilhouetteUI : MonoBehaviour
 
     private bool started;
     private bool cancelled;
+    private bool uiBuilt;
 
     private void Awake()
     {
+        EnsureUIBuilt();
+    }
+
+    // Guarded, idempotent build - observed in practice that Awake doesn't always finish building
+    // the panel before the first RunSilhouette() call reaches it (weaponTypeButtons null crash:
+    // "NullReferenceException ... RefreshWeaponTypeButtons"), so RunSilhouette also calls this as
+    // a safety net instead of trusting Awake alone to have run first.
+    private void EnsureUIBuilt()
+    {
+        if (uiBuilt)
+        {
+            return;
+        }
+
+        uiBuilt = true;
         BuildUI();
         panel.SetActive(false);
     }
@@ -378,6 +394,7 @@ public class CraftingSilhouetteUI : MonoBehaviour
 
     public IEnumerator RunSilhouette(Action<bool, int, WeaponType> onComplete)
     {
+        EnsureUIBuilt();
         RefreshWeaponTypeButtons();
         started = false;
         cancelled = false;
