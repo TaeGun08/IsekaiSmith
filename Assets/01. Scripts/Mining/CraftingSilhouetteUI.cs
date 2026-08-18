@@ -53,10 +53,11 @@ public class CraftingSilhouetteUI : MonoBehaviour
     // materials/minigames are identical regardless of shape; only which enum value ends up in
     // ToolInventory changes. Persists across opens (this class is a singleton) so re-visiting the
     // forge remembers the player's last pick instead of resetting to Sword every time. See
-    // weapon_diversity_design_v1.html §8.
+    // weapon_diversity_design_v1.html §8/§9.
     private WeaponType selectedWeaponType = WeaponType.Sword;
-    private Button weaponPrevButton;
-    private Button weaponNextButton;
+    private Button[] weaponTypeButtons;
+    private readonly Color weaponButtonBaseColor = new Color(0.3f, 0.28f, 0.26f);
+    private readonly Color weaponButtonSelectedColor = new Color(0.75f, 0.55f, 0.2f);
 
     private Image bladeImage;
     private Image handleImage;
@@ -113,18 +114,21 @@ public class CraftingSilhouetteUI : MonoBehaviour
         panelRect.sizeDelta = new Vector2(980f, 1700f);
         panel.GetComponent<Image>().color = new Color(0.08f, 0.07f, 0.06f, 0.94f);
 
-        titleText = MakeText(panel.transform, "Title", 38, new Vector2(0f, -46f), new Vector2(700f, 52f));
-        hintText = MakeText(panel.transform, "Hint", 24, new Vector2(0f, -104f), new Vector2(880f, 40f));
+        titleText = MakeText(panel.transform, "Title", 38, new Vector2(0f, -46f), new Vector2(860f, 52f));
+
+        // Weapon type is picked with big always-visible labeled buttons, not a hidden cycle
+        // control - a pair of bare "<"/">" arrows next to the title turned out to be invisible in
+        // practice (user report: "지금 어딜 눌러야 도끼 곡괭이, 망치등을 제작할 수 있는지
+        // 모르겠어"). Every WeaponType gets its own button reading its name; the selected one is
+        // highlighted amber. See weapon_diversity_design_v1.html §9.
+        MakeText(panel.transform, "WeaponTypeLabel", 18, new Vector2(0f, -104f), new Vector2(300f, 26f)).text = "CHOOSE WEAPON";
+        //BuildWeaponTypeRow();
+
+        // Pushed down from the original -104 by exactly the 120px the weapon type row above needed
+        // - every gap from here down is untouched, the whole block below just moved as one unit.
+        hintText = MakeText(panel.transform, "Hint", 24, new Vector2(0f, -224f), new Vector2(880f, 40f));
         hintText.text = "Tap a slot to choose a material";
         hintText.color = new Color(0.85f, 0.82f, 0.78f);
-
-        // Flanking arrows cycle which WeaponType this craft produces (weapon_diversity_design_v1.html
-        // §8) - kept well clear of the title's 700-wide text box (panel half-width is 490) so they
-        // never overlap the label.
-        weaponPrevButton = MakeButton(panel.transform, "WeaponPrevButton", new Vector2(-430f, -46f), new Vector2(80f, 60f), "<", new Color(0.3f, 0.28f, 0.26f));
-        weaponNextButton = MakeButton(panel.transform, "WeaponNextButton", new Vector2(430f, -46f), new Vector2(80f, 60f), ">", new Color(0.3f, 0.28f, 0.26f));
-        weaponPrevButton.onClick.AddListener(() => CycleWeaponType(-1));
-        weaponNextButton.onClick.AddListener(() => CycleWeaponType(1));
 
         // Slots grouped by role instead of one undifferentiated row (user report: layout/
         // readability) - required materials (ore, wood) on the left, optional enchant (mana x3) on
@@ -132,8 +136,8 @@ public class CraftingSilhouetteUI : MonoBehaviour
         // glance instead of five identical squares in a line.
         const float oreX = -345f, woodX = -195f;
         float[] manaX = { 40f, 190f, 340f };
-        const float groupLabelY = -148f;
-        const float slotY = -170f;
+        const float groupLabelY = -268f;
+        const float slotY = -290f;
 
         MakeText(panel.transform, "RequiredLabel", 18, new Vector2((oreX + woodX) * 0.5f, groupLabelY), new Vector2(220f, 26f)).text = "REQUIRED";
         TMP_Text enchantLabel = MakeText(panel.transform, "EnchantLabel", 18, new Vector2((manaX[0] + manaX[2]) * 0.5f, groupLabelY), new Vector2(320f, 26f));
@@ -163,7 +167,7 @@ public class CraftingSilhouetteUI : MonoBehaviour
         bladeRect.anchorMin = new Vector2(0.5f, 1f);
         bladeRect.anchorMax = new Vector2(0.5f, 1f);
         bladeRect.pivot = new Vector2(0.5f, 1f);
-        bladeRect.anchoredPosition = new Vector2(0f, -340f);
+        bladeRect.anchoredPosition = new Vector2(0f, -460f);
         bladeRect.sizeDelta = new Vector2(170f, 700f);
         bladeImage = bladeGO.GetComponent<Image>();
         bladeImage.color = bladeBaseColor;
@@ -175,7 +179,7 @@ public class CraftingSilhouetteUI : MonoBehaviour
         guardRect.anchorMin = new Vector2(0.5f, 1f);
         guardRect.anchorMax = new Vector2(0.5f, 1f);
         guardRect.pivot = new Vector2(0.5f, 1f);
-        guardRect.anchoredPosition = new Vector2(0f, -1040f);
+        guardRect.anchoredPosition = new Vector2(0f, -1160f);
         guardRect.sizeDelta = new Vector2(300f, 22f);
         guardGO.GetComponent<Image>().color = new Color(0.4f, 0.33f, 0.22f);
 
@@ -185,7 +189,7 @@ public class CraftingSilhouetteUI : MonoBehaviour
         handleRect.anchorMin = new Vector2(0.5f, 1f);
         handleRect.anchorMax = new Vector2(0.5f, 1f);
         handleRect.pivot = new Vector2(0.5f, 1f);
-        handleRect.anchoredPosition = new Vector2(0f, -1066f);
+        handleRect.anchoredPosition = new Vector2(0f, -1186f);
         handleRect.sizeDelta = new Vector2(110f, 240f);
         handleImage = handleGO.GetComponent<Image>();
         handleImage.color = handleBaseColor;
@@ -208,11 +212,12 @@ public class CraftingSilhouetteUI : MonoBehaviour
         previewText.alignment = TextAlignmentOptions.Center;
         previewText.fontStyle = FontStyles.Bold;
 
-        // Widened gap (was 30px between two 290-wide buttons at +-160 - narrow enough that a
-        // FORGE tap near the shared edge sometimes registered on CANCEL instead, per user
-        // report). Now 260 wide at +-210, leaving a 140px dead zone between them.
-        forgeButton = MakeButton(panel.transform, "ForgeButton", new Vector2(-210f, 65f), new Vector2(260f, 110f), "FORGE", new Color(0.35f, 0.6f, 0.35f));
-        cancelButton = MakeButton(panel.transform, "CancelButton", new Vector2(210f, 65f), new Vector2(260f, 110f), "CANCEL", new Color(0.5f, 0.3f, 0.28f));
+        // 260-wide buttons (an earlier fix for mis-taps between them) read as oversized once there
+        // were more controls on screen (user report: "cancel 버튼의 가로 넓이가 너무 넓은 것
+        // 같아") - narrowed to 210, keeping the same 150px dead zone between them (-75..75) that
+        // avoids the original mis-tap bug.
+        forgeButton = MakeButton(panel.transform, "ForgeButton", new Vector2(-180f, 65f), new Vector2(210f, 100f), "FORGE", new Color(0.35f, 0.6f, 0.35f));
+        cancelButton = MakeButton(panel.transform, "CancelButton", new Vector2(180f, 65f), new Vector2(210f, 100f), "CANCEL", new Color(0.5f, 0.3f, 0.28f));
 
         BuildSheet();
         sheet.SetActive(false);
@@ -331,22 +336,49 @@ public class CraftingSilhouetteUI : MonoBehaviour
         return go.GetComponent<Button>();
     }
 
-    private void CycleWeaponType(int direction)
+    // One always-visible button per WeaponType instead of a hidden cycle control (see the BuildUI
+    // comment above) - laid out the same way BuildSlot's row is, evenly spaced and centered under
+    // the "CHOOSE WEAPON" label.
+    private void BuildWeaponTypeRow()
     {
-        int currentIndex = Array.IndexOf(AllWeaponTypes, selectedWeaponType);
-        int nextIndex = (currentIndex + direction + AllWeaponTypes.Length) % AllWeaponTypes.Length;
-        selectedWeaponType = AllWeaponTypes[nextIndex];
-        UpdateWeaponTypeLabel();
+        weaponTypeButtons = new Button[AllWeaponTypes.Length];
+
+        const float buttonWidth = 200f;
+        const float buttonGap = 20f;
+        const float rowY = -146f;
+        float rowWidth = AllWeaponTypes.Length * buttonWidth + (AllWeaponTypes.Length - 1) * buttonGap;
+        float startX = -rowWidth * 0.5f + buttonWidth * 0.5f;
+
+        for (int i = 0; i < AllWeaponTypes.Length; i++)
+        {
+            WeaponType type = AllWeaponTypes[i];
+            float x = startX + i * (buttonWidth + buttonGap);
+            Button button = MakeButton(panel.transform, "WeaponTypeButton_" + type, new Vector2(x, rowY), new Vector2(buttonWidth, 64f), WeaponTypeUtility.DisplayName(type), weaponButtonBaseColor);
+            button.onClick.AddListener(() => SelectWeaponType(type));
+            weaponTypeButtons[i] = button;
+        }
     }
 
-    private void UpdateWeaponTypeLabel()
+    private void SelectWeaponType(WeaponType type)
+    {
+        selectedWeaponType = type;
+        RefreshWeaponTypeButtons();
+    }
+
+    private void RefreshWeaponTypeButtons()
     {
         titleText.text = "Forge: " + WeaponTypeUtility.DisplayName(selectedWeaponType);
+
+        for (int i = 0; i < weaponTypeButtons.Length; i++)
+        {
+            bool selected = AllWeaponTypes[i] == selectedWeaponType;
+            weaponTypeButtons[i].GetComponent<Image>().color = selected ? weaponButtonSelectedColor : weaponButtonBaseColor;
+        }
     }
 
     public IEnumerator RunSilhouette(Action<bool, int, WeaponType> onComplete)
     {
-        UpdateWeaponTypeLabel();
+        RefreshWeaponTypeButtons();
         started = false;
         cancelled = false;
 

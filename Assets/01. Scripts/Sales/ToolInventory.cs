@@ -177,6 +177,16 @@ public static class ToolInventory
         counts[key] = Get(weapon, oreGrade, grade, element, manaGrade) + amount;
     }
 
+    // Discards an entire owned stack (the trash action in PlayerInventoryUI) - a specific
+    // (weapon, ore, craft, element, mana grade) combo, unlike EquippedWeapon's identity which
+    // ignores CraftGrade. If this happened to be the player's equipped combo and no other
+    // CraftGrade of it remains, EquippedWeapon.Resolve falls back to the best-owned weapon on its
+    // own (via ToolInventory.OwnsAny returning false) - no extra bookkeeping needed here.
+    public static void RemoveStack(WeaponType weapon, OreGrade oreGrade, CraftGrade grade, ManaElement element, ManaGrade manaGrade)
+    {
+        counts.Remove(new Key(weapon, oreGrade, grade, element, manaGrade));
+    }
+
     // Spends the lowest-graded item that still satisfies minGrade, so higher-grade stock stays in
     // reserve for orders that actually demand it instead of getting burned on an easy order.
     // Weapon type/ore grade/element/mana grade don't factor into order eligibility yet (orders only
