@@ -105,7 +105,7 @@ public class DevAutoPlayController : MonoBehaviour
         panelRect.anchorMax = new Vector2(0f, 1f);
         panelRect.pivot = new Vector2(0f, 1f);
         panelRect.anchoredPosition = new Vector2(20f, -20f);
-        panelRect.sizeDelta = new Vector2(300f, 410f);
+        panelRect.sizeDelta = new Vector2(300f, 630f);
 
         toggleButton = MakeButton(panel.transform, "ToggleButton", new Vector2(0f, 0f), new Vector2(280f, 64f), out toggleLabel);
         toggleButton.onClick.AddListener(ToggleAutoPlay);
@@ -122,7 +122,25 @@ public class DevAutoPlayController : MonoBehaviour
         merchantButton.GetComponent<Image>().color = new Color(0.35f, 0.25f, 0.4f); // matches the merchant's own shady-purple tint
         merchantButton.onClick.AddListener(() => BlackMarketMerchant.Instance.ForceBeginVisit());
 
-        logText = MakeText(panel.transform, "Log", 14, new Vector2(0f, -222f), new Vector2(280f, 160f));
+        // "개발자 모드에 다양한 등급의 무기를 얻을 수 있게... 골드도 얻을 수 있도록" (user request) -
+        // unblocks testing the black market's BUY (needs gold)/SELL (needs raw ore/mana/wood
+        // stock) rows and the equipment screen (needs varied weapons) without a long farming grind.
+        Button grantGoldButton = MakeButton(panel.transform, "GrantGoldButton", new Vector2(0f, -222f), new Vector2(280f, 64f), out TMP_Text grantGoldLabel);
+        grantGoldLabel.text = "GRANT 1000 GOLD";
+        grantGoldButton.GetComponent<Image>().color = new Color(0.55f, 0.45f, 0.15f);
+        grantGoldButton.onClick.AddListener(() => SalesCurrency.Add(1000));
+
+        Button grantMaterialsButton = MakeButton(panel.transform, "GrantMaterialsButton", new Vector2(0f, -296f), new Vector2(280f, 64f), out TMP_Text grantMaterialsLabel);
+        grantMaterialsLabel.text = "GRANT MATERIALS";
+        grantMaterialsButton.GetComponent<Image>().color = new Color(0.3f, 0.45f, 0.35f);
+        grantMaterialsButton.onClick.AddListener(GrantMaterials);
+
+        Button grantWeaponsButton = MakeButton(panel.transform, "GrantWeaponsButton", new Vector2(0f, -370f), new Vector2(280f, 64f), out TMP_Text grantWeaponsLabel);
+        grantWeaponsLabel.text = "GRANT WEAPONS (ALL GRADES)";
+        grantWeaponsButton.GetComponent<Image>().color = new Color(0.45f, 0.35f, 0.2f);
+        grantWeaponsButton.onClick.AddListener(GrantWeapons);
+
+        logText = MakeText(panel.transform, "Log", 14, new Vector2(0f, -444f), new Vector2(280f, 160f));
         logText.alignment = TextAlignmentOptions.TopLeft;
 
         RefreshToggleVisual();
@@ -212,6 +230,41 @@ public class DevAutoPlayController : MonoBehaviour
     private void RefreshSpeedVisual()
     {
         speedLabel.text = "SPEED: " + SpeedSteps[speedIndex] + "x";
+    }
+
+    // 20 units of every Ore/Mana grade (AddDirect - bypasses the Ceiling roll, same as the black
+    // market's own purchases) plus a chunk of wood - covers the black market's SELL thresholds and
+    // most crafting recipes in one tap.
+    private const int GrantMaterialAmount = 20;
+    private const int GrantWoodAmount = 100;
+
+    private void GrantMaterials()
+    {
+        foreach (OreGrade grade in (OreGrade[])System.Enum.GetValues(typeof(OreGrade)))
+        {
+            OreBank.AddDirect(grade, GrantMaterialAmount);
+        }
+
+        foreach (ManaGrade grade in (ManaGrade[])System.Enum.GetValues(typeof(ManaGrade)))
+        {
+            ManaBank.AddDirect(grade, GrantMaterialAmount);
+        }
+
+        ResourceBank.Add(ResourceType.Wood, GrantWoodAmount);
+    }
+
+    // One Fine-quality, no-enchant copy of every (WeaponType, OreGrade) combination - a full
+    // spread for testing the equipment screen's equip/delete flow and the black market's SELL
+    // rows without a real crafting session.
+    private void GrantWeapons()
+    {
+        foreach (WeaponType weapon in (WeaponType[])System.Enum.GetValues(typeof(WeaponType)))
+        {
+            foreach (OreGrade ore in (OreGrade[])System.Enum.GetValues(typeof(OreGrade)))
+            {
+                ToolInventory.Add(weapon, ore, CraftGrade.Fine, ManaElement.None, ManaGrade.Crude, 1);
+            }
+        }
     }
 
     private void RunAutoPlayTick()

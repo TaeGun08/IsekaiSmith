@@ -194,7 +194,15 @@ public class BlackMarketUI : MonoBehaviour
         rect.pivot = new Vector2(0.5f, 1f);
         rect.anchoredPosition = anchoredPos;
         rect.sizeDelta = size;
-        go.GetComponent<Image>().color = color;
+        var image = go.GetComponent<Image>();
+        image.color = color;
+
+        var button = go.GetComponent<Button>();
+        // AddComponent<Button>() leaves targetGraphic null, so the built-in disabled-state dim
+        // never showed - a BUY/SELL button gated by insufficient gold/stock (Refresh() below)
+        // looked completely normal while silently refusing clicks (user report: "buy sell이 안눌리는
+        // 것 같아"). Wiring this is what actually makes `interactable = false` visible.
+        button.targetGraphic = image;
 
         TMP_Text label = MakeText(go.transform, "Text", 24, Vector2.zero, size);
         label.rectTransform.anchorMin = Vector2.zero;
@@ -204,6 +212,6 @@ public class BlackMarketUI : MonoBehaviour
         label.text = text;
         label.fontStyle = FontStyles.Bold;
 
-        return go.GetComponent<Button>();
+        return button;
     }
 }
