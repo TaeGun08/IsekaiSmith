@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>이세계 대장장이 - 스테이지 시스템(해금 게이트) 기획서 v1</title>
+<style>
+  :root {
+    --ink: #2b2420; --paper: #f6f1e7; --card: #ffffff; --border: #dcd3c2; --accent: #b5651d;
+    --good: #4f8f5f; --warn: #c1440e; --stage: #b5651d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 20px 80px; background: var(--paper); color: var(--ink);
+    font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .doc { width: 100%; max-width: 1080px; }
+  h1 { font-size: 25px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 8px; color: #6b6155; font-size: 14px; }
+  p.pitch {
+    font-size: 15px; line-height: 1.75; background: var(--card); border: 1px solid var(--border);
+    border-left: 4px solid var(--accent); border-radius: 8px; padding: 16px 18px; margin: 16px 0 32px;
+  }
+  h2 { font-size: 19px; margin: 46px 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+  h2 .num { color: var(--accent); margin-right: 8px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); }
+  .note { font-size: 12.5px; color: #6b6155; line-height: 1.7; margin-top: 8px; }
+  .qa-list { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.9; }
+  .qa-list li b { color: var(--accent); }
+
+  .scope-row { display:flex; gap:0; margin-top:14px; border-radius:10px; overflow:hidden; border:1px solid var(--border); }
+  .scope-col { flex:1; padding:16px; }
+  .scope-col.in { background:#eef3ea; }
+  .scope-col.out { background:#f3ece0; }
+  .scope-col h4 { margin:0 0 8px; font-size:14px; }
+  .scope-col ul { margin:0; padding-left:18px; font-size:12px; line-height:1.8; }
+
+  table.spec { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12.5px; }
+  table.spec th, table.spec td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+  table.spec th { background: #efe8d9; font-size: 12px; }
+
+  footer { margin-top: 40px; font-size: 12px; color: #948a7c; text-align: center; }
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <h1>스테이지 시스템(해금 게이트) 기획서 v1</h1>
+  <p class="sub">stage_system_design_v1.html · 신규 - 로드맵 ③, game_design_doc.html §2/§7을
+  구현 가능한 1단계로 구체화. "일단 로드맵 위주로 진행" 지시 반영.</p>
+  <p class="pitch">
+    §7 원문의 3단계(필드→스테이지→던전) 중 <b>스테이지</b>만 이번 범위로 잡습니다. 던전(랜덤
+    생성 지형)은 그 자체로 새 맵/지형이 필요해 "맵 디자인은 직접 하신다"는 원칙과 맞물리는 큰
+    작업이라 다음 단계로 미룹니다. 대신 스테이지는 <b>기존 필드 사냥터에 있는 게이트 하나에서
+    웨이브 전투로 여는 방식</b>으로 설계해서 새 지형 없이도 "해금 게이트"의 핵심 - 스테이지
+    클리어 → 광물/마석 등급 상승 + 필드 몬스터 강화 + 다음 스테이지 개방 - 을 실제로 동작하게
+    만드는 게 목표입니다.
+  </p>
+
+  <h2><span class="num">1.</span> 이번 범위</h2>
+  <div class="scope-row">
+    <div class="scope-col in">
+      <h4>이번에 포함</h4>
+      <ul>
+        <li>스테이지 3개(§10 결정사항 "우선 소수(예 3개)") - 순차 해금</li>
+        <li>필드에 이미 있는 사냥터 근처에 "스테이지 게이트" 1개 - 좌표는 <code>FieldMonsterSpawner</code>가
+        쓰는 것과 같은 파생 방식(기존 벌목장/채석장/카운터 위치 기준 계산)이라 새로 찍는 좌표 없음</li>
+        <li>게이트 상호작용 → 웨이브 전투(스테이지당 2웨이브, 뒷웨이브가 더 강함) → 클리어 시 보상</li>
+        <li>클리어 보상: 마석 획득 + <b>다음 스테이지 해금</b> + <code>OreBank</code>/<code>ManaBank</code>
+        등급 상한(Ceiling) 즉시 상승 - <code>OreBank.cs</code> 주석에 이미 적혀 있던 "로드맵③ 생기면
+        이 조건을 던전(스테이지) 클리어 플래그로 교체" 그 자리를 채움</li>
+        <li>필드 잡몹도 클리어한 스테이지 수만큼 조금씩 강해짐(§7 "필드 몬스터도 동반 강화")</li>
+      </ul>
+    </div>
+    <div class="scope-col out">
+      <h4>다음 단계로 미룸</h4>
+      <ul>
+        <li>던전(랜덤 생성 지형, 광맥 심화, 보스 처치 시 동굴 개방) - 새 맵/지형 필요, 로드맵③의
+        나머지 절반</li>
+        <li>속성별 마석(지금은 필드 드랍과 동일하게 "등급만 있고 속성은 랜덤 굴림") - 실제 구분
+        지어 주려면 <code>ManaBank</code> 자체에 속성 축 추가가 필요해서 범위 밖</li>
+        <li>숙련 모험가/VIP 손님 등급 - <code>OrderQueueManager</code> 쪽 확장이 필요해서 별도 작업</li>
+        <li>스테이지 전용 몬스터 비주얼(지금 슬라임과 다른 모양) - 색만 다르게, 모양은 재사용</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2><span class="num">2.</span> 데이터 모델</h2>
+  <div class="card">
+    <table class="spec">
+      <tr><th style="width:190px;"><code>StageBank</code></th><td>신규 정적 클래스,
+      <code>OreBank</code>/<code>ManaBank</code>과 같은 파일 스타일. <code>HighestStageCleared</code>
+      (0=아직 없음) 하나만 들고 있음. <code>IsUnlocked(int stage)</code> = stage &lt;=
+      HighestStageCleared + 1 (다음 스테이지까지는 항상 도전 가능).</td></tr>
+      <tr><th><code>OreBank.Ceiling</code> / <code>ManaBank.Ceiling</code></th><td>기존 누적
+      예치량 조건과 스테이지 클리어 조건 중 <b>더 높은 쪽</b>을 사용(둘 다 유지 - 먼저 파밍한
+      사람이 손해 안 봄). 스테이지 1/2/3 클리어가 각각 Steel/Mithril/Orichalcum, Common/Refined/Greater를
+      즉시 연다.</td></tr>
+      <tr><th><code>Monster</code></th><td><code>Spawn()</code>에 <code>hpMultiplier</code>/
+      <code>damageMultiplier</code> 파라미터 추가(기본값 1 - 기존 필드 슬라임 동작 그대로).
+      스테이지 웨이브 몬스터와, 스테이지 클리어 수에 비례해 강해지는 필드 몬스터 둘 다 이걸로 표현.</td></tr>
+      <tr><th><code>StageGate</code></th><td>신규 <code>MonoBehaviour</code> - <code>CraftingStation</code>/
+      <code>StorageDepot</code>과 같은 "근접 시 <code>InteractionPromptUI</code> 표시" 패턴.
+      잠긴 스테이지는 프롬프트에 "Locked - Clear Stage N first" 표시, 상호작용 버튼 비활성.</td></tr>
+      <tr><th><code>StageEncounterController</code></th><td>신규 - 게이트 상호작용 시 웨이브
+      스폰/진행/클리어 판정을 맡음. 진행 중엔 필드 몬스터와 별개로 취급(필드 잡몹 파밍과 안 섞임).</td></tr>
+      <tr><th><code>StageEncounterUI</code></th><td>신규, 작은 HUD - "STAGE 2 - Wave 1/2, 3
+      remaining" 정도만 표시, 인카운터 진행 중에만 보임.</td></tr>
+    </table>
+  </div>
+
+  <h2><span class="num">3.</span> 난이도 곡선</h2>
+  <div class="card">
+    <table class="spec">
+      <tr><th style="width:150px;">스테이지 1</th><td>웨이브1: 슬라임x3(HPx1.3/DMGx1.2), 웨이브2:
+      슬라임x2 + 엘리트x1(HPx2.2/DMGx1.6)</td></tr>
+      <tr><th>스테이지 2</th><td>웨이브1: 슬라임x4(HPx1.8/DMGx1.5), 웨이브2: 슬라임x3 + 엘리트x1(HPx3/DMGx2)</td></tr>
+      <tr><th>스테이지 3</th><td>웨이브1: 슬라임x5(HPx2.4/DMGx1.8), 웨이브2: 슬라임x3 + 엘리트x1(HPx4/DMGx2.5)</td></tr>
+      <tr><th>필드 잡몹</th><td>HP/DMG 배율 = 1 + 0.25 × <code>StageBank.HighestStageCleared</code>
+      (스테이지 3까지 다 깨면 필드도 최대 1.75배)</td></tr>
+    </table>
+    <p class="note">엘리트는 별도 몬스터 종류가 아니라 <code>Monster</code> 배율만 크게 준 것 - 색을
+    더 진하게 틴트해서 구분(새 메시 없음, 도끼/망치/단검 스윙 재사용 때와 같은 방식).</p>
+  </div>
+
+  <h2><span class="num">4.</span> 흐름</h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;">게이트 근접 → 프롬프트("Enter
+    Stage N") → 확인 시 웨이브1 스폰(필드 잡몹과 별개 인스턴스) → 전부 처치 → 웨이브2 스폰 → 전부
+    처치 → 클리어: 마석 보상 지급 + <code>StageBank.HighestStageCleared</code> 갱신 + 결과 표시
+    → 다음 스테이지 게이트가 잠금 해제. 웨이브 도중 플레이어가 죽거나 게이트에서 너무 멀어지면
+    인카운터 취소(몬스터 정리, 보상 없음, 재도전 가능).</p>
+  </div>
+
+  <footer>stage_system_design_v1.html v1 · 스테이지 3개 웨이브 전투 MVP - 새 지형 없이 기존 필드에 게이트 1개</footer>
+</div>
+</body>
+</html>

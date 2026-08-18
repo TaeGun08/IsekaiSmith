@@ -35,6 +35,7 @@ public class FieldMonsterSpawner : MonoBehaviour
     }
 
     private Vector3 anchor;
+    private Vector3 outwardDirection = Vector3.forward;
     private readonly List<Monster> monsters = new List<Monster>();
     private readonly List<float> respawnTimers = new List<float>();
 
@@ -42,6 +43,13 @@ public class FieldMonsterSpawner : MonoBehaviour
     // tracked list instead of a scene-wide FindObjectsByType<Monster>() scan every attack check -
     // there's only ever a handful of monsters, but the search itself isn't free (최적화 요청).
     public IReadOnlyList<Monster> Monsters => monsters;
+
+    // Lets StageGate derive its own position the same way this class derives the field hunting
+    // ground's - "further out, same direction" from the LumberCamp/Quarry midpoint - instead of a
+    // separately guessed coordinate. See stage_system_design_v1.html §2.
+    public Vector3 Anchor => anchor;
+    public Vector3 OutwardDirection => outwardDirection;
+    public float SpawnRadius => SpawnAreaRadius;
 
     // Called once from ResourceHUD.Start() alongside GuidedTutorial - idempotent so a stray
     // second call (e.g. scene reload) doesn't double-spawn.
@@ -63,15 +71,18 @@ public class FieldMonsterSpawner : MonoBehaviour
             // Push the hunting ground further out than the camps (not level with them) - reuses
             // the counter-to-camp depth as the backward offset (and its direction) instead of a
             // guessed constant, so this self-adjusts if that spacing ever changes.
+            Vector3 offset;
             if (counterGO != null)
             {
-                float depthDelta = campMidpoint.z - counterGO.transform.position.z;
-                anchor = campMidpoint + new Vector3(0f, 0f, depthDelta);
+                offset = new Vector3(0f, 0f, campMidpoint.z - counterGO.transform.position.z);
             }
             else
             {
-                anchor = campMidpoint + new Vector3(0f, 0f, SpawnAreaRadius * 2f);
+                offset = new Vector3(0f, 0f, SpawnAreaRadius * 2f);
             }
+
+            anchor = campMidpoint + offset;
+            outwardDirection = offset.sqrMagnitude > 0.0001f ? offset.normalized : Vector3.forward;
         }
         else
         {
@@ -83,7 +94,9 @@ public class FieldMonsterSpawner : MonoBehaviour
         {
             Vector3 position = FindSpawnPosition(placed);
             placed.Add(position);
-            monsters.Add(Monster.Spawn(position, transform));
+            Monster monster = Monster.Spawn(position, transform);
+            monster.SetStrength(StageBank.FieldStrengthMultiplier, StageBank.FieldStrengthMultiplier);
+            monsters.Add(monster);
             respawnTimers.Add(0f);
         }
     }
@@ -142,6 +155,10 @@ public class FieldMonsterSpawner : MonoBehaviour
                 }
             }
 
+            // Re-applies the current field strength (not whatever it was when this monster last
+            // spawned) so a stage cleared mid-session shows up on the next respawn instead of
+            // waiting for a fresh Bootstrap().
+            monsters[i].SetStrength(StageBank.FieldStrengthMultiplier, StageBank.FieldStrengthMultiplier);
             monsters[i].ResetAt(FindSpawnPosition(placed));
         }
     }

@@ -11,11 +11,10 @@ using UnityEngine;
 // happens to still serve its one existing reader correctly. See weapon_diversity_design_v1.html §3.
 public static class OreBank
 {
-    // How much *lifetime* ore has to be deposited before the next grade starts being mined - no
-    // dungeon-clear gate exists yet (that's roadmap ③, "해금 게이트"), so this is an interim
-    // placeholder standing in for it: the quarry "grows" with total ore banked instead of a boss
-    // kill. Swap this for a real dungeon-clear flag once ③ exists - Ceiling is the only thing that
-    // needs to change, the rest of OreBank's API doesn't care how the ceiling is decided.
+    // How much *lifetime* ore has to be deposited before the next grade starts being mined - this
+    // was the only unlock condition before stage clears existed (roadmap ③, "해금 게이트");
+    // now it's kept as a second, parallel path (see StageCeiling below) so a player who farmed
+    // ahead of clearing stages doesn't lose that progress.
     private const int SteelThreshold = 60;
     private const int MithrilThreshold = 180;
     private const int OrichalcumThreshold = 360;
@@ -25,7 +24,19 @@ public static class OreBank
 
     public static int TotalMined { get; private set; }
 
+    // Whichever of the two unlock paths (cumulative farming or stage clearing - see
+    // stage_system_design_v1.html §2) is further along wins.
     public static OreGrade Ceiling
+    {
+        get
+        {
+            OreGrade cumulative = CumulativeCeiling;
+            OreGrade stage = StageCeiling;
+            return cumulative > stage ? cumulative : stage;
+        }
+    }
+
+    private static OreGrade CumulativeCeiling
     {
         get
         {
@@ -40,6 +51,29 @@ public static class OreBank
             }
 
             if (TotalMined >= SteelThreshold)
+            {
+                return OreGrade.Steel;
+            }
+
+            return OreGrade.Iron;
+        }
+    }
+
+    private static OreGrade StageCeiling
+    {
+        get
+        {
+            if (StageBank.HighestStageCleared >= 3)
+            {
+                return OreGrade.Orichalcum;
+            }
+
+            if (StageBank.HighestStageCleared >= 2)
+            {
+                return OreGrade.Mithril;
+            }
+
+            if (StageBank.HighestStageCleared >= 1)
             {
                 return OreGrade.Steel;
             }

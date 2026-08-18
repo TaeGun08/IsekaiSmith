@@ -107,11 +107,37 @@ public class InteractionPromptUI : MonoBehaviour
         panel.SetActive(true);
         label.text = title;
 
+        // Defensive reset - ShowSingle (StageGate's locked/single-action prompt) relabels
+        // craftButton and hides quickCraftButton, so a normal two-button Show() after that needs
+        // to put both back exactly as MakeButton originally built them.
+        craftButton.gameObject.SetActive(true);
+        craftButton.GetComponentInChildren<TMP_Text>().text = "CRAFT";
+        quickCraftButton.gameObject.SetActive(true);
+
         craftButton.onClick.RemoveAllListeners();
         craftButton.onClick.AddListener(() => onCraft?.Invoke());
 
         quickCraftButton.onClick.RemoveAllListeners();
         quickCraftButton.onClick.AddListener(() => onQuickCraft?.Invoke());
+    }
+
+    // Single-action variant for prompts that don't have a "quick" alternative (StageGate: "Enter
+    // Stage N" / a locked gate's "Clear Stage N-1 first" message with no action at all when
+    // onPrimary is null) - reuses the same panel/label instead of a second dedicated UI class.
+    public void ShowSingle(string title, string buttonLabel, Action onPrimary)
+    {
+        panel.SetActive(true);
+        label.text = title;
+
+        quickCraftButton.gameObject.SetActive(false);
+
+        craftButton.gameObject.SetActive(onPrimary != null);
+        if (onPrimary != null)
+        {
+            craftButton.GetComponentInChildren<TMP_Text>().text = buttonLabel;
+            craftButton.onClick.RemoveAllListeners();
+            craftButton.onClick.AddListener(() => onPrimary());
+        }
     }
 
     public void Hide()

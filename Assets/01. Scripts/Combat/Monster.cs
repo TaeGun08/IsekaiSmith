@@ -21,6 +21,12 @@ public class Monster : MonoBehaviour
     private float flashTimer;
     private bool dead;
 
+    // Field jabmops get gently scaled up as stages clear, stage-encounter monsters get scaled up
+    // per stage/wave - see SetStrength(). Both default to x1 so a monster nobody calls this on
+    // (every field slime before StageBank existed) behaves exactly as before.
+    private float hpMultiplier = 1f;
+    private float damageMultiplier = 1f;
+
     private ManaElement activeStatus;
     private float statusTimer;
     private float statusTickClock;
@@ -47,6 +53,26 @@ public class Monster : MonoBehaviour
         monster.bodyMaterial.color = monster.baseColor;
         monster.currentHP = MaxHP;
         return monster;
+    }
+
+    // Scales this monster's HP/contact damage - called right after Spawn() (or after ResetAt(),
+    // which is always full-HP) so currentHP is set exactly once at the new multiplier, never mid-
+    // fight. FieldMonsterSpawner uses this for the gentle stage-clear-driven strength ramp
+    // (StageBank.FieldStrengthMultiplier); StageEncounterController uses it for wave/elite
+    // scaling. See stage_system_design_v1.html §3.
+    public void SetStrength(float hpMultiplier, float damageMultiplier)
+    {
+        this.hpMultiplier = hpMultiplier;
+        this.damageMultiplier = damageMultiplier;
+        currentHP = MaxHP * hpMultiplier;
+    }
+
+    // Elites/stronger waves read as distinct without a dedicated mesh (same "reuse what exists,
+    // just retint" approach as the weapon swing reuse - see ToolSwing.PlayWeaponSwing).
+    public void SetTint(Color color)
+    {
+        baseColor = color;
+        bodyMaterial.color = baseColor;
     }
 
     // Returns whether this hit was the killing blow - lets PlayerCombat know exactly once per
@@ -120,7 +146,7 @@ public class Monster : MonoBehaviour
     public void ResetAt(Vector3 groundPosition)
     {
         transform.position = groundPosition + Vector3.up * 0.5f;
-        currentHP = MaxHP;
+        currentHP = MaxHP * hpMultiplier;
         contactTimer = 0f;
         dead = false;
         activeStatus = ManaElement.None;
@@ -186,7 +212,7 @@ public class Monster : MonoBehaviour
 
                 // Only play the hit spark/shake if the hit actually landed (skips it during the
                 // player's post-respawn invulnerability window, where nothing really happened).
-                if (PlayerHealth.TakeDamage(ContactDamage))
+                if (PlayerHealth.TakeDamage(ContactDamage * damageMultiplier))
                 {
                     HitEffects.Instance.MonsterHitPlayer(playerPos);
                 }

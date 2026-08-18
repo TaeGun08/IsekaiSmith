@@ -22,7 +22,40 @@ public static class ManaBank
 
     public static int TotalGathered { get; private set; }
 
-    public static ManaGrade Ceiling => TotalGathered >= CommonThreshold ? ManaGrade.Common : ManaGrade.Crude;
+    // Whichever of the two unlock paths (cumulative gathering or stage clearing - see
+    // stage_system_design_v1.html §2) is further along wins, same rule OreBank.Ceiling uses.
+    public static ManaGrade Ceiling
+    {
+        get
+        {
+            ManaGrade cumulative = TotalGathered >= CommonThreshold ? ManaGrade.Common : ManaGrade.Crude;
+            ManaGrade stage = StageCeiling;
+            return cumulative > stage ? cumulative : stage;
+        }
+    }
+
+    private static ManaGrade StageCeiling
+    {
+        get
+        {
+            if (StageBank.HighestStageCleared >= 3)
+            {
+                return ManaGrade.Greater;
+            }
+
+            if (StageBank.HighestStageCleared >= 2)
+            {
+                return ManaGrade.Refined;
+            }
+
+            if (StageBank.HighestStageCleared >= 1)
+            {
+                return ManaGrade.Common;
+            }
+
+            return ManaGrade.Crude;
+        }
+    }
 
     public static int Get(ManaGrade grade)
     {
