@@ -5,7 +5,9 @@ public class PlayerMotor : MonoBehaviour
 {
     public static PlayerMotor Instance { get; private set; }
 
-    [SerializeField] private float moveSpeed = 5f;
+    // 5 -> 7 (user report: 대장간 기준 다른 장소까지 거리가 너무 길어서 즐겁지 않음) - a pure
+    // movement-feel tweak, not a map change, so it doesn't touch where anything is placed.
+    [SerializeField] private float moveSpeed = 7f;
     [SerializeField] private float rotationSpeed = 720f;
 
     private Rigidbody rb;
@@ -29,6 +31,17 @@ public class PlayerMotor : MonoBehaviour
     }
 
     public bool HasMovementInput => (keyboardInput + joystickInput).sqrMagnitude > 0.0001f;
+
+    // Instant relocation (StageSceneController moving the player into/out of the additively-
+    // loaded StageScene lane - stage_system_design_v2.html §3) - goes through the Rigidbody
+    // directly (not just transform.position) so physics doesn't fight the jump or carry over
+    // leftover velocity from wherever the player was moving before the teleport.
+    public void Teleport(Vector3 position)
+    {
+        rb.position = position;
+        transform.position = position;
+        rb.linearVelocity = Vector3.zero;
+    }
 
     public void FaceTarget(Vector3 worldPosition)
     {

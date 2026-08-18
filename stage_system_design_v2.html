@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>이세계 대장장이 - 스테이지 시스템 기획서 v2 (별도 씬 · 쿼터뷰 · 레인 전투)</title>
+<style>
+  :root {
+    --ink: #2b2420; --paper: #f6f1e7; --card: #ffffff; --border: #dcd3c2; --accent: #b5651d;
+    --good: #4f8f5f; --warn: #c1440e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 20px 80px; background: var(--paper); color: var(--ink);
+    font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .doc { width: 100%; max-width: 1080px; }
+  h1 { font-size: 25px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 8px; color: #6b6155; font-size: 14px; }
+  p.pitch {
+    font-size: 15px; line-height: 1.75; background: var(--card); border: 1px solid var(--border);
+    border-left: 4px solid var(--accent); border-radius: 8px; padding: 16px 18px; margin: 16px 0 32px;
+  }
+  h2 { font-size: 19px; margin: 46px 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+  h2 .num { color: var(--accent); margin-right: 8px; }
+  h2 .tag { font-size: 11px; font-weight: bold; border-radius: 5px; padding: 2px 8px; margin-left: 8px; vertical-align: 2px; background:#f3ece0; color: var(--warn); }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); }
+  .note { font-size: 12.5px; color: #6b6155; line-height: 1.7; margin-top: 8px; }
+  .qa-list { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.9; }
+  .qa-list li b { color: var(--accent); }
+
+  table.spec { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12.5px; }
+  table.spec th, table.spec td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+  table.spec th { background: #efe8d9; font-size: 12px; }
+
+  .lane-diagram { display:flex; justify-content:center; margin-top:14px; }
+  .lane-box { position:relative; width:420px; height:220px; background:linear-gradient(135deg,#e8dfc8,#d7c9a3); border-radius:10px; border:1px solid var(--border); overflow:hidden; }
+  .lane-path { position:absolute; width:480px; height:70px; background:rgba(181,101,29,0.25); border:2px dashed var(--accent); left:-40px; top:75px; transform:rotate(-22deg); }
+  .lane-tag { position:absolute; font-size:11px; font-weight:bold; padding:3px 8px; border-radius:6px; }
+  .lane-tag.sw { left:14px; bottom:14px; background:#4f8f5f; color:#fff; }
+  .lane-tag.ne { right:14px; top:14px; background:#c1440e; color:#fff; }
+
+  footer { margin-top: 40px; font-size: 12px; color: #948a7c; text-align: center; }
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <h1>스테이지 시스템 기획서 v2 <span style="font-size:14px; color:#948a7c;">(별도 씬 · 쿼터뷰 · 레인 전투)</span></h1>
+  <p class="sub">stage_system_design_v2.html · v1(필드 내 게이트 + 제자리 웨이브전투) 대체 - 사용자
+  피드백: "다른 씬 맵에서 쿼터뷰로, 남서→북동 진행에 몬스터는 내려오는 느낌, 스테이지 선택은
+  UI로 따로". 데이터/보상/난이도 쪽(§2 아래)은 v1에서 그대로 가져오고, <b>어디서·어떻게
+  싸우는지</b>만 다시 설계.</p>
+  <p class="pitch">
+    실제 구현 전, 아래 3가지를 확정하고 시작하고 싶습니다(v1 때 게이트 위치를 임의로 골랐다가
+    다시 갈아엎은 전례가 있어서, 이번엔 먼저 여쭤봄):
+  </p>
+
+  <h2><span class="num">1.</span> 확정이 필요한 3가지</h2>
+  <div class="card">
+    <table class="spec">
+      <tr><th style="width:220px;">① 새 씬 방식</th><td>완전히 별도의 Unity Scene 파일(<code>StageScene</code>)로
+      만들고 <code>SceneManager.LoadScene</code>으로 전환 - 로딩/전환이 깔끔하고 "다른 씬"이라는
+      말씀과 정확히 일치. <b>이 방식으로 진행 제안.</b></td></tr>
+      <tr><th>② 통로 블록아웃</th><td>지금까지 맵/데코는 대장님이 직접 하시기로 했었지만, 이번엔
+      SW→NE 통로 자체가 스테이지 구조의 핵심이라 최소 기능만 제가 블록아웃(바닥 하나, 시작/끝
+      지점) - <b>장식(펜스/소품/분위기)은 여전히 손 안 댐.</b> 나중에 원하시면 그 위에 자유롭게
+      꾸미실 수 있게 최소 형태로만.</td></tr>
+      <tr><th>③ 스테이지 선택 진입점</th><td>장비창 "BAG" 아이콘과 같은 자리 규칙으로, 화면
+      가장자리에 상시 "STAGE" 아이콘 - 탭하면 스테이지 1/2/3 카드가 나열된 선택 화면. 필드 게이트는
+      제거(사용자 피드백 "따로 UI로 빼서 클릭해서 진행"과 맞음).</td></tr>
+    </table>
+  </div>
+
+  <h2><span class="num">2.</span> 레인(SW→NE) 구조</h2>
+  <div class="lane-diagram">
+    <div class="lane-box">
+      <div class="lane-path"></div>
+      <div class="lane-tag sw">SW 플레이어 시작</div>
+      <div class="lane-tag ne">NE 몬스터 스폰/전진</div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px;">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;">긴 대각선 직사각형 바닥 하나 -
+    플레이어는 SW 끝에서 스폰, 웨이브는 NE 끝에서 스폰되어 <b>SW쪽(플레이어 쪽)으로 곧장 전진</b>.
+    조작은 기존 조이스틱 자유이동 그대로 재사용(레일슈팅처럼 강제 전진시키지 않음) - 새 입력
+    시스템을 만들 필요가 없고, "몬스터가 내려온다"는 느낌은 몬스터 쪽 이동 방향으로 이미 표현됨.
+    기존 필드 몬스터는 <code>AggroRadius</code>(4) 안에 들어와야 쫓아오지만, 스테이지 몬스터는
+    스폰 즉시 플레이어를 향해 전진하도록(<code>Monster.SetAlwaysAggro</code> 신규) - 짧은
+    통로에서 "내려오는" 그림이 바로 나오게.</p>
+    <p class="note">카메라: 기존 <code>CameraFollow</code>의 오프셋(3, 15, -7)이 이미 상당히
+    높은 각도라 쿼터뷰에 가까움 - 새 카메라 시스템 대신 이 값 그대로 재사용(필요하면 스테이지
+    씬 전용으로 오프셋만 살짝 조정).</p>
+  </div>
+
+  <h2><span class="num">3.</span> 씬 전환 - 애디티브 로드로 단순화 <span class="tag">v2.2 수정</span></h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;">처음엔 "플레이어를
+    DontDestroyOnLoad로 바꿔서 씬을 통째로 교체"를 생각했지만, 더 위험도 낮은 방법으로 바꿈:
+    <code>StageScene</code>을 <b>애디티브(additive)로 위에 얹었다가 벗기는 방식</b> -
+    <code>SampleScene</code>은 한 번도 언로드되지 않으므로 플레이어/카메라 쪽 코드를 전혀
+    건드릴 필요가 없음(둘 다 원래 그대로 <code>SampleScene</code> 소속).</p>
+    <table class="spec">
+      <tr><th style="width:190px;">입장</th><td><code>SceneManager.LoadSceneAsync("StageScene",
+      Additive)</code> - 플레이어의 원래 위치를 기억해두고, 로드 완료 후 그 좌표만 레인 시작
+      지점으로 순간이동(<code>Transform.position</code> 대입, 새 오브젝트 생성 없음).</td></tr>
+      <tr><th>씬 내용물</th><td>애디티브 씬 쪽엔 아무것도 수작업으로 안 놓음 - 코드가 로드 완료를
+      감지해서 바닥/조명을 그 자리에서 생성(이 프로젝트 전반의 "런타임에 코드로 짓는다" 관례와
+      동일).</td></tr>
+      <tr><th>퇴장(클리어/사망/RETREAT)</th><td>플레이어를 기억해둔 원래 좌표로 순간이동 →
+      <code>SceneManager.UnloadSceneAsync("StageScene")</code>. <code>SampleScene</code>이
+      한 번도 안 사라졌으므로 벌목장/채석장/대장간 등 기존 상태가 리셋되거나 중복 생성될 걱정이
+      없음.</td></tr>
+    </table>
+  </div>
+
+  <h2><span class="num">4.</span> 흐름</h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;">STAGE 아이콘 탭 → 선택 화면(카드
+    3개, 잠긴 건 흐리게+자물쇠 텍스트) → 다음 미해금 스테이지까지만 탭 가능(v1과 동일 규칙) →
+    <code>StageScene</code> 로드 → 플레이어 SW 스폰 지점 배치 → 웨이브1 NE에서 스폰(전진 시작) →
+    전부 처치 → 웨이브2(엘리트 포함) → 클리어: 보상 지급 +
+    <code>SceneManager.LoadScene</code>으로 필드 복귀. 사망하거나(스테이지 씬에서도
+    <code>PlayerHealth.OnDeath</code> 그대로 작동) 씬 안의 "RETREAT" 버튼을 누르면 보상 없이
+    즉시 필드 복귀.</p>
+  </div>
+
+  <h2><span class="num">5.</span> v1에서 그대로 가져오는 것</h2>
+  <div class="card">
+    <ul class="qa-list">
+      <li><b>데이터/보상</b> - <code>StageBank</code>, 스테이지 3개, 웨이브별 난이도 표,
+      마석 보상량, <code>OreBank</code>/<code>ManaBank</code> Ceiling 연동 전부 그대로 재사용.</li>
+      <li><b>몬스터</b> - <code>Monster.SetStrength</code>/<code>SetTint</code> 그대로. 새로
+      필요한 건 <code>SetAlwaysAggro</code> 하나뿐.</li>
+      <li><b>인카운터 판정</b> - <code>StageEncounterController</code>의 웨이브 진행/클리어/취소
+      로직은 그대로, 스폰 좌표만 "게이트 주변 원형"에서 "NE 라인 스타트"로 교체.</li>
+    </ul>
+    <p class="note">버려지는 것: <code>StageGate</code>(필드 내 게이트 오브젝트) - 대신
+    <code>StageSelectUI</code>가 그 자리를 대체.</p>
+  </div>
+
+  <h2><span class="num">6.</span> 리플레이 불가 + 필드 보상 연동 <span class="tag">신규 결정</span></h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;">사용자 지시: "전 스테이지로
+    돌아갈 순 없고, 필드 몬스터들이 전 스테이지 몬스터 보상의 하향가로 반영되면 좋겠다."</p>
+    <table class="spec">
+      <tr><th style="width:220px;">스테이지 선택 화면</th><td>이미 클리어한 스테이지는 카드에
+      "CLEARED" 표시만 하고 탭해도 재입장 불가 - <code>StageBank.IsUnlocked</code>가 "다음
+      미해금 스테이지까지만 참"이라는 규칙은 이미 이렇게 되어 있었음(v1부터), 이번엔 명시적으로
+      "재입장 자체가 안 됨"을 UI에도 드러냄(잠금 카드와 시각적으로 구분).</td></tr>
+      <tr><th>필드 마석 드랍 확률 상향</th><td><code>PlayerCombat.ManaDropChance</code>(기본
+      0.45)에 <code>StageBank.HighestStageCleared</code> 1당 +0.1 - 스테이지 재입장으로 마석을
+      다시 파밍할 수 없는 대신, 필드에서 평소보다 더 자주(하지만 스테이지 클리어 한 방 보상보다는
+      "하향"된) 마석이 나오도록.</td></tr>
+      <tr><th>등급 상한은 이미 연동됨</th><td>§5에서 가져온 <code>ManaBank.Ceiling</code>의
+      스테이지 연동(§2, v1) 덕분에 필드에서 나온 마석도 이미 그 스테이지가 열어준 등급까지 나올
+      수 있음 - 드랍 "빈도"만 이번에 추가로 올림.</td></tr>
+    </table>
+  </div>
+
+  <footer>stage_system_design_v2.html v2.1 · 별도 씬 + 쿼터뷰 레인 전투 + 스테이지 선택 UI + 리플레이 불가/필드 보상 연동 - v1의 게이트/제자리전투 대체</footer>
+</div>
+</body>
+</html>

@@ -26,6 +26,7 @@ public class Monster : MonoBehaviour
     // (every field slime before StageBank existed) behaves exactly as before.
     private float hpMultiplier = 1f;
     private float damageMultiplier = 1f;
+    private bool alwaysAggro;
 
     private ManaElement activeStatus;
     private float statusTimer;
@@ -73,6 +74,14 @@ public class Monster : MonoBehaviour
     {
         baseColor = color;
         bodyMaterial.color = baseColor;
+    }
+
+    // Stage-lane monsters skip the short field AggroRadius entirely and start advancing on the
+    // player the instant they spawn - "몬스터가 내려오는 느낌" (stage_system_design_v2.html §2).
+    // Field jabmops never call this, so their normal wait-until-close behavior is untouched.
+    public void SetAlwaysAggro(bool value)
+    {
+        alwaysAggro = value;
     }
 
     // Returns whether this hit was the killing blow - lets PlayerCombat know exactly once per
@@ -222,7 +231,7 @@ public class Monster : MonoBehaviour
 
         contactTimer = 0f;
 
-        if (!stunned && sqrDist <= AggroRadius * AggroRadius)
+        if (!stunned && (alwaysAggro || sqrDist <= AggroRadius * AggroRadius))
         {
             float effectiveSpeed = activeStatus == ManaElement.Frost ? MoveSpeed * ManaElementUtility.FrostSlowMultiplier : MoveSpeed;
             Vector3 direction = toPlayer.normalized;

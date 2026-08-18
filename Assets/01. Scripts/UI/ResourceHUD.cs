@@ -35,7 +35,7 @@ public class ResourceHUD : MonoBehaviour
     {
         GuidedTutorial.Instance.ShowIfFirstTime();
         FieldMonsterSpawner.Instance.Bootstrap();
-        StageGate.Instance.Bootstrap();
+        StageSelectUI.Instance.Activate();
         StageEncounterUI.Instance.Activate();
         PlayerCombat.Instance.Activate();
         PlayerHealthHUD.Instance.Show();

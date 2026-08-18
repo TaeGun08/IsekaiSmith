@@ -78,6 +78,24 @@ public class GuidedTutorial : MonoBehaviour
     private int WoodTarget => craftingStation != null ? craftingStation.WoodAmount : FallbackWoodTarget;
     private int OreTarget => craftingStation != null ? craftingStation.OreAmount : FallbackOreTarget;
 
+    // Features unlock progressively as the tutorial teaches the mechanic each depends on, instead
+    // of showing every icon from the very first frame (user request: "튜토리얼 중에는 튜토리얼만
+    // 오로지 깰 수 있게... 가방 스테이지 등이 열리는 게 좋을 것 같아"). PlayerInventoryUI/
+    // StageSelectUI poll these to decide whether their icon is even visible.
+    //
+    // HasCompletedTutorial short-circuits both - a player who finished the tutorial in a *past*
+    // session sees everything unlocked immediately, even though this fresh instance's own `step`
+    // field starts back at Welcome (Begin() is never called again once SeenPrefsKey is set).
+    public static bool HasCompletedTutorial => PlayerPrefs.GetInt(SeenPrefsKey, 0) != 0;
+
+    // Equipment has nothing to show until the player has crafted something - unlocks right after
+    // QUICK CRAFT, their first crafted item.
+    public static bool IsEquipmentUnlocked => HasCompletedTutorial || (instance != null && instance.step >= Step.GatherWood2);
+
+    // Stages need a real crafted+sellable weapon to be worth attempting - unlocks once the full
+    // craft->sell loop has been taught (tutorial Done, which also sets HasCompletedTutorial).
+    public static bool IsStagesUnlocked => HasCompletedTutorial;
+
     private void Awake()
     {
         BuildWelcomeCard();

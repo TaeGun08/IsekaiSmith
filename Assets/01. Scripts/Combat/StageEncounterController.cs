@@ -1,22 +1,21 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-// Runs one stage's wave-clear fight (stage_system_design_v1.html §3/§4) - spawns a burst of
-// Monster instances near the gate, waits for the current wave to be fully cleared before spawning
-// the next, and rewards + unlocks on a clean finish. Deliberately kept separate from
-// FieldMonsterSpawner's always-on respawning pool (different lifecycle: this one starts, runs a
-// fixed number of waves, and ends - it isn't a permanent hunting ground), but exposes its own
-// monster list the same way so PlayerCombat can target both.
+// Runs one stage's wave-clear fight (stage_system_design_v2.html §2/§4) - spawns a burst of
+// Monster instances at the lane's NE end (already aggroed - see Monster.SetAlwaysAggro), waits
+// for the current wave to be fully cleared before spawning the next, and rewards + unlocks on a
+// clean finish. Deliberately kept separate from FieldMonsterSpawner's always-on respawning pool
+// (different lifecycle: this one starts, runs a fixed number of waves, and ends), but exposes its
+// own monster list the same way so PlayerCombat can target both.
+//
+// Doesn't know anything about scenes/UI - StageSceneController owns loading/unloading StageScene
+// and moving the player, and reacts to OnEncounterEnded to know when to send the player home.
 public class StageEncounterController : MonoBehaviour
 {
-    private const float SpawnRadius = 3f;
+    private const float SpawnSpread = 3f;
     private const float MinSpacing = 1.6f;
     private const int MaxPlacementAttempts = 20;
-
-    // Cancels the encounter (monsters cleared, no reward, stage stays locked) if the player
-    // wanders this far from the gate mid-fight - keeps the fight from trailing off into the
-    // regular field, and gives an escape hatch if a wave is too much to handle.
-    private const float LeashRadius = 14f;
 
     private static StageEncounterController instance;
 
@@ -78,6 +77,10 @@ public class StageEncounterController : MonoBehaviour
     public int ActiveWaveNumber { get; private set; } // 1-based, for StageEncounterUI
     public int TotalWavesForStage(int stageNumber) => StageWaves[stageNumber - 1].Length;
 
+    // bool = whether the encounter ended on a clean clear (false = death/retreat, no reward) -
+    // StageSceneController listens for this to know when to send the player back to the field.
+    public event Action<bool> OnEncounterEnded;
+
     public int RemainingMonsterCount
     {
         get
@@ -112,7 +115,10 @@ public class StageEncounterController : MonoBehaviour
         return !IsEncounterActive && StageBank.IsUnlocked(stageNumber) && stageNumber >= 1 && stageNumber <= StageBank.StageCount;
     }
 
-    public void BeginEncounter(int stageNumber, Vector3 gatePosition)
+    // waveSpawnPoint is the lane's NE end (StageSceneController computes it) - every wave spawns
+    // there and its monsters immediately advance toward the player (SW), rather than scattering
+    // around a fixed point the way FieldMonsterSpawner's permanent pool does.
+    public void BeginEncounter(int stageNumber, Vector3 waveSpawnPoint)
     {
         if (!CanBegin(stageNumber))
         {
@@ -122,9 +128,18 @@ public class StageEncounterController : MonoBehaviour
         IsEncounterActive = true;
         ActiveStageNumber = stageNumber;
         ActiveWaveNumber = 0;
-        spawnCenter = gatePosition;
+        spawnCenter = waveSpawnPoint;
 
         SpawnNextWave();
+    }
+
+    // Wired to a RETREAT button (StageSceneController) - leaves with no reward, same as dying.
+    public void RequestRetreat()
+    {
+        if (IsEncounterActive)
+        {
+            EndEncounter(cleared: false);
+        }
     }
 
     private void Update()
@@ -132,16 +147,6 @@ public class StageEncounterController : MonoBehaviour
         if (!IsEncounterActive)
         {
             return;
-        }
-
-        if (PlayerMotor.Instance != null)
-        {
-            float sqrDist = (PlayerMotor.Instance.transform.position - spawnCenter).sqrMagnitude;
-            if (sqrDist > LeashRadius * LeashRadius)
-            {
-                CancelEncounter();
-                return;
-            }
         }
 
         for (int i = 0; i < activeMonsters.Count; i++)
@@ -198,6 +203,7 @@ public class StageEncounterController : MonoBehaviour
 
         Monster monster = Monster.Spawn(position, transform);
         monster.SetStrength(hpMult, dmgMult);
+        monster.SetAlwaysAggro(true);
         if (isElite)
         {
             monster.SetTint(EliteTint);
@@ -210,7 +216,7 @@ public class StageEncounterController : MonoBehaviour
     {
         for (int attempt = 0; attempt < MaxPlacementAttempts; attempt++)
         {
-            Vector2 offset = Random.insideUnitCircle * SpawnRadius;
+            Vector2 offset = UnityEngine.Random.insideUnitCircle * SpawnSpread;
             Vector3 candidate = spawnCenter + new Vector3(offset.x, 0f, offset.y);
 
             bool farEnough = true;
@@ -229,7 +235,7 @@ public class StageEncounterController : MonoBehaviour
             }
         }
 
-        Vector2 fallback = Random.insideUnitCircle * SpawnRadius;
+        Vector2 fallback = UnityEngine.Random.insideUnitCircle * SpawnSpread;
         return spawnCenter + new Vector3(fallback.x, 0f, fallback.y);
     }
 
@@ -238,23 +244,18 @@ public class StageEncounterController : MonoBehaviour
         int stageNumber = ActiveStageNumber;
         StageBank.MarkCleared(stageNumber);
         ManaBank.DepositGathered(StageManaReward[stageNumber - 1]);
-        EndEncounter();
+        EndEncounter(cleared: true);
     }
 
     private void HandlePlayerDeath()
     {
         if (IsEncounterActive)
         {
-            CancelEncounter();
+            EndEncounter(cleared: false);
         }
     }
 
-    private void CancelEncounter()
-    {
-        EndEncounter();
-    }
-
-    private void EndEncounter()
+    private void EndEncounter(bool cleared)
     {
         foreach (Monster leftover in activeMonsters)
         {
@@ -267,5 +268,7 @@ public class StageEncounterController : MonoBehaviour
         activeMonsters.Clear();
         IsEncounterActive = false;
         ActiveWaveNumber = 0;
+
+        OnEncounterEnded?.Invoke(cleared);
     }
 }

@@ -16,7 +16,15 @@ public class PlayerCombat : MonoBehaviour
     // "매우 낮은 품질" 마석 드랍 (user request) - a trickle, not a guaranteed farm; also gated by
     // the player's mana carry capacity so a drop the player can't hold is just skipped rather than
     // wasted or force-added. See combat_design_v1.html follow-up notes.
-    private const float ManaDropChance = 0.45f;
+    private const float BaseManaDropChance = 0.45f;
+
+    // +0.1 per stage cleared, capped short of guaranteed - the "watered-down" substitute for not
+    // being able to replay a cleared stage for its own mana reward (user request: "필드 몬스터들이
+    // 전 스테이지의 몬스터 보상의 하향가로 반영이 되면", stage_system_design_v2.html §6). Grade
+    // ceiling for these drops is already raised the same way via ManaBank.Ceiling's stage tie-in -
+    // this only changes how *often* a drop happens.
+    private const float ManaDropChancePerStage = 0.1f;
+    private const float MaxManaDropChance = 0.85f;
 
     private static PlayerCombat instance;
 
@@ -122,7 +130,8 @@ public class PlayerCombat : MonoBehaviour
 
     private void TryDropManaStone(Vector3 position)
     {
-        if (Random.value > ManaDropChance)
+        float dropChance = Mathf.Min(MaxManaDropChance, BaseManaDropChance + ManaDropChancePerStage * StageBank.HighestStageCleared);
+        if (Random.value > dropChance)
         {
             return;
         }

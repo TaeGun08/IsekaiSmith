@@ -28,6 +28,7 @@ public class StageEncounterUI : MonoBehaviour
 
     private GameObject panel;
     private TMP_Text label;
+    private GameObject retreatButtonGO;
 
     // Referencing Instance is enough to bootstrap this singleton - same explicit-call-for-
     // readability convention as PlayerCombat/PlayerInventoryUI's Activate().
@@ -70,7 +71,37 @@ public class StageEncounterUI : MonoBehaviour
         label.alignment = TextAlignmentOptions.Center;
         label.color = new Color(1f, 0.86f, 0.5f);
 
+        // Leaves with no reward, same as dying mid-wave - an escape hatch if a wave turns out to
+        // be too much (stage_system_design_v2.html §4).
+        var retreatGO = new GameObject("RetreatButton", typeof(RectTransform), typeof(Image), typeof(Button));
+        retreatGO.transform.SetParent(canvasGO.transform, false);
+        retreatButtonGO = retreatGO;
+        var retreatRect = retreatGO.GetComponent<RectTransform>();
+        retreatRect.anchorMin = new Vector2(0.5f, 1f);
+        retreatRect.anchorMax = new Vector2(0.5f, 1f);
+        retreatRect.pivot = new Vector2(0.5f, 1f);
+        retreatRect.anchoredPosition = new Vector2(0f, -170f); // 10px below the progress panel
+        retreatRect.sizeDelta = new Vector2(200f, 60f);
+        retreatGO.GetComponent<Image>().color = new Color(0.5f, 0.3f, 0.28f);
+
+        var retreatLabelGO = new GameObject("Label", typeof(RectTransform));
+        retreatLabelGO.transform.SetParent(retreatGO.transform, false);
+        var retreatLabelRect = retreatLabelGO.GetComponent<RectTransform>();
+        retreatLabelRect.anchorMin = Vector2.zero;
+        retreatLabelRect.anchorMax = Vector2.one;
+        retreatLabelRect.offsetMin = Vector2.zero;
+        retreatLabelRect.offsetMax = Vector2.zero;
+        var retreatText = retreatLabelGO.AddComponent<TextMeshProUGUI>();
+        retreatText.text = "RETREAT";
+        retreatText.fontSize = 22;
+        retreatText.fontStyle = FontStyles.Bold;
+        retreatText.alignment = TextAlignmentOptions.Center;
+        retreatText.color = Color.white;
+
+        retreatGO.GetComponent<Button>().onClick.AddListener(() => StageSceneController.Instance.RequestRetreat());
+
         panel.SetActive(false);
+        retreatButtonGO.SetActive(false);
     }
 
     private void Update()
@@ -82,6 +113,7 @@ public class StageEncounterUI : MonoBehaviour
             if (panel.activeSelf)
             {
                 panel.SetActive(false);
+                retreatButtonGO.SetActive(false);
             }
 
             return;
@@ -90,6 +122,7 @@ public class StageEncounterUI : MonoBehaviour
         if (!panel.activeSelf)
         {
             panel.SetActive(true);
+            retreatButtonGO.SetActive(true);
         }
 
         int totalWaves = controller.TotalWavesForStage(controller.ActiveStageNumber);

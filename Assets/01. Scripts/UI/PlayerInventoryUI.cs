@@ -39,6 +39,7 @@ public class PlayerInventoryUI : MonoBehaviour
 
     private readonly Color equippedGold = new Color(1f, 0.86f, 0.4f);
 
+    private GameObject icon;
     private GameObject panel;
     private Transform rowsContainer;
     private TMP_Text emptyLabel;
@@ -100,6 +101,7 @@ public class PlayerInventoryUI : MonoBehaviour
         // computed from those two elements' real anchored positions rather than eyeballed.
         var iconGO = new GameObject("InventoryIcon", typeof(RectTransform), typeof(Image), typeof(Button));
         iconGO.transform.SetParent(canvasGO.transform, false);
+        icon = iconGO;
         var rect = iconGO.GetComponent<RectTransform>();
         rect.anchorMin = new Vector2(1f, 0.5f);
         rect.anchorMax = new Vector2(1f, 0.5f);
@@ -231,6 +233,23 @@ public class PlayerInventoryUI : MonoBehaviour
         noButton.onClick.AddListener(HideConfirmDialog);
 
         confirmDialog.SetActive(false);
+    }
+
+    // Hidden until the tutorial teaches crafting (GuidedTutorial.IsEquipmentUnlocked) - nothing to
+    // equip yet before that, and showing it early just invites a confused tap (user request:
+    // "튜토리얼 중에는 튜토리얼만 오로지 깰 수 있게").
+    private void Update()
+    {
+        if (icon == null)
+        {
+            return;
+        }
+
+        bool unlocked = GuidedTutorial.IsEquipmentUnlocked;
+        if (icon.activeSelf != unlocked)
+        {
+            icon.SetActive(unlocked);
+        }
     }
 
     private void TogglePanel()
