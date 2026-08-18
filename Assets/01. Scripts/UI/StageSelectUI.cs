@@ -148,6 +148,11 @@ public class StageSelectUI : MonoBehaviour
         if (icon.activeSelf != unlocked)
         {
             icon.SetActive(unlocked);
+
+            if (unlocked)
+            {
+                ToastUI.Instance.Show("Stages Unlocked!");
+            }
         }
     }
 

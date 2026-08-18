@@ -249,6 +249,13 @@ public class PlayerInventoryUI : MonoBehaviour
         if (icon.activeSelf != unlocked)
         {
             icon.SetActive(unlocked);
+
+            // Only announce it turning ON - a silent icon appearing is easy to miss entirely
+            // (feedback that led to this whole gating system in the first place).
+            if (unlocked)
+            {
+                ToastUI.Instance.Show("Equipment Unlocked!");
+            }
         }
     }
 

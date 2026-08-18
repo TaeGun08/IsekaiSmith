@@ -9,6 +9,7 @@ using UnityEngine.SceneManagement;
 public class StageSceneController : MonoBehaviour
 {
     private const string StageSceneName = "StageScene";
+    private const string FirstEntryHintPrefsKey = "StageFirstEntryHintSeen";
 
     // A self-contained rectangle far from the field's own geometry (both scenes are loaded
     // simultaneously - additive, not a replace) so nothing can visually or physically overlap.
@@ -81,8 +82,25 @@ public class StageSceneController : MonoBehaviour
 
         PlayerMotor.Instance.Teleport(swPoint);
         StageEncounterController.Instance.BeginEncounter(stageNumber, nePoint);
+        ShowFirstEntryHintIfNeeded();
 
         isTransitioning = false;
+    }
+
+    // One-time explanation of how a stage fight actually works - a first-time player has no other
+    // way to learn "waves keep coming, RETREAT is free" before the monsters are already closing in.
+    // By the time this shows, there's a few seconds of walk time before the first wave reaches the
+    // player (they spawn at the far NE end), so it never blocks input.
+    private void ShowFirstEntryHintIfNeeded()
+    {
+        if (PlayerPrefs.GetInt(FirstEntryHintPrefsKey, 0) != 0)
+        {
+            return;
+        }
+
+        ToastUI.Instance.Show("Defeat every wave to clear the stage.\nRETREAT anytime - no reward, but no penalty.", 4.5f);
+        PlayerPrefs.SetInt(FirstEntryHintPrefsKey, 1);
+        PlayerPrefs.Save();
     }
 
     // A single flattened, diagonally-rotated cube spanning the lane - pure functional blockout,
