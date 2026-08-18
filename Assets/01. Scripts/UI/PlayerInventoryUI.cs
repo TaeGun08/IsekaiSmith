@@ -74,10 +74,13 @@ public class PlayerInventoryUI : MonoBehaviour
             return;
         }
 
-        uiBuilt = true;
+        // Flag flips AFTER a successful build, not before - see CraftingSilhouetteUI's
+        // EnsureUIBuilt for why (flipping it first would permanently lock in a half-built state
+        // if BuildIcon/BuildPanel throws partway through, instead of retrying).
         BuildIcon();
         BuildPanel();
         panel.SetActive(false);
+        uiBuilt = true;
     }
 
     private void BuildIcon()

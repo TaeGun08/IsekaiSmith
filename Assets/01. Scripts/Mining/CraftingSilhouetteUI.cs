@@ -103,9 +103,13 @@ public class CraftingSilhouetteUI : MonoBehaviour
             return;
         }
 
-        uiBuilt = true;
+        // Flag flips AFTER a successful build, not before - the first attempt at this crashed
+        // with weaponTypeButtons still null (user report), which only makes sense if BuildUI()
+        // itself was throwing partway through; flipping the flag first would have permanently
+        // locked in that half-built state instead of retrying and surfacing the real exception.
         BuildUI();
         panel.SetActive(false);
+        uiBuilt = true;
     }
 
     private void BuildUI()
