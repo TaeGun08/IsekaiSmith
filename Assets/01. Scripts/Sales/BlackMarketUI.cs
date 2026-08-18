@@ -91,7 +91,20 @@ public class BlackMarketUI : MonoBehaviour
         oreBuyButton = MakeButton(panel.transform, "OreBuyButton", new Vector2(300f, -160f), new Vector2(160f, 70f), "BUY", new Color(0.55f, 0.4f, 0.2f));
         oreBuyButton.onClick.AddListener(() =>
         {
-            BlackMarketMerchant.Instance.TryBuyOre();
+            BlackMarketMerchant merchant = BlackMarketMerchant.Instance;
+            if (!merchant.HasOreOffer)
+            {
+                ToastUI.Instance.Show("Sold out!");
+            }
+            else if (SalesCurrency.Gold < merchant.OreOfferPricePerUnit)
+            {
+                ToastUI.Instance.Show("Not enough gold!");
+            }
+            else
+            {
+                merchant.TryBuyOre();
+            }
+
             Refresh();
         });
 
@@ -100,7 +113,20 @@ public class BlackMarketUI : MonoBehaviour
         manaBuyButton = MakeButton(panel.transform, "ManaBuyButton", new Vector2(300f, -246f), new Vector2(160f, 70f), "BUY", new Color(0.55f, 0.4f, 0.2f));
         manaBuyButton.onClick.AddListener(() =>
         {
-            BlackMarketMerchant.Instance.TryBuyMana();
+            BlackMarketMerchant merchant = BlackMarketMerchant.Instance;
+            if (!merchant.HasManaOffer)
+            {
+                ToastUI.Instance.Show("Sold out!");
+            }
+            else if (SalesCurrency.Gold < merchant.ManaOfferPricePerUnit)
+            {
+                ToastUI.Instance.Show("Not enough gold!");
+            }
+            else
+            {
+                merchant.TryBuyMana();
+            }
+
             Refresh();
         });
 
@@ -110,7 +136,15 @@ public class BlackMarketUI : MonoBehaviour
         sellOreText = sellOreButton.GetComponentInChildren<TMP_Text>();
         sellOreButton.onClick.AddListener(() =>
         {
-            BlackMarketMerchant.Instance.TryQuickSellOre(out _);
+            if (OreBank.TotalCurrent < BlackMarketMerchant.QuickSellOreAmount)
+            {
+                ToastUI.Instance.Show("Not enough Ore to sell!");
+            }
+            else
+            {
+                BlackMarketMerchant.Instance.TryQuickSellOre(out _);
+            }
+
             Refresh();
         });
 
@@ -118,7 +152,15 @@ public class BlackMarketUI : MonoBehaviour
         sellManaText = sellManaButton.GetComponentInChildren<TMP_Text>();
         sellManaButton.onClick.AddListener(() =>
         {
-            BlackMarketMerchant.Instance.TryQuickSellMana(out _);
+            if (ManaBank.TotalCurrent < BlackMarketMerchant.QuickSellManaAmount)
+            {
+                ToastUI.Instance.Show("Not enough Mana to sell!");
+            }
+            else
+            {
+                BlackMarketMerchant.Instance.TryQuickSellMana(out _);
+            }
+
             Refresh();
         });
 
@@ -126,7 +168,15 @@ public class BlackMarketUI : MonoBehaviour
         sellWoodText = sellWoodButton.GetComponentInChildren<TMP_Text>();
         sellWoodButton.onClick.AddListener(() =>
         {
-            BlackMarketMerchant.Instance.TryQuickSellWood(out _);
+            if (ResourceBank.Get(ResourceType.Wood) < BlackMarketMerchant.QuickSellWoodAmount)
+            {
+                ToastUI.Instance.Show("Not enough Wood to sell!");
+            }
+            else
+            {
+                BlackMarketMerchant.Instance.TryQuickSellWood(out _);
+            }
+
             Refresh();
         });
 
@@ -147,24 +197,21 @@ public class BlackMarketUI : MonoBehaviour
             return;
         }
 
+        // Buttons stay interactable regardless of afford/stock state - tapping one that can't
+        // succeed shows a ToastUI warning instead of silently refusing the click (user request:
+        // "재화 또는 판매 물품을 가지고 있지 않다면 팝업창으로 경고를 해줬으면"). A disabled-look
+        // button turned out to be too easy to read as "broken" rather than "can't afford this yet".
         oreOfferText.text = merchant.HasOreOffer
             ? OreGradeUtility.DisplayName(merchant.OreOfferGrade) + " Ore x" + merchant.OreOfferRemaining + "\n" + merchant.OreOfferPricePerUnit + " G each"
             : "Sold out";
-        oreBuyButton.interactable = merchant.HasOreOffer && SalesCurrency.Gold >= merchant.OreOfferPricePerUnit;
 
         manaOfferText.text = merchant.HasManaOffer
             ? ManaGradeUtility.DisplayName(merchant.ManaOfferGrade) + " Mana x" + merchant.ManaOfferRemaining + "\n" + merchant.ManaOfferPricePerUnit + " G each"
             : "Sold out";
-        manaBuyButton.interactable = merchant.HasManaOffer && SalesCurrency.Gold >= merchant.ManaOfferPricePerUnit;
 
         sellOreText.text = "Sell " + BlackMarketMerchant.QuickSellOreAmount + " Ore (cheapest)";
-        sellOreButton.interactable = OreBank.TotalCurrent >= BlackMarketMerchant.QuickSellOreAmount;
-
         sellManaText.text = "Sell " + BlackMarketMerchant.QuickSellManaAmount + " Mana (cheapest)";
-        sellManaButton.interactable = ManaBank.TotalCurrent >= BlackMarketMerchant.QuickSellManaAmount;
-
         sellWoodText.text = "Sell " + BlackMarketMerchant.QuickSellWoodAmount + " Wood";
-        sellWoodButton.interactable = ResourceBank.Get(ResourceType.Wood) >= BlackMarketMerchant.QuickSellWoodAmount;
     }
 
     private static TMP_Text MakeText(Transform parent, string name, int fontSize, Vector2 anchoredPos, Vector2 size)
