@@ -96,6 +96,11 @@ public class GuidedTutorial : MonoBehaviour
     // craft->sell loop has been taught (tutorial Done, which also sets HasCompletedTutorial).
     public static bool IsStagesUnlocked => HasCompletedTutorial;
 
+    // The black market deals in gold and rare-grade materials, neither of which mean anything
+    // before the tutorial teaches selling - same threshold as Stages, and same gap this closes as
+    // Equipment/Stages did (previously the merchant could show up mid-tutorial with no explanation).
+    public static bool IsBlackMarketUnlocked => HasCompletedTutorial;
+
     private void Awake()
     {
         BuildWelcomeCard();
@@ -213,6 +218,11 @@ public class GuidedTutorial : MonoBehaviour
                 PlayerPrefs.Save();
                 running = false;
                 Invoke(nameof(HideBanner), 3f);
+
+                // Stages and the black market both key off HasCompletedTutorial (same instant this
+                // sets SeenPrefsKey), so one combined announcement instead of each system firing
+                // its own ToastUI call and racing to overwrite the other.
+                ToastUI.Instance.Show("Stages & Black Market Unlocked!", 4f);
                 break;
         }
 

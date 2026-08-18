@@ -108,7 +108,12 @@ public class BlackMarketMerchant : MonoBehaviour
         }
 
         checkTimer = CheckInterval;
-        if (Random.value <= AppearChance)
+
+        // Gated the same way Equipment/Stages are (GuidedTutorial.IsBlackMarketUnlocked) - gold
+        // and rare-grade materials mean nothing before the tutorial teaches selling, and a merchant
+        // popping up mid-tutorial with no explanation was the same gap that motivated gating those
+        // two. ForceBeginVisit (dev panel) intentionally bypasses this for testing.
+        if (GuidedTutorial.IsBlackMarketUnlocked && Random.value <= AppearChance)
         {
             BeginVisit();
         }

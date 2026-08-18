@@ -242,9 +242,18 @@ public class StageEncounterController : MonoBehaviour
     private void CompleteEncounter()
     {
         int stageNumber = ActiveStageNumber;
+        bool wasLastStage = stageNumber == StageBank.StageCount && !StageBank.AllStagesCleared;
+
         StageBank.MarkCleared(stageNumber);
         ManaBank.DepositGathered(StageManaReward[stageNumber - 1]);
         EndEncounter(cleared: true);
+
+        // A closure moment for finishing all of them, instead of the run just quietly ending the
+        // same as any other stage clear - "컨텐츠와 시퀀스" completeness (사용자 피드백).
+        if (wasLastStage)
+        {
+            ToastUI.Instance.Show("All Stages Cleared! Every stage has been conquered.", 4f);
+        }
     }
 
     private void HandlePlayerDeath()

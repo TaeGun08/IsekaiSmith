@@ -149,10 +149,9 @@ public class StageSelectUI : MonoBehaviour
         {
             icon.SetActive(unlocked);
 
-            if (unlocked)
-            {
-                ToastUI.Instance.Show("Stages Unlocked!");
-            }
+            // No standalone toast here - Stages and the black market unlock at the exact same
+            // moment (tutorial completion), so GuidedTutorial fires one combined announcement
+            // instead of two ToastUI calls racing to overwrite each other.
         }
     }
 
