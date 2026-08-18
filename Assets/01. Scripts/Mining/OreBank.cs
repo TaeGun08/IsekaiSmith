@@ -150,4 +150,36 @@ public static class OreBank
         grade = OreGrade.Iron;
         return false;
     }
+
+    // Cheapest-first counterpart to TryGetBestAvailable - the black market's quick-sell spends the
+    // lowest grade that has enough stock, so higher-grade material earmarked for crafting doesn't
+    // get sold off by accident. See black_market_design_v1.html §3.
+    public static bool TrySpendCheapest(int amount, out OreGrade grade)
+    {
+        foreach (OreGrade candidate in AscendingGrades)
+        {
+            if (TrySpend(candidate, amount))
+            {
+                grade = candidate;
+                return true;
+            }
+        }
+
+        grade = OreGrade.Iron;
+        return false;
+    }
+
+    // Credits a specific grade directly, bypassing the Ceiling roll DepositMined uses - the black
+    // market explicitly sells grades the player's own gathering can't reach yet ("정상 유통
+    // 경로로는 안 팔리는 희귀 재료"), so it has to write directly instead of rolling. See
+    // black_market_design_v1.html §2.
+    public static void AddDirect(OreGrade grade, int amount)
+    {
+        if (amount <= 0)
+        {
+            return;
+        }
+
+        counts[grade] = Get(grade) + amount;
+    }
 }

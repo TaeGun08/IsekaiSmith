@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>이세계 대장장이 - 암시장 상인 기획서 v1</title>
+<style>
+  :root { --ink:#2b2420; --paper:#f6f1e7; --card:#fff; --border:#dcd3c2; --accent:#5c4a8a; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:40px 20px 80px; background:var(--paper); color:var(--ink);
+    font-family:"Pretendard","Malgun Gothic","Apple SD Gothic Neo",sans-serif;
+    display:flex; flex-direction:column; align-items:center; }
+  .doc { width:100%; max-width:1000px; }
+  h1 { font-size:25px; margin:0 0 4px; }
+  p.sub { margin:0 0 8px; color:#6b6155; font-size:14px; }
+  p.pitch { font-size:15px; line-height:1.75; background:var(--card); border:1px solid var(--border);
+    border-left:4px solid var(--accent); border-radius:8px; padding:16px 18px; margin:16px 0 32px; }
+  h2 { font-size:19px; margin:40px 0 14px; padding-bottom:8px; border-bottom:2px solid var(--border); }
+  h2 .num { color:var(--accent); margin-right:8px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px 18px; box-shadow:0 1px 6px rgba(0,0,0,0.05); }
+  .note { font-size:12.5px; color:#6b6155; line-height:1.7; margin-top:8px; }
+  table.spec { width:100%; border-collapse:collapse; margin-top:10px; font-size:12.5px; }
+  table.spec th, table.spec td { border:1px solid var(--border); padding:8px 10px; text-align:left; }
+  table.spec th { background:#efe8d9; font-size:12px; }
+  footer { margin-top:40px; font-size:12px; color:#948a7c; text-align:center; }
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>암시장 상인 기획서 v1</h1>
+  <p class="sub">black_market_design_v1.html · 신규 - 로드맵 ④, game_design_doc.html §5.</p>
+  <p class="pitch">
+    "정상 유통 경로로는 안 팔리는 희귀 재료"를 새 아이템 타입을 만들지 않고 표현: 지금 있는
+    <code>OreBank</code>/<code>ManaBank</code>의 <b>Ceiling(등급 상한)보다 한 단계 높은 등급</b>을
+    골드로 직접 판매 - "정상적으로는 아직 못 캐는 등급을 돈 주고 미리 산다"는 것 자체가 희귀
+    재료의 정체. 보스 전용 재료는 던전(로드맵③ 나머지 절반)이 아직 없어 이번 범위 밖.
+  </p>
+
+  <h2><span class="num">1.</span> 방문 주기</h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;">90초마다 판정, 상인이 없으면
+    35% 확률로 등장(대장간 근처, 기존 오브젝트 기준 파생 좌표). 등장 시 120초 체류 또는 준비된
+    재고 소진 중 먼저 오는 쪽까지 머문 뒤 사라짐.</p>
+  </div>
+
+  <h2><span class="num">2.</span> 판매(상인->플레이어)</h2>
+  <div class="card">
+    <table class="spec">
+      <tr><th style="width:160px;">구성</th><td>방문 시작 시 광물 1종 + 마석 1종, 각각
+      <code>min(최고등급, 현재Ceiling+1)</code> 등급으로 2~4개씩 확정(체류 중 안 바뀜).</td></tr>
+      <tr><th>가격</th><td><code>MaterialPricing</code>(신규) 기준 단가 × 6배 - "시세보다 훨씬
+      비쌈".</td></tr>
+      <tr><th>구매 결과</th><td><code>OreBank.AddDirect</code>/<code>ManaBank.AddDirect</code>(신규)
+      - Ceiling 롤을 건너뛰고 그 등급으로 직접 적립. 재고 소진 시 그 offer는 사라짐.</td></tr>
+    </table>
+  </div>
+
+  <h2><span class="num">3.</span> 매입(플레이어->상인) - 급전용</h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;">전체 인벤토리 브라우저 대신
+    "Sell 5 Ore" / "Sell 5 Mana" / "Sell 10 Wood" 퀵셀 버튼 3개 - 보유량 부족하면 비활성. 광물/
+    마석은 <b>가장 낮은 등급부터</b> 소모(<code>OreBank.TrySpendCheapest</code>/
+    <code>ManaBank.TrySpendCheapest</code> 신규, 제작용으로 아껴둔 고등급은 안 건드림), 단가는
+    <code>MaterialPricing</code> 기준 × 0.5배 - "시세보다 낮음".</p>
+  </div>
+
+  <h2><span class="num">4.</span> 다음 단계로 미룸</h2>
+  <div class="card">
+    <p class="note">보스 전용 재료(던전 필요), 전체 재료 브라우저형 매입 UI, 등장 확률 밸런싱 -
+    전부 실플레이 반응 보고 조정.</p>
+  </div>
+
+  <footer>black_market_design_v1.html v1 · 암시장 상인 MVP - Ceiling+1 등급 판매 + 퀵셀 매입</footer>
+</div>
+</body>
+</html>

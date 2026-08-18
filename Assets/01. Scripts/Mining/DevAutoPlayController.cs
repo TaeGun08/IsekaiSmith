@@ -52,6 +52,7 @@ public class DevAutoPlayController : MonoBehaviour
     private TMP_Text toggleLabel;
     private Button speedButton;
     private TMP_Text speedLabel;
+    private Button merchantButton;
     private TMP_Text logText;
 
     private bool autoPlayEnabled;
@@ -104,7 +105,7 @@ public class DevAutoPlayController : MonoBehaviour
         panelRect.anchorMax = new Vector2(0f, 1f);
         panelRect.pivot = new Vector2(0f, 1f);
         panelRect.anchoredPosition = new Vector2(20f, -20f);
-        panelRect.sizeDelta = new Vector2(300f, 320f);
+        panelRect.sizeDelta = new Vector2(300f, 410f);
 
         toggleButton = MakeButton(panel.transform, "ToggleButton", new Vector2(0f, 0f), new Vector2(280f, 64f), out toggleLabel);
         toggleButton.onClick.AddListener(ToggleAutoPlay);
@@ -112,7 +113,16 @@ public class DevAutoPlayController : MonoBehaviour
         speedButton = MakeButton(panel.transform, "SpeedButton", new Vector2(0f, -74f), new Vector2(280f, 64f), out speedLabel);
         speedButton.onClick.AddListener(CycleSpeed);
 
-        logText = MakeText(panel.transform, "Log", 14, new Vector2(0f, -152f), new Vector2(280f, 160f));
+        // Dev-mode panel - "암시장 상인을 임의로 부를 수 있는 개발자 모드... 오토 모드랑 배속도
+        // 거기로 합쳐줬으면 해" (user request): this panel already housed AUTO PLAY/SPEED, so it's
+        // the natural home for a manual merchant trigger too, instead of a fourth separate dev-only
+        // control living somewhere else.
+        merchantButton = MakeButton(panel.transform, "MerchantButton", new Vector2(0f, -148f), new Vector2(280f, 64f), out TMP_Text merchantLabel);
+        merchantLabel.text = "SPAWN MERCHANT";
+        merchantButton.GetComponent<Image>().color = new Color(0.35f, 0.25f, 0.4f); // matches the merchant's own shady-purple tint
+        merchantButton.onClick.AddListener(() => BlackMarketMerchant.Instance.ForceBeginVisit());
+
+        logText = MakeText(panel.transform, "Log", 14, new Vector2(0f, -222f), new Vector2(280f, 160f));
         logText.alignment = TextAlignmentOptions.TopLeft;
 
         RefreshToggleVisual();

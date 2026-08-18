@@ -125,4 +125,31 @@ public static class ManaBank
         grade = ManaGrade.Crude;
         return false;
     }
+
+    // Cheapest-first counterpart to TryGetBestAvailable - see OreBank.TrySpendCheapest.
+    public static bool TrySpendCheapest(int amount, out ManaGrade grade)
+    {
+        foreach (ManaGrade candidate in AscendingGrades)
+        {
+            if (TrySpend(candidate, amount))
+            {
+                grade = candidate;
+                return true;
+            }
+        }
+
+        grade = ManaGrade.Crude;
+        return false;
+    }
+
+    // Credits a specific grade directly, bypassing the Ceiling roll - see OreBank.AddDirect.
+    public static void AddDirect(ManaGrade grade, int amount)
+    {
+        if (amount <= 0)
+        {
+            return;
+        }
+
+        counts[grade] = Get(grade) + amount;
+    }
 }
