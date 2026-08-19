@@ -11,6 +11,11 @@ using UnityEngine;
 //
 // Doesn't know anything about scenes/UI - StageSceneController owns loading/unloading StageScene
 // and moving the player, and reacts to OnEncounterEnded to know when to send the player home.
+//
+// Dungeon handling moved out to DungeonEncounterController/DungeonSceneController (user request:
+// "던전씬을 따로 만들어서 관리하는 게 좋을 것 같아") - the two encounter types diverged enough
+// (lane vs surround-the-player arena, uniform waves vs mob-then-boss) that sharing this one class
+// via an IsDungeonEncounter flag was starting to hide more than it shared.
 public class StageEncounterController : MonoBehaviour
 {
     private const float SpawnSpread = 3f;
@@ -67,29 +72,15 @@ public class StageEncounterController : MonoBehaviour
     // 단계로 미룸") mana stone deposited on a clean clear, scaled with stage number.
     private static readonly int[] StageManaReward = { 6, 10, 16 };
 
-    // dungeon_design_v1.html §2 - three basement floors (사용자 요청: "던전도 스테이지처럼
-    // 점점 지하 1층 2층 3층 이런식으로 클리어하면 무조건 다음층으로 넘어가도록"), each harder
-    // than any single stage's own waves, floor 3 standing in for the dungeon boss (no dedicated
-    // boss system - same trim StageWaves' elites already use). Clearing a floor auto-advances to
-    // the next one (Update() below) - there's no exit-and-re-enter between floors.
-    private static readonly WaveSpec[] DungeonFloors =
-    {
-        new WaveSpec(5, 2.8f, 2f),
-        new WaveSpec(5, 3.6f, 2.6f, 1, 6f, 3.2f),
-        new WaveSpec(4, 4.5f, 3.2f, 1, 9f, 4.5f),
-    };
-
     private static readonly Color EliteTint = new Color(0.55f, 0.18f, 0.16f);
 
     private readonly List<Monster> activeMonsters = new List<Monster>();
 
     public IReadOnlyList<Monster> ActiveMonsters => activeMonsters;
     public bool IsEncounterActive { get; private set; }
-    public bool IsDungeonEncounter { get; private set; }
     public int ActiveStageNumber { get; private set; }
     public int ActiveWaveNumber { get; private set; } // 1-based, for StageEncounterUI
     public int TotalWavesForStage(int stageNumber) => StageWaves[stageNumber - 1].Length;
-    public int TotalDungeonFloors => DungeonFloors.Length;
 
     // bool = whether the encounter ended on a clean clear (false = death/retreat, no reward) -
     // StageSceneController listens for this to know when to send the player back to the field.
@@ -129,8 +120,6 @@ public class StageEncounterController : MonoBehaviour
         return !IsEncounterActive && StageBank.IsUnlocked(stageNumber) && stageNumber >= 1 && stageNumber <= StageBank.StageCount;
     }
 
-    public bool CanBeginDungeon => !IsEncounterActive && DungeonBank.IsUnlocked;
-
     // waveSpawnPoint is the lane's NE end (StageSceneController computes it) - every wave spawns
     // there and its monsters immediately advance toward the player (SW), rather than scattering
     // around a fixed point the way FieldMonsterSpawner's permanent pool does.
@@ -142,25 +131,7 @@ public class StageEncounterController : MonoBehaviour
         }
 
         IsEncounterActive = true;
-        IsDungeonEncounter = false;
         ActiveStageNumber = stageNumber;
-        ActiveWaveNumber = 0;
-        spawnCenter = waveSpawnPoint;
-
-        SpawnNextWave();
-    }
-
-    // Same lifecycle as BeginEncounter, dungeon_design_v1.html's wave table instead of a stage's.
-    public void BeginDungeonEncounter(Vector3 waveSpawnPoint)
-    {
-        if (!CanBeginDungeon)
-        {
-            return;
-        }
-
-        IsEncounterActive = true;
-        IsDungeonEncounter = true;
-        ActiveStageNumber = 0;
         ActiveWaveNumber = 0;
         spawnCenter = waveSpawnPoint;
 
@@ -192,28 +163,13 @@ public class StageEncounterController : MonoBehaviour
         }
 
         // Every monster in the current wave is down.
-        WaveSpec[] waves = IsDungeonEncounter ? DungeonFloors : StageWaves[ActiveStageNumber - 1];
+        WaveSpec[] waves = StageWaves[ActiveStageNumber - 1];
         if (ActiveWaveNumber >= waves.Length)
         {
-            if (IsDungeonEncounter)
-            {
-                CompleteDungeon();
-            }
-            else
-            {
-                CompleteEncounter();
-            }
+            CompleteEncounter();
         }
         else
         {
-            // Unconditional auto-advance to the next floor, no exit/re-enter (user request: "클리어
-            // 하면 무조건 다음층으로 넘어가도록") - only the dungeon calls out floor numbers, a
-            // stage's own waves stay a quieter internal detail.
-            if (IsDungeonEncounter)
-            {
-                ToastUI.Instance.Show("Floor " + ActiveWaveNumber + " Cleared! Descending to Floor " + (ActiveWaveNumber + 1) + "...", 2.5f);
-            }
-
             SpawnNextWave();
         }
     }
@@ -230,8 +186,7 @@ public class StageEncounterController : MonoBehaviour
 
         activeMonsters.Clear();
 
-        WaveSpec[] waves = IsDungeonEncounter ? DungeonFloors : StageWaves[ActiveStageNumber - 1];
-        WaveSpec wave = waves[ActiveWaveNumber];
+        WaveSpec wave = StageWaves[ActiveStageNumber - 1][ActiveWaveNumber];
         ActiveWaveNumber++;
 
         var placed = new List<Vector3>();
@@ -306,18 +261,6 @@ public class StageEncounterController : MonoBehaviour
         }
     }
 
-    // First-clear-only, same as a stage (user correction: "던전은 최초클리어만 가능하고...
-    // 업그레이드가 주 목적이야") - no gold/mana payout, the quarry-ceiling upgrade
-    // (OreBank.DungeonCeiling) IS the reward. DungeonBank.IsUnlocked goes false the instant
-    // MarkClearedOnce runs, so this can never fire a second time for the same save.
-    private void CompleteDungeon()
-    {
-        DungeonBank.MarkClearedOnce();
-        EndEncounter(cleared: true);
-
-        ToastUI.Instance.Show("Dungeon Cleared! The quarry's veins run deeper now.", 4f);
-    }
-
     private void HandlePlayerDeath()
     {
         if (IsEncounterActive)
@@ -338,7 +281,6 @@ public class StageEncounterController : MonoBehaviour
 
         activeMonsters.Clear();
         IsEncounterActive = false;
-        IsDungeonEncounter = false;
         ActiveWaveNumber = 0;
 
         OnEncounterEnded?.Invoke(cleared);

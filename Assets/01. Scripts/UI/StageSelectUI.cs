@@ -158,8 +158,9 @@ public class StageSelectUI : MonoBehaviour
     private void TogglePanel()
     {
         // Can't open mid-transition/mid-fight - there's nowhere sensible for "enter a different
-        // stage" to go while one is already loading or running.
-        if (!panelOpen && (StageSceneController.Instance.IsTransitioning || StageEncounterController.Instance.IsEncounterActive))
+        // stage/dungeon" to go while one is already loading or running.
+        if (!panelOpen && (StageSceneController.Instance.IsTransitioning || StageEncounterController.Instance.IsEncounterActive
+            || DungeonSceneController.Instance.IsTransitioning || DungeonEncounterController.Instance.IsEncounterActive))
         {
             return;
         }
@@ -286,7 +287,7 @@ public class StageSelectUI : MonoBehaviour
             }
             else
             {
-                StageSceneController.Instance.EnterDungeon();
+                DungeonSceneController.Instance.EnterDungeon();
                 TogglePanel();
             }
         });

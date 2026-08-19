@@ -49,13 +49,22 @@
     </table>
   </div>
 
-  <h2><span class="num">2.</span> 전투 구성</h2>
+  <h2><span class="num">2.</span> 전투 구성 <span style="font-size:11px; color:#c1440e;">v1.2 - 별도 씬 + 사방 포위 + 보스 재구성</span></h2>
   <div class="card">
-    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;"><code>StageEncounterController</code>에
-    던전 전용 웨이브 4개 추가(스테이지 3웨이브보다 김+강함, 마지막 웨이브가 사실상 보스전).
-    레인 자체(바닥)는 <code>StageSceneController</code>가 <b>매 방문마다 위치를 무작위로 재계산</b>해서
-    "새로 생성된 것"처럼 보이게 함(완전한 절차적 방 생성 대신 최소 비용으로 "매번 다르다"는
-    느낌만 구현).</p>
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;">사용자 정정: "던전의 몬스터들은
+    사방으로 몰려오도록... 던전씬을 따로 만들어서 관리... 몬스터를 전부 잡았다면 보스 몬스터가
+    등장, 보스를 클리어 해야 던전이 클리어." 레인(스테이지 방식) 대신 <b>원형 아레나</b> +
+    <b>몹 링 스폰</b> + <b>별도 보스 페이즈</b>로 재구성.</p>
+    <table class="spec">
+      <tr><th style="width:190px;"><code>DungeonScene</code>(신규 씬)</th><td>
+      <code>StageScene</code>과 별도 파일 - <code>DungeonSceneController</code>(신규)가 애디티브
+      로드/언로드 전담. 원형 바닥(Cylinder) 하나만 코드로 생성, 매 방문 위치 무작위.</td></tr>
+      <tr><th><code>DungeonEncounterController</code>(신규)</th><td><code>StageEncounterController</code>에서
+      던전 로직을 완전히 분리 - 웨이브가 "라인 한쪽 끝에서 스폰"이 아니라 <b>플레이어(아레나
+      중심) 주위 360도 원형으로 균등 스폰</b> 후 사방에서 접근. 지하 1/2층은 몹 무리만, 3층은
+      몹 무리를 다 잡으면 <b>보스 1마리가 별도로 등장</b>(더 큼+진한 빨강 틴트 - 신규
+      <code>Monster.SetScale</code>). 보스를 잡아야 던전 클리어.</td></tr>
+    </table>
   </div>
 
   <h2><span class="num">3.</span> 보상 <span style="font-size:11px; color:#c1440e;">v1.1 정정</span></h2>

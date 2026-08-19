@@ -6,6 +6,9 @@ using UnityEngine.SceneManagement;
 // (stage_system_design_v2.html §3) - StageEncounterController only knows about waves/monsters,
 // StageSelectUI only knows about which stage the player tapped; this is the one place that
 // actually touches SceneManager and PlayerMotor.Teleport.
+//
+// Stage-only - dungeon entry/exit moved to its own DungeonSceneController (user request:
+// "던전씬을 따로 만들어서 관리하는 게 좋을 것 같아").
 public class StageSceneController : MonoBehaviour
 {
     private const string StageSceneName = "StageScene";
@@ -18,15 +21,6 @@ public class StageSceneController : MonoBehaviour
     private const float LaneWidth = 10f;
     private static readonly Vector3 LaneOrigin = new Vector3(500f, 0f, 500f);
     private static readonly Vector3 LaneDirection = new Vector3(1f, 0f, 1f).normalized;
-
-    // Dungeon visits jitter the lane's position/length around LaneOrigin instead of reusing the
-    // exact same spot every time - dungeon_design_v1.html §2's stand-in for "매 방문 랜덤 생성"
-    // without a real procedural room/corridor generator (out of this pass's budget). Stages stay
-    // at the fixed LaneOrigin/LaneLength for predictability - only the dungeon is meant to feel
-    // "different every time".
-    private const float DungeonLaneMinLength = 35f;
-    private const float DungeonLaneMaxLength = 55f;
-    private const float DungeonOriginJitterRadius = 60f;
 
     private static StageSceneController instance;
 
@@ -61,8 +55,6 @@ public class StageSceneController : MonoBehaviour
         return !isTransitioning && StageEncounterController.Instance.CanBegin(stageNumber);
     }
 
-    public bool CanEnterDungeon => !isTransitioning && StageEncounterController.Instance.CanBeginDungeon;
-
     public void EnterStage(int stageNumber)
     {
         if (!CanEnter(stageNumber))
@@ -70,21 +62,7 @@ public class StageSceneController : MonoBehaviour
             return;
         }
 
-        StartCoroutine(EnterRoutine(LaneOrigin, LaneLength, nePoint => StageEncounterController.Instance.BeginEncounter(stageNumber, nePoint)));
-    }
-
-    public void EnterDungeon()
-    {
-        if (!CanEnterDungeon)
-        {
-            return;
-        }
-
-        Vector2 jitter = Random.insideUnitCircle * DungeonOriginJitterRadius;
-        Vector3 origin = LaneOrigin + new Vector3(jitter.x, 0f, jitter.y);
-        float length = Random.Range(DungeonLaneMinLength, DungeonLaneMaxLength);
-
-        StartCoroutine(EnterRoutine(origin, length, nePoint => StageEncounterController.Instance.BeginDungeonEncounter(nePoint)));
+        StartCoroutine(EnterRoutine(stageNumber));
     }
 
     // Wired to StageEncounterUI's RETREAT button.
@@ -93,19 +71,20 @@ public class StageSceneController : MonoBehaviour
         StageEncounterController.Instance.RequestRetreat();
     }
 
-    private IEnumerator EnterRoutine(Vector3 laneOrigin, float laneLength, System.Action<Vector3> beginEncounter)
+    private IEnumerator EnterRoutine(int stageNumber)
     {
         isTransitioning = true;
         playerReturnPosition = PlayerMotor.Instance.transform.position;
 
         yield return SceneManager.LoadSceneAsync(StageSceneName, LoadSceneMode.Additive);
 
-        BuildLaneGround(laneOrigin, laneLength);
+        BuildLaneGround();
 
-        Vector3 nePoint = laneOrigin + LaneDirection * laneLength;
+        Vector3 swPoint = LaneOrigin;
+        Vector3 nePoint = LaneOrigin + LaneDirection * LaneLength;
 
-        PlayerMotor.Instance.Teleport(laneOrigin);
-        beginEncounter(nePoint);
+        PlayerMotor.Instance.Teleport(swPoint);
+        StageEncounterController.Instance.BeginEncounter(stageNumber, nePoint);
         ShowFirstEntryHintIfNeeded();
 
         isTransitioning = false;
@@ -131,17 +110,17 @@ public class StageSceneController : MonoBehaviour
     // no decoration (stage_system_design_v2.html §1 "장식은 여전히 손 안 댐"). Parented into
     // StageScene itself via MoveGameObjectToScene so it's destroyed automatically on unload
     // instead of needing to be tracked and cleaned up manually.
-    private void BuildLaneGround(Vector3 laneOrigin, float laneLength)
+    private void BuildLaneGround()
     {
         var groundGO = GameObject.CreatePrimitive(PrimitiveType.Cube);
         groundGO.name = "StageLaneGround";
 
-        Vector3 midpoint = laneOrigin + LaneDirection * (laneLength * 0.5f);
+        Vector3 midpoint = LaneOrigin + LaneDirection * (LaneLength * 0.5f);
         groundGO.transform.position = midpoint + Vector3.down * 0.1f;
         groundGO.transform.rotation = Quaternion.LookRotation(LaneDirection, Vector3.up);
         // A bit longer than the SW/NE points themselves so the spawn/entry points aren't sitting
         // right at the ground's edge.
-        groundGO.transform.localScale = new Vector3(LaneWidth, 0.2f, laneLength + LaneWidth);
+        groundGO.transform.localScale = new Vector3(LaneWidth, 0.2f, LaneLength + LaneWidth);
         groundGO.GetComponent<Renderer>().material.color = new Color(0.55f, 0.5f, 0.38f);
 
         Scene stageScene = SceneManager.GetSceneByName(StageSceneName);

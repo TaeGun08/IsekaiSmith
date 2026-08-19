@@ -15,6 +15,7 @@ public class Monster : MonoBehaviour
     private const float AttackRadius = 1.2f;
     private const float MoveSpeed = 1.8f;
     private const float FlashDuration = 0.15f;
+    private static readonly Vector3 BaseScale = Vector3.one * 0.9f;
 
     private float currentHP;
     private float contactTimer;
@@ -45,7 +46,7 @@ public class Monster : MonoBehaviour
         body.name = "Slime";
         body.transform.SetParent(parent, false);
         body.transform.position = groundPosition + Vector3.up * 0.5f;
-        body.transform.localScale = Vector3.one * 0.9f;
+        body.transform.localScale = BaseScale;
         Object.Destroy(body.GetComponent<Collider>()); // visual only - AI uses plain distance checks
 
         var monster = body.AddComponent<Monster>();
@@ -82,6 +83,14 @@ public class Monster : MonoBehaviour
     public void SetAlwaysAggro(bool value)
     {
         alwaysAggro = value;
+    }
+
+    // A dungeon boss reads as "the big one" purely via a bigger silhouette (no dedicated boss
+    // mesh) - same reuse-what-exists approach as SetTint. Multiplies the same base scale Spawn()
+    // sets, not an absolute value, so this stays correct regardless of that base ever changing.
+    public void SetScale(float multiplier)
+    {
+        transform.localScale = BaseScale * multiplier;
     }
 
     // Returns whether this hit was the killing blow - lets PlayerCombat know exactly once per

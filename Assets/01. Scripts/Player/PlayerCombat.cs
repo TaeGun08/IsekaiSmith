@@ -156,12 +156,14 @@ public class PlayerCombat : MonoBehaviour
         Monster nearest = null;
         float nearestSqrDist = AttackRadius * AttackRadius;
 
-        // Field jabmops and an active stage encounter's wave monsters are two separate lists
-        // (StageEncounterController's monsters intentionally aren't in FieldMonsterSpawner's, so
-        // farming and stage-clearing don't get mixed up) - both are attackable, so both get
-        // scanned here rather than teaching Monster/PlayerCombat which "kind" a target is.
+        // Field jabmops, an active stage encounter's wave monsters, and an active dungeon
+        // encounter's monsters are three separate lists (kept apart so farming/stage-clearing/
+        // dungeoneering never mix up which monsters belong to which system) - all three are
+        // attackable, so all three get scanned here rather than teaching Monster/PlayerCombat
+        // which "kind" a target is.
         ScanForNearest(FieldMonsterSpawner.Instance.Monsters, playerPos, ref nearest, ref nearestSqrDist);
         ScanForNearest(StageEncounterController.Instance.ActiveMonsters, playerPos, ref nearest, ref nearestSqrDist);
+        ScanForNearest(DungeonEncounterController.Instance.ActiveMonsters, playerPos, ref nearest, ref nearestSqrDist);
 
         return nearest;
     }

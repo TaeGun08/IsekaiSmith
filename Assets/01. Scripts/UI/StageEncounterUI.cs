@@ -98,7 +98,19 @@ public class StageEncounterUI : MonoBehaviour
         retreatText.alignment = TextAlignmentOptions.Center;
         retreatText.color = Color.white;
 
-        retreatGO.GetComponent<Button>().onClick.AddListener(() => StageSceneController.Instance.RequestRetreat());
+        // Dispatches to whichever encounter is actually active - this panel is shared by both
+        // stage and dungeon fights (see Update() below).
+        retreatGO.GetComponent<Button>().onClick.AddListener(() =>
+        {
+            if (DungeonEncounterController.Instance.IsEncounterActive)
+            {
+                DungeonSceneController.Instance.RequestRetreat();
+            }
+            else
+            {
+                StageSceneController.Instance.RequestRetreat();
+            }
+        });
 
         panel.SetActive(false);
         retreatButtonGO.SetActive(false);
@@ -106,34 +118,39 @@ public class StageEncounterUI : MonoBehaviour
 
     private void Update()
     {
-        StageEncounterController controller = StageEncounterController.Instance;
+        DungeonEncounterController dungeon = DungeonEncounterController.Instance;
+        StageEncounterController stage = StageEncounterController.Instance;
 
-        if (!controller.IsEncounterActive)
+        if (dungeon.IsEncounterActive)
         {
-            if (panel.activeSelf)
-            {
-                panel.SetActive(false);
-                retreatButtonGO.SetActive(false);
-            }
-
+            ShowPanel();
+            label.text = dungeon.IsBossPhase
+                ? "DUNGEON BOSS - " + dungeon.RemainingMonsterCount + " left"
+                : "DUNGEON - Floor " + dungeon.ActiveFloorNumber + "/" + dungeon.TotalFloors + " (" + dungeon.RemainingMonsterCount + " left)";
             return;
         }
 
+        if (stage.IsEncounterActive)
+        {
+            ShowPanel();
+            label.text = "STAGE " + stage.ActiveStageNumber + " - Wave " + stage.ActiveWaveNumber + "/" + stage.TotalWavesForStage(stage.ActiveStageNumber)
+                + " (" + stage.RemainingMonsterCount + " left)";
+            return;
+        }
+
+        if (panel.activeSelf)
+        {
+            panel.SetActive(false);
+            retreatButtonGO.SetActive(false);
+        }
+    }
+
+    private void ShowPanel()
+    {
         if (!panel.activeSelf)
         {
             panel.SetActive(true);
             retreatButtonGO.SetActive(true);
-        }
-
-        if (controller.IsDungeonEncounter)
-        {
-            label.text = "DUNGEON - Floor " + controller.ActiveWaveNumber + "/" + controller.TotalDungeonFloors
-                + " (" + controller.RemainingMonsterCount + " left)";
-        }
-        else
-        {
-            label.text = "STAGE " + controller.ActiveStageNumber + " - Wave " + controller.ActiveWaveNumber + "/" + controller.TotalWavesForStage(controller.ActiveStageNumber)
-                + " (" + controller.RemainingMonsterCount + " left)";
         }
     }
 }
