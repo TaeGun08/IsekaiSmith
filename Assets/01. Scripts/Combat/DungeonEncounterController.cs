@@ -3,17 +3,14 @@ using System.Collections.Generic;
 using UnityEngine;
 
 // Runs the dungeon fight (dungeon_design_v1.html) - split out from StageEncounterController
-// (user request: "던전씬을 따로 만들어서 관리하는 게 좋을 것 같아") because the two diverged in
-// shape: a stage is a lane where waves approach from one end, the dungeon is an arena where each
-// floor's monster pack spawns in a ring and closes in from every direction (user request: "던전의
-// 몬스터들은 사방으로 몰려오도록"), and only the dungeon has a distinct mob-phase-then-boss-phase
-// floor structure.
+// because the two diverged in shape: a stage is a lane where waves approach from one end, the
+// dungeon is an arena where each floor's monster pack spawns in a ring and closes in from every
+// direction (user request: "던전의 몬스터들은 사방으로 몰려오도록").
 //
-// 3 floors total (지하 1층/2층/3층). Floors 1-2 are pure mob packs - clear one, auto-advance to
-// the next (no exit/re-enter). Floor 3 is the same mob pack, but clearing it spawns a single
-// boss monster instead of advancing further; the dungeon only counts as cleared once the boss is
-// down (user request: "사방에 몰려오는 몬스터를 전부 잡았다면 보스 몬스터가 등장... 보스
-// 몬스터를 클리어 해야 해당 던전이 클리어").
+// 3 floors (지하 1층/2층/3층). Every floor is mob-pack-then-boss (user correction: "층마다 몹
+// 무리와 보스가 있어야 해") - clear the mob ring, a floor boss spawns, clear the boss, auto-
+// advance to the next floor's mob ring. The dungeon only counts as cleared once floor 3's boss is
+// down.
 public class DungeonEncounterController : MonoBehaviour
 {
     private const float MobRingRadius = 9f;
@@ -42,26 +39,28 @@ public class DungeonEncounterController : MonoBehaviour
         public readonly int MobCount;
         public readonly float MobHpMult;
         public readonly float MobDmgMult;
+        public readonly float BossHpMult;
+        public readonly float BossDmgMult;
 
-        public FloorSpec(int mobCount, float mobHpMult, float mobDmgMult)
+        public FloorSpec(int mobCount, float mobHpMult, float mobDmgMult, float bossHpMult, float bossDmgMult)
         {
             MobCount = mobCount;
             MobHpMult = mobHpMult;
             MobDmgMult = mobDmgMult;
+            BossHpMult = bossHpMult;
+            BossDmgMult = bossDmgMult;
         }
     }
 
-    // dungeon_design_v1.html §2's difficulty table - harder than any single stage floor-for-floor,
-    // since there's no elite mixed into the mob pack anymore (the boss phase below replaces that).
+    // dungeon_design_v1.html §2's difficulty table - each floor's boss is meaningfully tougher
+    // than that floor's own mob pack, and floor 3's boss is the dungeon's real final challenge.
     private static readonly FloorSpec[] Floors =
     {
-        new FloorSpec(6, 2.6f, 1.9f),
-        new FloorSpec(7, 3.4f, 2.4f),
-        new FloorSpec(8, 4.2f, 3f),
+        new FloorSpec(6, 2.6f, 1.9f, 10f, 3.5f),
+        new FloorSpec(7, 3.4f, 2.4f, 13f, 4.2f),
+        new FloorSpec(8, 4.2f, 3f, 16f, 5f),
     };
 
-    private const float BossHpMult = 14f;
-    private const float BossDmgMult = 5f;
     private const float BossScale = 1.7f;
 
     private static readonly Color BossTint = new Color(0.5f, 0.05f, 0.05f);
@@ -81,7 +80,7 @@ public class DungeonEncounterController : MonoBehaviour
     public IReadOnlyList<Monster> ActiveMonsters => activeMonsters;
     public bool IsEncounterActive { get; private set; }
     public bool IsBossPhase => phase == Phase.Boss;
-    public int ActiveFloorNumber { get; private set; } // 1-based
+    public int ActiveFloorNumber { get; private set; } // 1-based, stays the same across both that floor's mob and boss phases
     public int TotalFloors => Floors.Length;
 
     // bool = whether the encounter ended on a clean clear (false = death/retreat, no reward) -
@@ -118,7 +117,7 @@ public class DungeonEncounterController : MonoBehaviour
     public bool CanBegin => !IsEncounterActive && DungeonBank.IsUnlocked;
 
     // center is the arena's middle (DungeonSceneController computes it, also where the player is
-    // teleported) - every floor's mob ring and the boss both spawn around this same point.
+    // teleported) - every floor's mob ring and boss both spawn around this same point.
     public void BeginEncounter(Vector3 center)
     {
         if (!CanBegin)
@@ -157,19 +156,19 @@ public class DungeonEncounterController : MonoBehaviour
 
         if (phase == Phase.Mobs)
         {
+            SpawnFloorBoss();
+        }
+        else if (phase == Phase.Boss)
+        {
             if (ActiveFloorNumber >= Floors.Length)
             {
-                SpawnBoss();
+                CompleteDungeon();
             }
             else
             {
                 ToastUI.Instance.Show("Floor " + ActiveFloorNumber + " Cleared! Descending to Floor " + (ActiveFloorNumber + 1) + "...", 2.5f);
                 StartNextFloor();
             }
-        }
-        else if (phase == Phase.Boss)
-        {
-            CompleteDungeon();
         }
     }
 
@@ -198,14 +197,16 @@ public class DungeonEncounterController : MonoBehaviour
         }
     }
 
-    private void SpawnBoss()
+    private void SpawnFloorBoss()
     {
         ClearActiveMonsters();
         phase = Phase.Boss;
-        ToastUI.Instance.Show("The Dungeon Boss appears!", 3f);
+
+        FloorSpec floor = Floors[ActiveFloorNumber - 1];
+        ToastUI.Instance.Show("Floor " + ActiveFloorNumber + " Boss appears!", 3f);
 
         Vector3 position = arenaCenter + Vector3.forward * BossSpawnDistance;
-        SpawnOne(position, BossHpMult, BossDmgMult, isBoss: true);
+        SpawnOne(position, floor.BossHpMult, floor.BossDmgMult, isBoss: true);
     }
 
     private void SpawnOne(Vector3 position, float hpMult, float dmgMult, bool isBoss)
@@ -244,7 +245,7 @@ public class DungeonEncounterController : MonoBehaviour
         DungeonBank.MarkClearedOnce();
         EndEncounter(cleared: true);
 
-        ToastUI.Instance.Show("Dungeon Boss Defeated! The quarry's veins run deeper now.", 4f);
+        ToastUI.Instance.Show("Dungeon Cleared! The quarry's veins run deeper now.", 4f);
     }
 
     private void HandlePlayerDeath()

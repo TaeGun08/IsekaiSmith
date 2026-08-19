@@ -61,9 +61,12 @@
       로드/언로드 전담. 원형 바닥(Cylinder) 하나만 코드로 생성, 매 방문 위치 무작위.</td></tr>
       <tr><th><code>DungeonEncounterController</code>(신규)</th><td><code>StageEncounterController</code>에서
       던전 로직을 완전히 분리 - 웨이브가 "라인 한쪽 끝에서 스폰"이 아니라 <b>플레이어(아레나
-      중심) 주위 360도 원형으로 균등 스폰</b> 후 사방에서 접근. 지하 1/2층은 몹 무리만, 3층은
-      몹 무리를 다 잡으면 <b>보스 1마리가 별도로 등장</b>(더 큼+진한 빨강 틴트 - 신규
-      <code>Monster.SetScale</code>). 보스를 잡아야 던전 클리어.</td></tr>
+      중심) 주위 360도 원형으로 균등 스폰</b> 후 사방에서 접근.</td></tr>
+      <tr><th>층 구성 <span style="font-size:11px; color:#c1440e;">v1.3 정정</span></th><td>
+      사용자 정정: "던전은 그렇게 하는 게 아니라 층마다 몹 무리와 보스가 있어야 해" - <b>3층
+      전부</b> 몹 무리 → 전멸 시 그 층의 보스 1마리 별도 등장(더 큼+진한 빨강 틴트 - 신규
+      <code>Monster.SetScale</code>) → 보스 처치 시 다음 층으로 자동 진행. 층이 올라갈수록
+      보스도 더 강해지고, 3층 보스가 던전의 최종 보스 - 그 보스를 잡아야 던전 클리어.</td></tr>
     </table>
   </div>
 
