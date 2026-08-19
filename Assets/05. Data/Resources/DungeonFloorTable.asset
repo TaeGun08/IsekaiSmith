@@ -1,0 +1,90 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4f8cbf04c61de314d88c871f8f07474c, type: 3}
+  m_Name: DungeonFloorTable
+  m_EditorClassIdentifier:
+  floors:
+  - mobCount: 5
+    mobHpMultiplier: 2.2
+    mobDamageMultiplier: 1.6
+    bossHpMultiplier: 7.7
+    bossDamageMultiplier: 2.88
+  - mobCount: 5
+    mobHpMultiplier: 2.596
+    mobDamageMultiplier: 1.84
+    bossHpMultiplier: 9.086
+    bossDamageMultiplier: 3.312
+  - mobCount: 6
+    mobHpMultiplier: 3.063
+    mobDamageMultiplier: 2.116
+    bossHpMultiplier: 10.721
+    bossDamageMultiplier: 3.809
+  - mobCount: 6
+    mobHpMultiplier: 3.615
+    mobDamageMultiplier: 2.433
+    bossHpMultiplier: 12.651
+    bossDamageMultiplier: 4.380
+  - mobCount: 7
+    mobHpMultiplier: 4.265
+    mobDamageMultiplier: 2.798
+    bossHpMultiplier: 14.929
+    bossDamageMultiplier: 5.037
+  - mobCount: 7
+    mobHpMultiplier: 5.033
+    mobDamageMultiplier: 3.218
+    bossHpMultiplier: 17.616
+    bossDamageMultiplier: 5.793
+  - mobCount: 8
+    mobHpMultiplier: 5.939
+    mobDamageMultiplier: 3.701
+    bossHpMultiplier: 20.787
+    bossDamageMultiplier: 6.662
+  - mobCount: 8
+    mobHpMultiplier: 7.008
+    mobDamageMultiplier: 4.256
+    bossHpMultiplier: 24.528
+    bossDamageMultiplier: 7.661
+  - mobCount: 9
+    mobHpMultiplier: 8.270
+    mobDamageMultiplier: 4.894
+    bossHpMultiplier: 28.943
+    bossDamageMultiplier: 8.810
+  - mobCount: 9
+    mobHpMultiplier: 9.758
+    mobDamageMultiplier: 5.629
+    bossHpMultiplier: 34.153
+    bossDamageMultiplier: 10.131
+  - mobCount: 10
+    mobHpMultiplier: 11.514
+    mobDamageMultiplier: 6.473
+    bossHpMultiplier: 40.300
+    bossDamageMultiplier: 11.651
+  - mobCount: 10
+    mobHpMultiplier: 13.587
+    mobDamageMultiplier: 7.444
+    bossHpMultiplier: 47.554
+    bossDamageMultiplier: 13.399
+  - mobCount: 11
+    mobHpMultiplier: 16.033
+    mobDamageMultiplier: 8.560
+    bossHpMultiplier: 56.114
+    bossDamageMultiplier: 15.409
+  - mobCount: 11
+    mobHpMultiplier: 18.919
+    mobDamageMultiplier: 9.845
+    bossHpMultiplier: 66.215
+    bossDamageMultiplier: 17.720
+  - mobCount: 12
+    mobHpMultiplier: 22.324
+    mobDamageMultiplier: 11.321
+    bossHpMultiplier: 78.135
+    bossDamageMultiplier: 20.378

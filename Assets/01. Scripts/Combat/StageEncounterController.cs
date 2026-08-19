@@ -60,13 +60,76 @@ public class StageEncounterController : MonoBehaviour
         }
     }
 
-    // stage_system_design_v1.html §3's difficulty table, indexed [stageNumber - 1][waveIndex].
-    private static readonly WaveSpec[][] StageWaves =
+    // stage_system_design_v1.html §3's difficulty table, indexed [stageNumber - 1][waveIndex] -
+    // loaded from the data sheet (Assets/05. Data/Resources/StageWaveTable.asset) instead of a
+    // hardcoded array (user request: "데이터 시트를 이용해서 미리... 스테이지도 마찬가지로"), so
+    // tuning waves is an Inspector edit instead of a code change. Falls back to this exact same
+    // table if the asset can't be found, so a missing/misconfigured asset degrades instead of
+    // breaking the stage system outright.
+    private static readonly WaveSpec[][] FallbackStageWaves =
     {
         new[] { new WaveSpec(3, 1.3f, 1.2f), new WaveSpec(2, 1.3f, 1.2f, 1, 2.2f, 1.6f) },
         new[] { new WaveSpec(4, 1.8f, 1.5f), new WaveSpec(3, 1.8f, 1.5f, 1, 3f, 2f) },
         new[] { new WaveSpec(5, 2.4f, 1.8f), new WaveSpec(3, 2.4f, 1.8f, 1, 4f, 2.5f) },
     };
+
+    private WaveSpec[][] stageWaves;
+
+    private WaveSpec[][] StageWaves
+    {
+        get
+        {
+            if (stageWaves == null)
+            {
+                stageWaves = LoadStageWaves();
+            }
+
+            return stageWaves;
+        }
+    }
+
+    private static WaveSpec[][] LoadStageWaves()
+    {
+        StageWaveTable table = Resources.Load<StageWaveTable>("StageWaveTable");
+        if (table == null || table.waves.Count == 0)
+        {
+            Debug.LogWarning("StageWaveTable.asset not found in Resources - using the built-in fallback wave table.");
+            return FallbackStageWaves;
+        }
+
+        var result = new WaveSpec[StageBank.StageCount][];
+        for (int s = 0; s < StageBank.StageCount; s++)
+        {
+            int stageNumber = s + 1;
+            var rows = new List<StageWaveTable.WaveRow>();
+            foreach (StageWaveTable.WaveRow row in table.waves)
+            {
+                if (row.stageNumber == stageNumber)
+                {
+                    rows.Add(row);
+                }
+            }
+
+            if (rows.Count == 0)
+            {
+                result[s] = FallbackStageWaves[Mathf.Min(s, FallbackStageWaves.Length - 1)];
+                continue;
+            }
+
+            rows.Sort((a, b) => a.waveIndex.CompareTo(b.waveIndex));
+
+            var waves = new WaveSpec[rows.Count];
+            for (int w = 0; w < rows.Count; w++)
+            {
+                StageWaveTable.WaveRow row = rows[w];
+                waves[w] = new WaveSpec(row.normalCount, row.normalHpMultiplier, row.normalDamageMultiplier, row.eliteCount, row.eliteHpMultiplier, row.eliteDamageMultiplier);
+            }
+
+            result[s] = waves;
+        }
+
+        return result;
+    }
 
     // Amount of (element-less, same as field drops - see stage_system_design_v1.html §1 "다음
     // 단계로 미룸") mana stone deposited on a clean clear, scaled with stage number.

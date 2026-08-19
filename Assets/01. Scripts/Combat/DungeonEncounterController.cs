@@ -7,12 +7,20 @@ using UnityEngine;
 // dungeon is an arena where each floor's monster pack spawns in a ring and closes in from every
 // direction (user request: "던전의 몬스터들은 사방으로 몰려오도록").
 //
-// 3 floors (지하 1층/2층/3층). Every floor is mob-pack-then-boss (user correction: "층마다 몹
-// 무리와 보스가 있어야 해") - clear the mob ring, a floor boss spawns, clear the boss, auto-
-// advance to the next floor's mob ring. The dungeon only counts as cleared once floor 3's boss is
-// down.
+// As many floors as DungeonFloorTable has rows (user request: "던전을 최대한 많이 만들어도
+// 좋아... 데이터 시트를 이용해서") - loaded from Assets/05. Data/Resources/DungeonFloorTable.asset
+// instead of a hardcoded array, so adding more floors is an Inspector edit, not a code change.
+//
+// Every floor is mob-pack-then-boss (user correction: "층마다 몹 무리와 보스가 있어야 해") -
+// clear the mob ring, that floor's boss spawns, clear the boss, auto-advance to the next floor's
+// mob ring. This is now a repeatable deep-dive, not a one-shot clear: DungeonBank.DeepestFloorCleared
+// records the best depth ever reached (credited the instant each floor's boss dies, so a later
+// death/retreat doesn't erase progress already banked) and OreBank reads it to gradually raise
+// both the ore-grade ceiling and the chance of rolling the best available grade (user request:
+// "초반엔 0퍼로 맞추고 최대한 깊게 내려갈수록... 던전이 어려워질수록 더 많이 오르도록").
 public class DungeonEncounterController : MonoBehaviour
 {
+    private const string TablePath = "DungeonFloorTable";
     private const float MobRingRadius = 9f;
     private const float BossSpawnDistance = 6f;
 
@@ -34,35 +42,7 @@ public class DungeonEncounterController : MonoBehaviour
         }
     }
 
-    private readonly struct FloorSpec
-    {
-        public readonly int MobCount;
-        public readonly float MobHpMult;
-        public readonly float MobDmgMult;
-        public readonly float BossHpMult;
-        public readonly float BossDmgMult;
-
-        public FloorSpec(int mobCount, float mobHpMult, float mobDmgMult, float bossHpMult, float bossDmgMult)
-        {
-            MobCount = mobCount;
-            MobHpMult = mobHpMult;
-            MobDmgMult = mobDmgMult;
-            BossHpMult = bossHpMult;
-            BossDmgMult = bossDmgMult;
-        }
-    }
-
-    // dungeon_design_v1.html §2's difficulty table - each floor's boss is meaningfully tougher
-    // than that floor's own mob pack, and floor 3's boss is the dungeon's real final challenge.
-    private static readonly FloorSpec[] Floors =
-    {
-        new FloorSpec(6, 2.6f, 1.9f, 10f, 3.5f),
-        new FloorSpec(7, 3.4f, 2.4f, 13f, 4.2f),
-        new FloorSpec(8, 4.2f, 3f, 16f, 5f),
-    };
-
     private const float BossScale = 1.7f;
-
     private static readonly Color BossTint = new Color(0.5f, 0.05f, 0.05f);
 
     private enum Phase
@@ -72,6 +52,7 @@ public class DungeonEncounterController : MonoBehaviour
         Boss
     }
 
+    private List<DungeonFloorTable.FloorRow> floors;
     private Phase phase = Phase.None;
     private Vector3 arenaCenter;
 
@@ -81,7 +62,7 @@ public class DungeonEncounterController : MonoBehaviour
     public bool IsEncounterActive { get; private set; }
     public bool IsBossPhase => phase == Phase.Boss;
     public int ActiveFloorNumber { get; private set; } // 1-based, stays the same across both that floor's mob and boss phases
-    public int TotalFloors => Floors.Length;
+    public int TotalFloors => Floors.Count;
 
     // bool = whether the encounter ended on a clean clear (false = death/retreat, no reward) -
     // DungeonSceneController listens for this to know when to send the player home.
@@ -102,6 +83,36 @@ public class DungeonEncounterController : MonoBehaviour
 
             return count;
         }
+    }
+
+    // Lazy-loaded once, not in Awake - Resources.Load works fine in Awake too, but keeping it
+    // behind a property means a missing/misconfigured asset only breaks the dungeon specifically
+    // instead of throwing during this singleton's very first bootstrap.
+    private List<DungeonFloorTable.FloorRow> Floors
+    {
+        get
+        {
+            if (floors == null)
+            {
+                DungeonFloorTable table = Resources.Load<DungeonFloorTable>(TablePath);
+                floors = table != null && table.floors.Count > 0 ? table.floors : FallbackFloors();
+            }
+
+            return floors;
+        }
+    }
+
+    // Only used if the data sheet can't be found - matches the original 3-floor hardcoded table
+    // so the dungeon still works (just shallow) rather than breaking outright.
+    private static List<DungeonFloorTable.FloorRow> FallbackFloors()
+    {
+        Debug.LogWarning("DungeonFloorTable.asset not found in Resources - using a 3-floor fallback.");
+        return new List<DungeonFloorTable.FloorRow>
+        {
+            new DungeonFloorTable.FloorRow { mobCount = 6, mobHpMultiplier = 2.6f, mobDamageMultiplier = 1.9f, bossHpMultiplier = 10f, bossDamageMultiplier = 3.5f },
+            new DungeonFloorTable.FloorRow { mobCount = 7, mobHpMultiplier = 3.4f, mobDamageMultiplier = 2.4f, bossHpMultiplier = 13f, bossDamageMultiplier = 4.2f },
+            new DungeonFloorTable.FloorRow { mobCount = 8, mobHpMultiplier = 4.2f, mobDamageMultiplier = 3f, bossHpMultiplier = 16f, bossDamageMultiplier = 5f },
+        };
     }
 
     private void Awake()
@@ -160,7 +171,11 @@ public class DungeonEncounterController : MonoBehaviour
         }
         else if (phase == Phase.Boss)
         {
-            if (ActiveFloorNumber >= Floors.Length)
+            // Credited the instant this floor's boss dies, not at the end of the whole run - a
+            // later death/retreat on a deeper floor never erases a depth record already banked.
+            DungeonBank.ReportFloorCleared(ActiveFloorNumber);
+
+            if (ActiveFloorNumber >= Floors.Count)
             {
                 CompleteDungeon();
             }
@@ -178,8 +193,8 @@ public class DungeonEncounterController : MonoBehaviour
         ActiveFloorNumber++;
         phase = Phase.Mobs;
 
-        FloorSpec floor = Floors[ActiveFloorNumber - 1];
-        SpawnRing(floor.MobCount, floor.MobHpMult, floor.MobDmgMult);
+        DungeonFloorTable.FloorRow floor = Floors[ActiveFloorNumber - 1];
+        SpawnRing(floor.mobCount, floor.mobHpMultiplier, floor.mobDamageMultiplier);
     }
 
     // Evenly spaced around a full circle (plus light jitter so it doesn't look mechanically
@@ -202,11 +217,11 @@ public class DungeonEncounterController : MonoBehaviour
         ClearActiveMonsters();
         phase = Phase.Boss;
 
-        FloorSpec floor = Floors[ActiveFloorNumber - 1];
+        DungeonFloorTable.FloorRow floor = Floors[ActiveFloorNumber - 1];
         ToastUI.Instance.Show("Floor " + ActiveFloorNumber + " Boss appears!", 3f);
 
         Vector3 position = arenaCenter + Vector3.forward * BossSpawnDistance;
-        SpawnOne(position, floor.BossHpMult, floor.BossDmgMult, isBoss: true);
+        SpawnOne(position, floor.bossHpMultiplier, floor.bossDamageMultiplier, isBoss: true);
     }
 
     private void SpawnOne(Vector3 position, float hpMult, float dmgMult, bool isBoss)
@@ -237,15 +252,14 @@ public class DungeonEncounterController : MonoBehaviour
         activeMonsters.Clear();
     }
 
-    // First-clear-only (DungeonBank.IsUnlocked goes false the instant MarkClearedOnce runs) - no
-    // gold/mana payout, the quarry-ceiling upgrade (OreBank.DungeonCeiling) IS the reward (user
-    // correction: "던전은... 업그레이드가 주 목적이야").
+    // Reaching the bottom of the whole table - rare, and no longer the only way to make progress
+    // (each floor's boss already banked its own depth record), but still worth its own closure
+    // moment. No gold/mana payout here either - the quarry upgrade (OreBank's depth-based ceiling
+    // and roll bias) IS the reward, same as every individual floor clear.
     private void CompleteDungeon()
     {
-        DungeonBank.MarkClearedOnce();
         EndEncounter(cleared: true);
-
-        ToastUI.Instance.Show("Dungeon Cleared! The quarry's veins run deeper now.", 4f);
+        ToastUI.Instance.Show("Every dungeon floor cleared! The quarry has given up its deepest veins.", 4f);
     }
 
     private void HandlePlayerDeath()

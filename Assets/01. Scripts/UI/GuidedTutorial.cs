@@ -88,6 +88,16 @@ public class GuidedTutorial : MonoBehaviour
     // field starts back at Welcome (Begin() is never called again once SeenPrefsKey is set).
     public static bool HasCompletedTutorial => PlayerPrefs.GetInt(SeenPrefsKey, 0) != 0;
 
+    // Dev-only shortcut (DevAutoPlayController's dev panel) - the "UNLOCK ALL STAGES" button only
+    // touches StageBank, not this gate, so testing stages/dungeon still required playing through
+    // the whole tutorial first to unlock their icons. This sets the same flag Step.Done does,
+    // instantly unlocking Equipment/Stages/BlackMarket.
+    public static void SkipToComplete()
+    {
+        PlayerPrefs.SetInt(SeenPrefsKey, 1);
+        PlayerPrefs.Save();
+    }
+
     // Equipment has nothing to show until the player has crafted something - unlocks right after
     // QUICK CRAFT, their first crafted item.
     public static bool IsEquipmentUnlocked => HasCompletedTutorial || (instance != null && instance.step >= Step.GatherWood2);

@@ -92,7 +92,12 @@ public class DevAutoPlayController : MonoBehaviour
         canvasGO.transform.SetParent(transform, false);
         var canvas = canvasGO.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 20;
+        // Pushed to the very back (was 20, above InteractionPromptUI/icons/StageEncounterUI/
+        // CraftingSilhouetteUI at 5-10) - user report: "개발자 버튼이 다른 UI를 가려서 플레이하기가
+        // 불편해". This panel has grown tall enough (700px, GRANT/UNLOCK buttons) that it can
+        // overlap real gameplay UI, and being a dev-only tool it should never be the thing sitting
+        // on top.
+        canvas.sortingOrder = -100;
         var scaler = canvasGO.GetComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1080, 1920);
@@ -105,7 +110,7 @@ public class DevAutoPlayController : MonoBehaviour
         panelRect.anchorMax = new Vector2(0f, 1f);
         panelRect.pivot = new Vector2(0f, 1f);
         panelRect.anchoredPosition = new Vector2(20f, -20f);
-        panelRect.sizeDelta = new Vector2(300f, 700f);
+        panelRect.sizeDelta = new Vector2(300f, 780f);
 
         toggleButton = MakeButton(panel.transform, "ToggleButton", new Vector2(0f, 0f), new Vector2(280f, 64f), out toggleLabel);
         toggleButton.onClick.AddListener(ToggleAutoPlay);
@@ -140,10 +145,18 @@ public class DevAutoPlayController : MonoBehaviour
         grantWeaponsButton.GetComponent<Image>().color = new Color(0.45f, 0.35f, 0.2f);
         grantWeaponsButton.onClick.AddListener(GrantWeapons);
 
+        // "UNLOCK ALL STAGES" below only touches StageBank - the Equipment/Stages/BlackMarket
+        // *icons* are gated separately by GuidedTutorial (user report: "UNLOCK ALL STAGES를 눌러도
+        // 스테이지 버튼이 안 보임" pattern), so this is needed too before those buttons show up at all.
+        Button skipTutorialButton = MakeButton(panel.transform, "SkipTutorialButton", new Vector2(0f, -444f), new Vector2(280f, 64f), out TMP_Text skipTutorialLabel);
+        skipTutorialLabel.text = "SKIP TUTORIAL";
+        skipTutorialButton.GetComponent<Image>().color = new Color(0.35f, 0.35f, 0.5f);
+        skipTutorialButton.onClick.AddListener(GuidedTutorial.SkipToComplete);
+
         // Clears all 3 stages instantly so the dungeon (unlocked only once
         // StageBank.AllStagesCleared - dungeon_design_v1.html §1) is reachable without actually
         // playing through each stage's wave fight first.
-        Button unlockStagesButton = MakeButton(panel.transform, "UnlockStagesButton", new Vector2(0f, -444f), new Vector2(280f, 64f), out TMP_Text unlockStagesLabel);
+        Button unlockStagesButton = MakeButton(panel.transform, "UnlockStagesButton", new Vector2(0f, -518f), new Vector2(280f, 64f), out TMP_Text unlockStagesLabel);
         unlockStagesLabel.text = "UNLOCK ALL STAGES";
         unlockStagesButton.GetComponent<Image>().color = new Color(0.2f, 0.4f, 0.45f);
         unlockStagesButton.onClick.AddListener(() =>
@@ -154,7 +167,7 @@ public class DevAutoPlayController : MonoBehaviour
             }
         });
 
-        logText = MakeText(panel.transform, "Log", 14, new Vector2(0f, -518f), new Vector2(280f, 160f));
+        logText = MakeText(panel.transform, "Log", 14, new Vector2(0f, -592f), new Vector2(280f, 160f));
         logText.alignment = TextAlignmentOptions.TopLeft;
 
         RefreshToggleVisual();

@@ -248,10 +248,10 @@ public class StageSelectUI : MonoBehaviour
         });
     }
 
-    // Only ever built when DungeonBank.IsUnlocked (RefreshCards) - unlike stage cards, this one
-    // First-clear-only, same as a stage (user correction: "던전은 최초클리어만 가능하고...
-    // 업그레이드가 주 목적이야") - once DungeonBank.HasClearedOnce, this settles into the same
-    // non-tappable CLEARED look BuildStageCard uses instead of staying an active entry point.
+    // Only ever built when StageBank.AllStagesCleared (RefreshCards). Unlike a stage, this is a
+    // repeatable deep-dive with as many floors as DungeonFloorTable has rows (user request:
+    // "던전을 최대한 많이 만들어도 좋아") - always tappable, showing the best depth reached so far
+    // instead of a one-time CLEARED lock.
     private void BuildDungeonCard(int index)
     {
         var cardGO = new GameObject("DungeonCard", typeof(RectTransform), typeof(Image), typeof(Button));
@@ -263,33 +263,26 @@ public class StageSelectUI : MonoBehaviour
         cardRect.anchoredPosition = new Vector2(0f, -index * (CardHeight + CardGap));
         cardRect.sizeDelta = new Vector2(680f, CardHeight);
 
-        bool cleared = DungeonBank.HasClearedOnce;
-        Color color = cleared ? clearedColor : readyColor;
+        int deepest = DungeonBank.DeepestFloorCleared;
+        Color color = deepest > 0 ? clearedColor : readyColor;
         cardGO.GetComponent<Image>().color = new Color(color.r, color.g, color.b, 0.28f);
         var border = cardGO.AddComponent<Outline>();
         border.effectColor = color;
         border.effectDistance = new Vector2(2f, -2f);
-        border.enabled = !cleared;
+        border.enabled = true;
 
         TMP_Text nameText = MakeText(cardGO.transform, "Name", 30, new Vector2(0f, -32f), new Vector2(600f, 40f));
         nameText.text = "DUNGEON";
         nameText.fontStyle = FontStyles.Bold;
 
         TMP_Text statusText = MakeText(cardGO.transform, "Status", 20, new Vector2(0f, -80f), new Vector2(600f, 30f));
-        statusText.text = cleared ? "CLEARED" : "TAP TO ENTER";
+        statusText.text = deepest > 0 ? "Deepest: Floor " + deepest + " - TAP TO DIVE AGAIN" : "TAP TO ENTER";
         statusText.color = color;
 
         cardGO.GetComponent<Button>().onClick.AddListener(() =>
         {
-            if (cleared)
-            {
-                ToastUI.Instance.Show("Already cleared - the dungeon can't be replayed.");
-            }
-            else
-            {
-                DungeonSceneController.Instance.EnterDungeon();
-                TogglePanel();
-            }
+            DungeonSceneController.Instance.EnterDungeon();
+            TogglePanel();
         });
     }
 

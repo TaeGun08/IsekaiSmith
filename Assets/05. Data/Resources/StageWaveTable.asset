@@ -1,0 +1,63 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8f29e0c43513c3c468852aabba605726, type: 3}
+  m_Name: StageWaveTable
+  m_EditorClassIdentifier:
+  waves:
+  - stageNumber: 1
+    waveIndex: 0
+    normalCount: 3
+    normalHpMultiplier: 1.3
+    normalDamageMultiplier: 1.2
+    eliteCount: 0
+    eliteHpMultiplier: 1
+    eliteDamageMultiplier: 1
+  - stageNumber: 1
+    waveIndex: 1
+    normalCount: 2
+    normalHpMultiplier: 1.3
+    normalDamageMultiplier: 1.2
+    eliteCount: 1
+    eliteHpMultiplier: 2.2
+    eliteDamageMultiplier: 1.6
+  - stageNumber: 2
+    waveIndex: 0
+    normalCount: 4
+    normalHpMultiplier: 1.8
+    normalDamageMultiplier: 1.5
+    eliteCount: 0
+    eliteHpMultiplier: 1
+    eliteDamageMultiplier: 1
+  - stageNumber: 2
+    waveIndex: 1
+    normalCount: 3
+    normalHpMultiplier: 1.8
+    normalDamageMultiplier: 1.5
+    eliteCount: 1
+    eliteHpMultiplier: 3
+    eliteDamageMultiplier: 2
+  - stageNumber: 3
+    waveIndex: 0
+    normalCount: 5
+    normalHpMultiplier: 2.4
+    normalDamageMultiplier: 1.8
+    eliteCount: 0
+    eliteHpMultiplier: 1
+    eliteDamageMultiplier: 1
+  - stageNumber: 3
+    waveIndex: 1
+    normalCount: 3
+    normalHpMultiplier: 2.4
+    normalDamageMultiplier: 1.8
+    eliteCount: 1
+    eliteHpMultiplier: 4
+    eliteDamageMultiplier: 2.5

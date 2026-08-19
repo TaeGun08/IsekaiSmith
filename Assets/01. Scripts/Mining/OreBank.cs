@@ -90,9 +90,29 @@ public static class OreBank
         }
     }
 
-    // dungeon_design_v1.html §3 - the quarry's veins run all the way to Orichalcum only after a
-    // full dungeon clear.
-    private static OreGrade DungeonCeiling => DungeonBank.HasClearedOnce ? OreGrade.Orichalcum : OreGrade.Iron;
+    // dungeon_design_v1.html §3 - the quarry's veins run all the way to Orichalcum only once the
+    // player has proven they can dive deep enough into the dungeon (stages alone only ever raise
+    // this as far as Mithril, see StageCeiling above).
+    private const int DungeonOrichalcumFloor = 8;
+    private static OreGrade DungeonCeiling => DungeonBank.DeepestFloorCleared >= DungeonOrichalcumFloor ? OreGrade.Orichalcum : OreGrade.Iron;
+
+    // Chance of a deposited unit rolling the *best currently-reachable* grade outright, instead of
+    // a flat uniform roll across every grade up to Ceiling - 0% at the surface, growing as
+    // DungeonBank.DeepestFloorCleared climbs (user request: "일단 초반엔 0퍼로 맞추고 최대한
+    // 깊게 내려갈수록 퍼센테이지가 조금씩... 더 많이 오르도록"). Squared, not linear, so shallow
+    // floors barely move the needle and the deepest floors matter the most - "던전이 어려워질수록
+    // 더 많이 오르도록".
+    private const int QualityBiasMaxFloor = 15;
+    private const float QualityBiasMax = 0.75f;
+
+    private static float QualityBias
+    {
+        get
+        {
+            float depthRatio = Mathf.Clamp01(DungeonBank.DeepestFloorCleared / (float)QualityBiasMaxFloor);
+            return depthRatio * depthRatio * QualityBiasMax;
+        }
+    }
 
     public static int Get(OreGrade grade)
     {
@@ -115,8 +135,9 @@ public static class OreBank
 
     // Called by StorageDepot alongside its existing ResourceBank.Add(Ore, amount) write - rolls
     // each deposited unit's grade between Iron and the current ceiling (same Random.Range pattern
-    // OrderQueueManager.SpawnOrder already uses for order grades), and always bumps TotalMined
-    // regardless of roll outcome, since that's what raises the ceiling for next time.
+    // OrderQueueManager.SpawnOrder already uses for order grades), with a QualityBias chance of
+    // just handing back the ceiling grade outright, and always bumps TotalMined regardless of
+    // roll outcome, since that's what raises the ceiling for next time.
     public static void DepositMined(int amount)
     {
         if (amount <= 0)
@@ -124,10 +145,13 @@ public static class OreBank
             return;
         }
 
-        int ceilingInclusive = (int)Ceiling + 1;
+        OreGrade ceiling = Ceiling;
+        int ceilingInclusive = (int)ceiling + 1;
+        float bias = QualityBias;
+
         for (int i = 0; i < amount; i++)
         {
-            OreGrade grade = (OreGrade)UnityEngine.Random.Range(0, ceilingInclusive);
+            OreGrade grade = UnityEngine.Random.value < bias ? ceiling : (OreGrade)UnityEngine.Random.Range(0, ceilingInclusive);
             counts[grade] = Get(grade) + 1;
         }
 
