@@ -22,8 +22,10 @@ public static class ManaBank
 
     public static int TotalGathered { get; private set; }
 
-    // Whichever of the two unlock paths (cumulative gathering or stage clearing - see
-    // stage_system_design_v1.html §2) is further along wins, same rule OreBank.Ceiling uses.
+    // Whichever of the two unlock paths (cumulative gathering or stage clearing) is further along
+    // wins, same rule OreBank.Ceiling uses. The dungeon is quarry(ore)-only (user correction:
+    // "던전은... 채석장이 업그레이드... 마석을 얻거나 하는 건 없고"), so mana has no dungeon path -
+    // Pristine stays out of reach until a later system explicitly opens it.
     public static ManaGrade Ceiling
     {
         get

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>이세계 대장장이 - 던전 기획서 v1</title>
+<style>
+  :root { --ink:#2b2420; --paper:#f6f1e7; --card:#fff; --border:#dcd3c2; --accent:#5c4a8a; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:40px 20px 80px; background:var(--paper); color:var(--ink);
+    font-family:"Pretendard","Malgun Gothic","Apple SD Gothic Neo",sans-serif;
+    display:flex; flex-direction:column; align-items:center; }
+  .doc { width:100%; max-width:1000px; }
+  h1 { font-size:25px; margin:0 0 4px; }
+  p.sub { margin:0 0 8px; color:#6b6155; font-size:14px; }
+  p.pitch { font-size:15px; line-height:1.75; background:var(--card); border:1px solid var(--border);
+    border-left:4px solid var(--accent); border-radius:8px; padding:16px 18px; margin:16px 0 32px; }
+  h2 { font-size:19px; margin:40px 0 14px; padding-bottom:8px; border-bottom:2px solid var(--border); }
+  h2 .num { color:var(--accent); margin-right:8px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px 18px; box-shadow:0 1px 6px rgba(0,0,0,0.05); }
+  .note { font-size:12.5px; color:#6b6155; line-height:1.7; margin-top:8px; }
+  table.spec { width:100%; border-collapse:collapse; margin-top:10px; font-size:12.5px; }
+  table.spec th, table.spec td { border:1px solid var(--border); padding:8px 10px; text-align:left; }
+  table.spec th { background:#efe8d9; font-size:12px; }
+  footer { margin-top:40px; font-size:12px; color:#948a7c; text-align:center; }
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>던전 기획서 v1</h1>
+  <p class="sub">dungeon_design_v1.html · 신규 - 로드맵 ③ 나머지 절반, game_design_doc.html §2/§7.
+  stage_system_design_v2.html의 레인 전투 인프라를 그대로 재사용.</p>
+  <p class="pitch">
+    원안의 "보스 처치 → 동굴 개방", "매 방문 랜덤 생성 방 구조"를 이번 예산 안에서 구현 가능한
+    형태로 축소: 보스 전투는 스테이지 3 클리어로 대체(신규 보스 시스템 없음), 절차적 방 생성
+    대신 <b>매 방문마다 위치·길이가 무작위인 레인 전투</b>로 표현. 채석장 광맥 심화(오리하르콘
+    상한)는 원안대로 <b>던전 최초 클리어 전용</b>으로 되돌림 - 지금은 스테이지가 임시로 대신
+    열어주고 있던 자리.
+  </p>
+
+  <h2><span class="num">1.</span> 개방/재방문</h2>
+  <div class="card">
+    <table class="spec">
+      <tr><th style="width:180px;"><code>DungeonBank</code>(신규)</th><td><code>IsUnlocked</code>
+      = <code>StageBank.AllStagesCleared &amp;&amp; !HasClearedOnce</code>. <b>스테이지와 동일하게
+      최초 클리어 1회만</b>(사용자 정정: "던전은 최초클리어만 가능하고... 업그레이드가 주 목적이야") -
+      클리어 즉시 다시 잠김, 재입장/파밍 없음.</td></tr>
+      <tr><th>진입점</th><td><code>StageSelectUI</code>에 4번째 카드로 추가 - 클리어 전까지만
+      "TAP TO ENTER", 클리어 후엔 스테이지 카드와 동일하게 "CLEARED"로 잠김.</td></tr>
+    </table>
+  </div>
+
+  <h2><span class="num">2.</span> 전투 구성</h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;"><code>StageEncounterController</code>에
+    던전 전용 웨이브 4개 추가(스테이지 3웨이브보다 김+강함, 마지막 웨이브가 사실상 보스전).
+    레인 자체(바닥)는 <code>StageSceneController</code>가 <b>매 방문마다 위치를 무작위로 재계산</b>해서
+    "새로 생성된 것"처럼 보이게 함(완전한 절차적 방 생성 대신 최소 비용으로 "매번 다르다"는
+    느낌만 구현).</p>
+  </div>
+
+  <h2><span class="num">3.</span> 보상 <span style="font-size:11px; color:#c1440e;">v1.1 정정</span></h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;">사용자 정정: "던전에서 클리어
+    했다고 마석을 얻거나 하는 건 없고 업그레이드가 주 목적이야." - 골드/마석 같은 직접 보상
+    없음. <b>채석장(광물)만</b> 대상 - 마석 쪽은 이번 던전과 무관하게 그대로 둠.</p>
+    <table class="spec">
+      <tr><th style="width:180px;">유일한 보상</th><td><code>DungeonBank.MarkClearedOnce()</code> →
+      <code>OreBank</code> Ceiling이 오리하르콘까지 상승(신규 <code>DungeonCeiling</code> -
+      기존 <code>StageCeiling</code>은 미스릴에서 멈추도록 하향 조정, 원안의 "던전 클리어
+      전용 상한" 의미를 되살림). <code>ManaBank</code>는 손 안 댐 - 그레이터가 여전히 상한.</td></tr>
+    </table>
+  </div>
+
+  <h2><span class="num">4.</span> 다음 단계로 미룸</h2>
+  <div class="card">
+    <p class="note">진짜 절차적 방/복도 생성, 전용 보스 전투 시스템, VIP/지명 의뢰 손님, 전설
+    등급 전용 재료 - 전부 이번 예산 밖. "컨텐츠와 시퀀스 완성" 목표에 맞춰 최소 구현으로 흐름만
+    닫는 것이 이번 목표.</p>
+  </div>
+
+  <footer>dungeon_design_v1.html v1 · 던전 MVP - 스테이지3=보스, 레인 재사용+무작위 위치, 최초클리어 시 최고등급 개방</footer>
+</div>
+</body>
+</html>

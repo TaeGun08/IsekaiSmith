@@ -105,7 +105,7 @@ public class DevAutoPlayController : MonoBehaviour
         panelRect.anchorMax = new Vector2(0f, 1f);
         panelRect.pivot = new Vector2(0f, 1f);
         panelRect.anchoredPosition = new Vector2(20f, -20f);
-        panelRect.sizeDelta = new Vector2(300f, 630f);
+        panelRect.sizeDelta = new Vector2(300f, 700f);
 
         toggleButton = MakeButton(panel.transform, "ToggleButton", new Vector2(0f, 0f), new Vector2(280f, 64f), out toggleLabel);
         toggleButton.onClick.AddListener(ToggleAutoPlay);
@@ -140,7 +140,21 @@ public class DevAutoPlayController : MonoBehaviour
         grantWeaponsButton.GetComponent<Image>().color = new Color(0.45f, 0.35f, 0.2f);
         grantWeaponsButton.onClick.AddListener(GrantWeapons);
 
-        logText = MakeText(panel.transform, "Log", 14, new Vector2(0f, -444f), new Vector2(280f, 160f));
+        // Clears all 3 stages instantly so the dungeon (unlocked only once
+        // StageBank.AllStagesCleared - dungeon_design_v1.html §1) is reachable without actually
+        // playing through each stage's wave fight first.
+        Button unlockStagesButton = MakeButton(panel.transform, "UnlockStagesButton", new Vector2(0f, -444f), new Vector2(280f, 64f), out TMP_Text unlockStagesLabel);
+        unlockStagesLabel.text = "UNLOCK ALL STAGES";
+        unlockStagesButton.GetComponent<Image>().color = new Color(0.2f, 0.4f, 0.45f);
+        unlockStagesButton.onClick.AddListener(() =>
+        {
+            for (int i = 1; i <= StageBank.StageCount; i++)
+            {
+                StageBank.MarkCleared(i);
+            }
+        });
+
+        logText = MakeText(panel.transform, "Log", 14, new Vector2(0f, -518f), new Vector2(280f, 160f));
         logText.alignment = TextAlignmentOptions.TopLeft;
 
         RefreshToggleVisual();

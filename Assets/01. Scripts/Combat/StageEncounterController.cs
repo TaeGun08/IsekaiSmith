@@ -67,15 +67,27 @@ public class StageEncounterController : MonoBehaviour
     // 단계로 미룸") mana stone deposited on a clean clear, scaled with stage number.
     private static readonly int[] StageManaReward = { 6, 10, 16 };
 
+    // dungeon_design_v1.html §2 - longer and harder than any single stage, last wave stands in
+    // for the dungeon boss (no dedicated boss system - same trim StageWaves' elites already use).
+    private static readonly WaveSpec[] DungeonWaves =
+    {
+        new WaveSpec(4, 3f, 2.2f),
+        new WaveSpec(5, 3.6f, 2.6f),
+        new WaveSpec(4, 4.2f, 3f, 1, 6f, 3.5f),
+        new WaveSpec(3, 4.8f, 3.4f, 1, 8f, 4f),
+    };
+
     private static readonly Color EliteTint = new Color(0.55f, 0.18f, 0.16f);
 
     private readonly List<Monster> activeMonsters = new List<Monster>();
 
     public IReadOnlyList<Monster> ActiveMonsters => activeMonsters;
     public bool IsEncounterActive { get; private set; }
+    public bool IsDungeonEncounter { get; private set; }
     public int ActiveStageNumber { get; private set; }
     public int ActiveWaveNumber { get; private set; } // 1-based, for StageEncounterUI
     public int TotalWavesForStage(int stageNumber) => StageWaves[stageNumber - 1].Length;
+    public int TotalDungeonWaves => DungeonWaves.Length;
 
     // bool = whether the encounter ended on a clean clear (false = death/retreat, no reward) -
     // StageSceneController listens for this to know when to send the player back to the field.
@@ -115,6 +127,8 @@ public class StageEncounterController : MonoBehaviour
         return !IsEncounterActive && StageBank.IsUnlocked(stageNumber) && stageNumber >= 1 && stageNumber <= StageBank.StageCount;
     }
 
+    public bool CanBeginDungeon => !IsEncounterActive && DungeonBank.IsUnlocked;
+
     // waveSpawnPoint is the lane's NE end (StageSceneController computes it) - every wave spawns
     // there and its monsters immediately advance toward the player (SW), rather than scattering
     // around a fixed point the way FieldMonsterSpawner's permanent pool does.
@@ -126,7 +140,25 @@ public class StageEncounterController : MonoBehaviour
         }
 
         IsEncounterActive = true;
+        IsDungeonEncounter = false;
         ActiveStageNumber = stageNumber;
+        ActiveWaveNumber = 0;
+        spawnCenter = waveSpawnPoint;
+
+        SpawnNextWave();
+    }
+
+    // Same lifecycle as BeginEncounter, dungeon_design_v1.html's wave table instead of a stage's.
+    public void BeginDungeonEncounter(Vector3 waveSpawnPoint)
+    {
+        if (!CanBeginDungeon)
+        {
+            return;
+        }
+
+        IsEncounterActive = true;
+        IsDungeonEncounter = true;
+        ActiveStageNumber = 0;
         ActiveWaveNumber = 0;
         spawnCenter = waveSpawnPoint;
 
@@ -158,10 +190,17 @@ public class StageEncounterController : MonoBehaviour
         }
 
         // Every monster in the current wave is down.
-        WaveSpec[] waves = StageWaves[ActiveStageNumber - 1];
+        WaveSpec[] waves = IsDungeonEncounter ? DungeonWaves : StageWaves[ActiveStageNumber - 1];
         if (ActiveWaveNumber >= waves.Length)
         {
-            CompleteEncounter();
+            if (IsDungeonEncounter)
+            {
+                CompleteDungeon();
+            }
+            else
+            {
+                CompleteEncounter();
+            }
         }
         else
         {
@@ -181,7 +220,8 @@ public class StageEncounterController : MonoBehaviour
 
         activeMonsters.Clear();
 
-        WaveSpec wave = StageWaves[ActiveStageNumber - 1][ActiveWaveNumber];
+        WaveSpec[] waves = IsDungeonEncounter ? DungeonWaves : StageWaves[ActiveStageNumber - 1];
+        WaveSpec wave = waves[ActiveWaveNumber];
         ActiveWaveNumber++;
 
         var placed = new List<Vector3>();
@@ -252,8 +292,20 @@ public class StageEncounterController : MonoBehaviour
         // same as any other stage clear - "컨텐츠와 시퀀스" completeness (사용자 피드백).
         if (wasLastStage)
         {
-            ToastUI.Instance.Show("All Stages Cleared! Every stage has been conquered.", 4f);
+            ToastUI.Instance.Show("All Stages Cleared! The dungeon has opened.", 4f);
         }
+    }
+
+    // First-clear-only, same as a stage (user correction: "던전은 최초클리어만 가능하고...
+    // 업그레이드가 주 목적이야") - no gold/mana payout, the quarry-ceiling upgrade
+    // (OreBank.DungeonCeiling) IS the reward. DungeonBank.IsUnlocked goes false the instant
+    // MarkClearedOnce runs, so this can never fire a second time for the same save.
+    private void CompleteDungeon()
+    {
+        DungeonBank.MarkClearedOnce();
+        EndEncounter(cleared: true);
+
+        ToastUI.Instance.Show("Dungeon Cleared! The quarry's veins run deeper now.", 4f);
     }
 
     private void HandlePlayerDeath()
@@ -276,6 +328,7 @@ public class StageEncounterController : MonoBehaviour
 
         activeMonsters.Clear();
         IsEncounterActive = false;
+        IsDungeonEncounter = false;
         ActiveWaveNumber = 0;
 
         OnEncounterEnded?.Invoke(cleared);

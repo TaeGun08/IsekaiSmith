@@ -113,7 +113,7 @@ public class StageSelectUI : MonoBehaviour
         panelRect.anchorMax = new Vector2(0.5f, 0.5f);
         panelRect.pivot = new Vector2(0.5f, 0.5f);
         panelRect.anchoredPosition = Vector2.zero;
-        panelRect.sizeDelta = new Vector2(760f, 640f);
+        panelRect.sizeDelta = new Vector2(760f, 860f); // room for 3 stage cards + the dungeon card
         panel.GetComponent<Image>().color = new Color(0.08f, 0.07f, 0.06f, 0.94f);
 
         var title = MakeText(panel.transform, "Title", 34, new Vector2(0f, -30f), new Vector2(700f, 48f));
@@ -127,7 +127,7 @@ public class StageSelectUI : MonoBehaviour
         containerRect.anchorMax = new Vector2(0.5f, 1f);
         containerRect.pivot = new Vector2(0.5f, 1f);
         containerRect.anchoredPosition = new Vector2(0f, -100f);
-        containerRect.sizeDelta = new Vector2(680f, (CardHeight + CardGap) * StageBank.StageCount);
+        containerRect.sizeDelta = new Vector2(680f, (CardHeight + CardGap) * (StageBank.StageCount + 1)); // +1 for the dungeon card
         cardsContainer = containerGO.transform;
 
         Button closeButton = MakeButton(panel.transform, "CloseButton", new Vector2(0f, 40f), new Vector2(240f, 90f), "CLOSE", new Color(0.4f, 0.38f, 0.34f));
@@ -182,11 +182,20 @@ public class StageSelectUI : MonoBehaviour
 
         for (int i = 0; i < StageBank.StageCount; i++)
         {
-            BuildCard(i, i + 1);
+            BuildStageCard(i, i + 1);
+        }
+
+        // Shown once the prerequisite (all stages cleared) is met, same as a stage card staying
+        // visible after it's done - DungeonBank.IsUnlocked alone would make the card vanish
+        // entirely the instant it's cleared, instead of settling into a CLEARED state like the
+        // stage cards do.
+        if (StageBank.AllStagesCleared)
+        {
+            BuildDungeonCard(StageBank.StageCount);
         }
     }
 
-    private void BuildCard(int index, int stageNumber)
+    private void BuildStageCard(int index, int stageNumber)
     {
         var cardGO = new GameObject("StageCard_" + stageNumber, typeof(RectTransform), typeof(Image), typeof(Button));
         cardGO.transform.SetParent(cardsContainer, false);
@@ -216,16 +225,71 @@ public class StageSelectUI : MonoBehaviour
         statusText.text = statusLabel;
         statusText.color = color;
 
-        Button button = cardGO.GetComponent<Button>();
-        button.interactable = isNext;
-        if (isNext)
+        // Always tappable (not interactable=false) - a locked/cleared card explains itself via a
+        // ToastUI warning instead of silently refusing the tap, same fix as BlackMarketUI's BUY/
+        // SELL buttons (user request: "재화 또는 판매 물품을 가지고 있지 않다면 팝업창으로
+        // 경고를 해줬으면").
+        cardGO.GetComponent<Button>().onClick.AddListener(() =>
         {
-            button.onClick.AddListener(() =>
+            if (isNext)
             {
                 StageSceneController.Instance.EnterStage(stageNumber);
                 TogglePanel();
-            });
-        }
+            }
+            else if (cleared)
+            {
+                ToastUI.Instance.Show("Already cleared - stages can't be replayed.");
+            }
+            else
+            {
+                ToastUI.Instance.Show("Clear Stage " + (stageNumber - 1) + " first!");
+            }
+        });
+    }
+
+    // Only ever built when DungeonBank.IsUnlocked (RefreshCards) - unlike stage cards, this one
+    // First-clear-only, same as a stage (user correction: "던전은 최초클리어만 가능하고...
+    // 업그레이드가 주 목적이야") - once DungeonBank.HasClearedOnce, this settles into the same
+    // non-tappable CLEARED look BuildStageCard uses instead of staying an active entry point.
+    private void BuildDungeonCard(int index)
+    {
+        var cardGO = new GameObject("DungeonCard", typeof(RectTransform), typeof(Image), typeof(Button));
+        cardGO.transform.SetParent(cardsContainer, false);
+        var cardRect = cardGO.GetComponent<RectTransform>();
+        cardRect.anchorMin = new Vector2(0.5f, 1f);
+        cardRect.anchorMax = new Vector2(0.5f, 1f);
+        cardRect.pivot = new Vector2(0.5f, 1f);
+        cardRect.anchoredPosition = new Vector2(0f, -index * (CardHeight + CardGap));
+        cardRect.sizeDelta = new Vector2(680f, CardHeight);
+
+        bool cleared = DungeonBank.HasClearedOnce;
+        Color color = cleared ? clearedColor : readyColor;
+        cardGO.GetComponent<Image>().color = new Color(color.r, color.g, color.b, 0.28f);
+        var border = cardGO.AddComponent<Outline>();
+        border.effectColor = color;
+        border.effectDistance = new Vector2(2f, -2f);
+        border.enabled = !cleared;
+
+        TMP_Text nameText = MakeText(cardGO.transform, "Name", 30, new Vector2(0f, -32f), new Vector2(600f, 40f));
+        nameText.text = "DUNGEON";
+        nameText.fontStyle = FontStyles.Bold;
+
+        TMP_Text statusText = MakeText(cardGO.transform, "Status", 20, new Vector2(0f, -80f), new Vector2(600f, 30f));
+        statusText.text = cleared ? "CLEARED" : "TAP TO ENTER";
+        statusText.color = color;
+
+        cardGO.GetComponent<Button>().onClick.AddListener(() =>
+        {
+            if (cleared)
+            {
+                ToastUI.Instance.Show("Already cleared - the dungeon can't be replayed.");
+            }
+            else
+            {
+                StageSceneController.Instance.EnterDungeon();
+                TogglePanel();
+            }
+        });
     }
 
     private static TMP_Text MakeText(Transform parent, string name, int fontSize, Vector2 anchoredPos, Vector2 size)

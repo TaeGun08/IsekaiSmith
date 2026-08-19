@@ -24,15 +24,25 @@ public static class OreBank
 
     public static int TotalMined { get; private set; }
 
-    // Whichever of the two unlock paths (cumulative farming or stage clearing - see
-    // stage_system_design_v1.html §2) is further along wins.
+    // Whichever of the three unlock paths (cumulative farming, stage clearing, or dungeon
+    // clearing - see stage_system_design_v1.html §2, dungeon_design_v1.html §3) is further along
+    // wins.
     public static OreGrade Ceiling
     {
         get
         {
-            OreGrade cumulative = CumulativeCeiling;
-            OreGrade stage = StageCeiling;
-            return cumulative > stage ? cumulative : stage;
+            OreGrade best = CumulativeCeiling;
+            if (StageCeiling > best)
+            {
+                best = StageCeiling;
+            }
+
+            if (DungeonCeiling > best)
+            {
+                best = DungeonCeiling;
+            }
+
+            return best;
         }
     }
 
@@ -59,15 +69,13 @@ public static class OreBank
         }
     }
 
+    // Caps at Mithril, not Orichalcum - dungeon_design_v1.html §3 reserves the top grade for
+    // dungeon clear specifically (the original design's intent - stages only stood in for that
+    // gate temporarily, back when the dungeon didn't exist yet).
     private static OreGrade StageCeiling
     {
         get
         {
-            if (StageBank.HighestStageCleared >= 3)
-            {
-                return OreGrade.Orichalcum;
-            }
-
             if (StageBank.HighestStageCleared >= 2)
             {
                 return OreGrade.Mithril;
@@ -81,6 +89,10 @@ public static class OreBank
             return OreGrade.Iron;
         }
     }
+
+    // dungeon_design_v1.html §3 - the quarry's veins run all the way to Orichalcum only after a
+    // full dungeon clear.
+    private static OreGrade DungeonCeiling => DungeonBank.HasClearedOnce ? OreGrade.Orichalcum : OreGrade.Iron;
 
     public static int Get(OreGrade grade)
     {
