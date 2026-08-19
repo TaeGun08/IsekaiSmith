@@ -92,12 +92,14 @@ public class DevAutoPlayController : MonoBehaviour
         canvasGO.transform.SetParent(transform, false);
         var canvas = canvasGO.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        // Pushed to the very back (was 20, above InteractionPromptUI/icons/StageEncounterUI/
-        // CraftingSilhouetteUI at 5-10) - user report: "개발자 버튼이 다른 UI를 가려서 플레이하기가
-        // 불편해". This panel has grown tall enough (700px, GRANT/UNLOCK buttons) that it can
-        // overlap real gameplay UI, and being a dev-only tool it should never be the thing sitting
-        // on top.
-        canvas.sortingOrder = -100;
+        // Was 20 (above InteractionPromptUI/icons/StageEncounterUI/CraftingSilhouetteUI at 5-10,
+        // which this tall 780px panel could cover - user report: "개발자 버튼이 다른 UI를 가려서
+        // 플레이하기가 불편해"). -100 broke it a different way: FloatingJoystick's JoystickInputZone
+        // is a *full-screen* raycast catcher at order 0 (tap-anywhere-to-place), so anything below
+        // 0 loses every click to it, everywhere on screen (user report: "개발자 모드의 버튼들이
+        // 안눌리고 이동 조이스틱만 활성화 돼"). 3 sits above that (clickable) and below the real
+        // gameplay UI (5+, no longer covers it).
+        canvas.sortingOrder = 3;
         var scaler = canvasGO.GetComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1080, 1920);
