@@ -125,9 +125,15 @@ public class StageEncounterUI : MonoBehaviour
             retreatButtonGO.SetActive(true);
         }
 
-        string encounterLabel = controller.IsDungeonEncounter ? "DUNGEON" : "STAGE " + controller.ActiveStageNumber;
-        int totalWaves = controller.IsDungeonEncounter ? controller.TotalDungeonWaves : controller.TotalWavesForStage(controller.ActiveStageNumber);
-        label.text = encounterLabel + " - Wave " + controller.ActiveWaveNumber + "/" + totalWaves
-            + " (" + controller.RemainingMonsterCount + " left)";
+        if (controller.IsDungeonEncounter)
+        {
+            label.text = "DUNGEON - Floor " + controller.ActiveWaveNumber + "/" + controller.TotalDungeonFloors
+                + " (" + controller.RemainingMonsterCount + " left)";
+        }
+        else
+        {
+            label.text = "STAGE " + controller.ActiveStageNumber + " - Wave " + controller.ActiveWaveNumber + "/" + controller.TotalWavesForStage(controller.ActiveStageNumber)
+                + " (" + controller.RemainingMonsterCount + " left)";
+        }
     }
 }

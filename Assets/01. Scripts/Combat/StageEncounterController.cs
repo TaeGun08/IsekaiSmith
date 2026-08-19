@@ -67,14 +67,16 @@ public class StageEncounterController : MonoBehaviour
     // 단계로 미룸") mana stone deposited on a clean clear, scaled with stage number.
     private static readonly int[] StageManaReward = { 6, 10, 16 };
 
-    // dungeon_design_v1.html §2 - longer and harder than any single stage, last wave stands in
-    // for the dungeon boss (no dedicated boss system - same trim StageWaves' elites already use).
-    private static readonly WaveSpec[] DungeonWaves =
+    // dungeon_design_v1.html §2 - three basement floors (사용자 요청: "던전도 스테이지처럼
+    // 점점 지하 1층 2층 3층 이런식으로 클리어하면 무조건 다음층으로 넘어가도록"), each harder
+    // than any single stage's own waves, floor 3 standing in for the dungeon boss (no dedicated
+    // boss system - same trim StageWaves' elites already use). Clearing a floor auto-advances to
+    // the next one (Update() below) - there's no exit-and-re-enter between floors.
+    private static readonly WaveSpec[] DungeonFloors =
     {
-        new WaveSpec(4, 3f, 2.2f),
-        new WaveSpec(5, 3.6f, 2.6f),
-        new WaveSpec(4, 4.2f, 3f, 1, 6f, 3.5f),
-        new WaveSpec(3, 4.8f, 3.4f, 1, 8f, 4f),
+        new WaveSpec(5, 2.8f, 2f),
+        new WaveSpec(5, 3.6f, 2.6f, 1, 6f, 3.2f),
+        new WaveSpec(4, 4.5f, 3.2f, 1, 9f, 4.5f),
     };
 
     private static readonly Color EliteTint = new Color(0.55f, 0.18f, 0.16f);
@@ -87,7 +89,7 @@ public class StageEncounterController : MonoBehaviour
     public int ActiveStageNumber { get; private set; }
     public int ActiveWaveNumber { get; private set; } // 1-based, for StageEncounterUI
     public int TotalWavesForStage(int stageNumber) => StageWaves[stageNumber - 1].Length;
-    public int TotalDungeonWaves => DungeonWaves.Length;
+    public int TotalDungeonFloors => DungeonFloors.Length;
 
     // bool = whether the encounter ended on a clean clear (false = death/retreat, no reward) -
     // StageSceneController listens for this to know when to send the player back to the field.
@@ -190,7 +192,7 @@ public class StageEncounterController : MonoBehaviour
         }
 
         // Every monster in the current wave is down.
-        WaveSpec[] waves = IsDungeonEncounter ? DungeonWaves : StageWaves[ActiveStageNumber - 1];
+        WaveSpec[] waves = IsDungeonEncounter ? DungeonFloors : StageWaves[ActiveStageNumber - 1];
         if (ActiveWaveNumber >= waves.Length)
         {
             if (IsDungeonEncounter)
@@ -204,6 +206,14 @@ public class StageEncounterController : MonoBehaviour
         }
         else
         {
+            // Unconditional auto-advance to the next floor, no exit/re-enter (user request: "클리어
+            // 하면 무조건 다음층으로 넘어가도록") - only the dungeon calls out floor numbers, a
+            // stage's own waves stay a quieter internal detail.
+            if (IsDungeonEncounter)
+            {
+                ToastUI.Instance.Show("Floor " + ActiveWaveNumber + " Cleared! Descending to Floor " + (ActiveWaveNumber + 1) + "...", 2.5f);
+            }
+
             SpawnNextWave();
         }
     }
@@ -220,7 +230,7 @@ public class StageEncounterController : MonoBehaviour
 
         activeMonsters.Clear();
 
-        WaveSpec[] waves = IsDungeonEncounter ? DungeonWaves : StageWaves[ActiveStageNumber - 1];
+        WaveSpec[] waves = IsDungeonEncounter ? DungeonFloors : StageWaves[ActiveStageNumber - 1];
         WaveSpec wave = waves[ActiveWaveNumber];
         ActiveWaveNumber++;
 
