@@ -28,6 +28,15 @@ public class CursorSessionRunner : IAiSessionRunner
 
     private readonly string workingDirectory;
     private readonly ConcurrentQueue<string> outputQueue = new ConcurrentQueue<string>();
+    // Same rationale as Claude/CodexSessionRunner's stderrBuffer: cursor-agent prints benign
+    // startup/progress diagnostics to stderr even on a fully successful turn, so a line landing
+    // here isn't promoted to a real OnError until the process actually exits non-zero (see
+    // HandleLine's "__exited__" case). This runner used to fire OnError on the very first stderr
+    // line unconditionally - unlike the other two runners, which already got this exact fix for
+    // the same "연동 실패 on effectively every turn" false-positive (2026-08-11 report) - so any
+    // routine cursor-agent stderr chatter mid-turn snapped CurrentActivity back to Idle even
+    // though the turn was still genuinely running (user report, 2026-08-20).
+    private readonly StringBuilder stderrBuffer = new StringBuilder();
     private Process process;
     private string sessionId;
     private bool reloadLocked;
@@ -100,6 +109,7 @@ public class CursorSessionRunner : IAiSessionRunner
             outputQueue.Enqueue("__exited__");
         };
 
+        stderrBuffer.Clear();
         LockReload();
         IsBusy = true;
         lastActivityUtc = DateTime.UtcNow;
@@ -124,12 +134,14 @@ public class CursorSessionRunner : IAiSessionRunner
         {
             if (process != null && !process.HasExited)
             {
-                // entireProcessTree: true - see ClaudeSessionRunner.Kill()'s comment. Whether
-                // cursor-agent resolves to a direct executable or a wrapping shell shim can vary
-                // by install method, so this is the safe default either way: it never leaves a
-                // grandchild process alive to keep writing into outputQueue after this "cancel"
-                // was supposed to end the turn.
-                process.Kill(entireProcessTree: true);
+                // See ClaudeSessionRunner.Kill()'s comment. Whether cursor-agent resolves to a
+                // direct executable or a wrapping shell shim can vary by install method, so this
+                // is the safe default either way: it never leaves a grandchild process alive to
+                // keep writing into outputQueue after this "cancel" was supposed to end the turn.
+                // ProcessTreeKiller kills the whole tree via taskkill, since
+                // Process.Kill(entireProcessTree: true) isn't available in this Editor's
+                // scripting runtime.
+                ProcessTreeKiller.Kill(process.Id);
             }
         }
         catch (Exception)
@@ -222,12 +234,20 @@ public class CursorSessionRunner : IAiSessionRunner
         {
             IsBusy = false;
             UnlockReload();
+            // Only stderr from a process that actually failed is a real error - a clean exit
+            // (code 0) means whatever it printed to stderr along the way was just diagnostic
+            // noise (see stderrBuffer's declaration comment).
+            if (process != null && process.ExitCode != 0 && stderrBuffer.Length > 0)
+            {
+                OnError?.Invoke(stderrBuffer.ToString().Trim());
+            }
+            stderrBuffer.Clear();
             return;
         }
 
         if (line.StartsWith("__stderr__:"))
         {
-            OnError?.Invoke(line.Substring("__stderr__:".Length));
+            stderrBuffer.AppendLine(line.Substring("__stderr__:".Length));
             return;
         }
 
