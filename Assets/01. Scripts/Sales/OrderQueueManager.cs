@@ -26,11 +26,15 @@ public class OrderQueueManager : MonoBehaviour
     [SerializeField] private float depositIntervalStart = 0.32f;
     [SerializeField] private float depositIntervalFloor = 0.06f;
     [SerializeField] private float depositIntervalAcceleration = 0.82f;
-    // Only one customer at a time (사용자 요청 2026-08-21: "손님은 한명씩 차례로 오는 걸로") - the
-    // v7 rework's multi-person line read as several customers all waiting/ordering at once, which
-    // wasn't the intent. The next customer simply arrives on the usual arrival-pacing delay once
-    // this one's order is fully delivered and removed from the queue.
-    [SerializeField] private int maxQueueLength = 1;
+    // Up to 5 customers stand in a physical line at once (사용자 요청 2026-08-21: "최대 5명의
+    // 손님이 줄을 서고" - Pizza Ready-style visible queue, not a single customer at a time). Only
+    // queue[0] (the front of the line) is ever actually servable - TryFulfill always targets it,
+    // and CustomerVisualManager only makes that one customer's speech bubble tappable - so a
+    // crowded-looking line never means multiple orders are being taken at once, just multiple
+    // people waiting their turn. The moment the front order is fully delivered and removed, the
+    // whole line shifts forward one spot and a fresh arrival eventually fills the back on the
+    // usual arrival-pacing delay.
+    [SerializeField] private int maxQueueLength = 5;
 
     [Header("Arrival Pacing")]
     [SerializeField] private float arrivalIntervalMin = 3f;

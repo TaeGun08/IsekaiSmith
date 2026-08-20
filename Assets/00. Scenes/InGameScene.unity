@@ -154,6 +154,8 @@ Transform:
   - {fileID: 269314158}
   - {fileID: 609470746}
   - {fileID: 345701862}
+  - {fileID: 2018778898}
+  - {fileID: 866936403}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &168776644
@@ -169,20 +171,20 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::OrderQueueManager
   interactRadius: 2.5
-  slotCount: 3
-  refillDelayMin: 1
-  refillDelayMax: 2
+  depositIntervalStart: 0.32
+  depositIntervalFloor: 0.06
+  depositIntervalAcceleration: 0.82
+  maxQueueLength: 5
+  arrivalIntervalMin: 3
+  arrivalIntervalMax: 5
   waveIntervalMin: 60
   waveIntervalMax: 90
   waveDurationMin: 8
   waveDurationMax: 12
-  rushRefillDelayMin: 0.3
-  rushRefillDelayMax: 0.6
-  minGradeFloor: 0
-  minGradeCeiling: 1
-  patienceForRough: 25
-  patiencePerGradeStep: 6
-  speedBonusMax: 0.5
+  rushArrivalIntervalMin: 1
+  rushArrivalIntervalMax: 2
+  minRequestedCount: 1
+  maxRequestedCount: 3
 --- !u!114 &168776645
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -199,6 +201,8 @@ MonoBehaviour:
   - {fileID: 715848802}
   - {fileID: 269314158}
   - {fileID: 609470746}
+  - {fileID: 2018778898}
+  - {fileID: 866936403}
   spawnPoint: {fileID: 345701862}
 --- !u!1 &269314157
 GameObject:
@@ -582,9 +586,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ResourceFieldSpawner
   nodePrefab: {fileID: 5364408880257140917, guid: b2712a64052e9e24d94c16636013bb8d, type: 3}
-  columns: 3
-  rows: 3
-  spacing: 2.5
+  nodeCount: 9
+  areaWidth: 14
+  areaDepth: 14
+  minSpacing: 2.3
+  maxAttemptsPerNode: 50
 --- !u!1 &345701861
 GameObject:
   m_ObjectHideFlags: 0
@@ -1082,6 +1088,37 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &866936402
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 866936403}
+  m_Layer: 0
+  m_Name: QueuePoint4
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &866936403
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 866936402}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 4.2, y: 0, z: -2}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 168776643}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &901177882
 GameObject:
@@ -1705,7 +1742,7 @@ MonoBehaviour:
   manaText: {fileID: 1369039069}
   toolText: {fileID: 1926755239}
   goldText: {fileID: 2019441192}
-  reputationText: {fileID: 2019442192}
+  forgeTierText: {fileID: 2019442192}
 --- !u!1 &1926755237
 GameObject:
   m_ObjectHideFlags: 0
@@ -1999,6 +2036,37 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2015690935}
   m_CullTransparentMesh: 1
+--- !u!1 &2018778897
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2018778898}
+  m_Layer: 0
+  m_Name: QueuePoint3
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2018778898
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2018778897}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 2.8, y: 0, z: -2}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 168776643}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2019441190
 GameObject:
   m_ObjectHideFlags: 0
