@@ -91,6 +91,39 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!114 &130000001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 265538846074728063}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 43ad7211a7e5e9d42a114e38a5772ee3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CraftingStation
+  quickCraftWeaponType: 0
+  oreAmount: 2
+  woodType: 0
+  woodAmount: 1
+  outputAmount: 1
+  interactRadius: 2.5
+  stationTitle: 'Forge: Sword'
+  furnacePulseVisual: {fileID: 4646088683271535329}
+  anvilPulseVisual: {fileID: 440567680809466404}
+  pulseStrength: 0.12
+  pulseSpeed: 10
+  temperatureDuration: 9
+  sweetMin: 0.55
+  sweetMax: 0.75
+  strokeBump: 0.22
+  coolRate: 0.15
+  overheatPenaltyMultiplier: 1.5
+  hammerRounds: 4
+  chargeDuration: 1.4
+  perfectTolerancePercent: 10
+  goodTolerancePercent: 30
 --- !u!1 &2678917735417748974
 GameObject:
   m_ObjectHideFlags: 0
@@ -248,7 +281,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 6cc3072f060b7fb4c8347cb96fab8ff5, type: 2}
+  - {fileID: 2100000, guid: 910adc7a3c437dc41947f19bcf43617f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -282,7 +315,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0ddec0182f7234a4fb12903b6d4ab5ea, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::StorageDepot
   acceptedLayer: 0
   depositRadius: 2
@@ -391,7 +424,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 3936b0a9f6d766a47aebb9243e7b1dec, type: 2}
+  - {fileID: 2100000, guid: 910adc7a3c437dc41947f19bcf43617f, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -425,7 +458,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0ddec0182f7234a4fb12903b6d4ab5ea, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::StorageDepot
   acceptedLayer: 1
   depositRadius: 2
@@ -561,41 +594,6 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8195429601880580420}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
---- !u!114 &130000001
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 265538846074728063}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 43ad7211a7e5e9d42a114e38a5772ee3, type: 3}
-  m_Name:
-  m_EditorClassIdentifier: Assembly-CSharp::CraftingStation
-  oreType: 1
-  oreAmount: 2
-  woodType: 0
-  woodAmount: 1
-  manaStoneType: 4
-  outputType: 3
-  outputAmount: 1
-  interactRadius: 2.5
-  stationTitle: "Forge: Sword"
-  furnacePulseVisual: {fileID: 4646088683271535329}
-  anvilPulseVisual: {fileID: 440567680809466404}
-  pulseStrength: 0.12
-  pulseSpeed: 10
-  temperatureDuration: 9
-  sweetMin: 0.55
-  sweetMax: 0.75
-  strokeBump: 0.22
-  coolRate: 0.15
-  overheatPenaltyMultiplier: 1.5
-  hammerRounds: 4
-  chargeDuration: 1.4
-  perfectTolerancePercent: 10
-  goodTolerancePercent: 30
 --- !u!23 &7191872465602167875
 MeshRenderer:
   m_ObjectHideFlags: 0

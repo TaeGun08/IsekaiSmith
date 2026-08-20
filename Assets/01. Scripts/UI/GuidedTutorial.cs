@@ -5,9 +5,11 @@ using UnityEngine.UI;
 // Final-form onboarding, replacing TutorialUI's read-and-skip slideshow: a single welcome card,
 // then a top banner + a floor arrow that points at the next objective and auto-advances the
 // moment the player actually does it (no "tap to continue"). Self-contained runtime UI, same
-// pattern as every other UI class in this project. See guided_tutorial_design.html §7 for the
-// step-by-step breakdown this class implements (find a tree -> chop -> carry to the smithy's
-// storage crate -> repeat for ore -> try QUICK CRAFT -> gather again -> try CRAFT -> sell).
+// pattern as every other UI class in this project. See guided_tutorial_design_v2.html for the
+// full step-by-step breakdown this class implements - wood -> box -> ore -> box -> QUICK CRAFT ->
+// carry the result to the counter and sell it -> hunt a field monster for a Mana Stone -> precise
+// CRAFT (gathering a bit more wood/ore first if needed) -> equip it -> clear all Stages -> clear a
+// Dungeon floor. Runs the whole early loop end to end, not just gather->sell.
 public class GuidedTutorial : MonoBehaviour
 {
     private const string SeenPrefsKey = "GuidedTutorialSeen";
@@ -35,8 +37,17 @@ public class GuidedTutorial : MonoBehaviour
         Welcome,
         Move,
         GatherWood1, CarryWood1, GatherOre1, CarryOre1, QuickCraft,
-        GatherWood2, CarryWood2, GatherOre2, CarryOre2, PreciseCraft,
-        Sell,
+        // The old GatherWood2/CarryWood2/GatherOre2/CarryOre2 quartet (a second fixed gather round
+        // before PreciseCraft) is gone as separate steps - PreciseCraft now folds "gather whatever
+        // the recipe is still short on" into itself dynamically (see UpdatePreciseCraftBanner),
+        // since QUICK CRAFT no longer refunds any leftover materials to plan around and the exact
+        // shortfall (wood, ore, or neither) varies run to run.
+        SellWeapon,
+        HuntMonster,
+        PreciseCraft,
+        Equip,
+        StageProgress,
+        DungeonProgress,
         Done
     }
 
@@ -98,13 +109,16 @@ public class GuidedTutorial : MonoBehaviour
         PlayerPrefs.Save();
     }
 
-    // Equipment has nothing to show until the player has crafted something - unlocks right after
-    // QUICK CRAFT, their first crafted item.
-    public static bool IsEquipmentUnlocked => HasCompletedTutorial || (instance != null && instance.step >= Step.GatherWood2);
+    // Equipment has nothing to show until the player owns a precise-crafted weapon - QUICK CRAFT
+    // output is sell-only now (carried straight to the sales counter, never ToolInventory - see
+    // customer_order_design_v7.html §0 Q2), so unlocking any earlier than this would open an empty
+    // BAG with nothing to equip. Unlocks the instant PreciseCraft succeeds (entering Step.Equip).
+    public static bool IsEquipmentUnlocked => HasCompletedTutorial || (instance != null && instance.step >= Step.Equip);
 
-    // Stages need a real crafted+sellable weapon to be worth attempting - unlocks once the full
-    // craft->sell loop has been taught (tutorial Done, which also sets HasCompletedTutorial).
-    public static bool IsStagesUnlocked => HasCompletedTutorial;
+    // Stages are themselves a taught step now (Step.StageProgress) rather than something that only
+    // appears after the tutorial ends - the STAGE icon has to be visible by the time that step's
+    // banner tells the player to tap it.
+    public static bool IsStagesUnlocked => HasCompletedTutorial || (instance != null && instance.step >= Step.StageProgress);
 
     // The black market deals in gold and rare-grade materials, neither of which mean anything
     // before the tutorial teaches selling - same threshold as Stages, and same gap this closes as
@@ -203,23 +217,23 @@ public class GuidedTutorial : MonoBehaviour
                 bannerText.text = "Drag anywhere on screen to move";
                 break;
             case Step.CarryWood1:
-            case Step.CarryWood2:
-                bannerText.text = "Bring the wood to the storage crate";
+                bannerText.text = "Bring the wood to the box";
                 break;
             case Step.CarryOre1:
-            case Step.CarryOre2:
-                bannerText.text = "Bring the ore to the storage crate";
+                bannerText.text = "Bring the ore to the box";
                 break;
             case Step.QuickCraft:
                 bannerText.text = "At the Smithy, tap QUICK CRAFT for an instant result";
                 quickCraftDone = false;
                 break;
+            case Step.SellWeapon:
+                bannerText.text = "Carry the weapon to the counter and sell it";
+                break;
             case Step.PreciseCraft:
-                bannerText.text = "Now try CRAFT for a hands-on, higher-quality result";
                 preciseCraftDone = false;
                 break;
-            case Step.Sell:
-                bannerText.text = "Sell it at the counter";
+            case Step.Equip:
+                bannerText.text = "Open your BAG and equip your new weapon";
                 break;
             case Step.Done:
                 bannerText.text = "You're all set - have fun!";
@@ -229,10 +243,9 @@ public class GuidedTutorial : MonoBehaviour
                 running = false;
                 Invoke(nameof(HideBanner), 3f);
 
-                // Stages and the black market both key off HasCompletedTutorial (same instant this
-                // sets SeenPrefsKey), so one combined announcement instead of each system firing
-                // its own ToastUI call and racing to overwrite the other.
-                ToastUI.Instance.Show("Stages & Black Market Unlocked!", 4f);
+                // Stages already unlocked back at Step.StageProgress (its own toast fired there) -
+                // only the black market is new at this final gate.
+                ToastUI.Instance.Show("Black Market Unlocked!", 4f);
                 break;
         }
 
@@ -295,29 +308,20 @@ public class GuidedTutorial : MonoBehaviour
             case Step.QuickCraft:
                 if (quickCraftDone)
                 {
-                    EnterStep(Step.GatherWood2);
+                    EnterStep(Step.SellWeapon);
                 }
                 break;
-            case Step.GatherWood2:
-                if (TickGather("Chop a little more wood", CarryLayer.Wood, WoodTarget))
+            case Step.SellWeapon:
+                if (SalesCurrency.Gold > lastGold)
                 {
-                    EnterStep(Step.CarryWood2);
+                    EnterStep(Step.HuntMonster);
                 }
                 break;
-            case Step.CarryWood2:
-                if (ResourceBank.Get(ResourceType.Wood) > lastWood)
-                {
-                    EnterStep(Step.GatherOre2);
-                }
-                break;
-            case Step.GatherOre2:
-                if (TickGather("Mine a little more ore", CarryLayer.Ore, OreTarget))
-                {
-                    EnterStep(Step.CarryOre2);
-                }
-                break;
-            case Step.CarryOre2:
-                if (ResourceBank.Get(ResourceType.Ore) > lastOre)
+            case Step.HuntMonster:
+                // Mana Stones are a probability drop (PlayerCombat.BaseManaDropChance), not a
+                // guaranteed kill reward, so completion is "carrying at least one" rather than
+                // "landed N hits" - an unlucky player just naturally ends up fighting a few more.
+                if (TickGather("Defeat a field monster for a Mana Stone", CarryLayer.ManaStone, 1))
                 {
                     EnterStep(Step.PreciseCraft);
                 }
@@ -325,16 +329,64 @@ public class GuidedTutorial : MonoBehaviour
             case Step.PreciseCraft:
                 if (preciseCraftDone)
                 {
-                    EnterStep(Step.Sell);
+                    EnterStep(Step.Equip);
+                }
+                else
+                {
+                    UpdatePreciseCraftBanner();
                 }
                 break;
-            case Step.Sell:
-                if (SalesCurrency.Gold > lastGold)
+            case Step.Equip:
+                if (EquippedWeapon.HasExplicitChoice)
+                {
+                    EnterStep(Step.StageProgress);
+                    ToastUI.Instance.Show("Stages Unlocked!", 3f);
+                }
+                break;
+            case Step.StageProgress:
+                bannerText.text = "Clear all Stages at STAGE (" + StageBank.HighestStageCleared + "/" + StageBank.StageCount + ")";
+                if (StageBank.AllStagesCleared)
+                {
+                    EnterStep(Step.DungeonProgress);
+                }
+                break;
+            case Step.DungeonProgress:
+                bannerText.text = "Dive into the DUNGEON and clear Floor 1";
+                if (DungeonBank.DeepestFloorCleared > 0)
                 {
                     EnterStep(Step.Done);
                 }
                 break;
         }
+    }
+
+    // PreciseCraft folds "gather whatever the recipe is still short on" into itself instead of
+    // fixed GatherWood2/CarryOre2 steps (see the Step enum comment) - reuses the exact same
+    // Needs*/Target reads DevAutoPlayController's auto-play loop already relies on, so the arrow/
+    // banner never drifts out of sync with what CraftingStation.CanCraft actually checks.
+    private void UpdatePreciseCraftBanner()
+    {
+        if (craftingStation != null && craftingStation.NeedsWood)
+        {
+            if (TickGather("Chop a little more wood", CarryLayer.Wood, WoodTarget))
+            {
+                bannerText.text = "Bring the wood to the box";
+            }
+
+            return;
+        }
+
+        if (craftingStation != null && craftingStation.NeedsOre)
+        {
+            if (TickGather("Mine a little more ore", CarryLayer.Ore, OreTarget))
+            {
+                bannerText.text = "Bring the ore to the box";
+            }
+
+            return;
+        }
+
+        bannerText.text = "Now try CRAFT for a hands-on, higher-quality result";
     }
 
     // Shared by all four "gather N of X" steps - shows live progress in the banner and reports
@@ -349,38 +401,51 @@ public class GuidedTutorial : MonoBehaviour
 
     private void UpdateArrow()
     {
+        // Stage/Dungeon fights run as additive overlays on top of this same scene (see
+        // StageSceneController/DungeonSceneController), so this instance stays alive and Update()
+        // keeps ticking straight through them - suppress the floor arrow during an active encounter
+        // so it doesn't float around in the middle of combat; the banner text still updates.
+        if (StageEncounterController.Instance.IsEncounterActive || DungeonEncounterController.Instance.IsEncounterActive)
+        {
+            arrowRoot.gameObject.SetActive(false);
+            return;
+        }
+
         Transform target = null;
         float hideRadius = GatherHideRadius;
 
         switch (step)
         {
             case Step.GatherWood1:
-            case Step.GatherWood2:
                 target = FindNearestAvailable<WoodNode>(n => n.IsAvailable);
                 break;
             case Step.CarryWood1:
-            case Step.CarryWood2:
                 target = storageCrateWood;
                 hideRadius = woodDepot != null ? woodDepot.DepositRadius : GatherHideRadius;
                 break;
             case Step.GatherOre1:
-            case Step.GatherOre2:
                 target = FindNearestAvailable<OreNode>(n => n.IsAvailable);
                 break;
             case Step.CarryOre1:
-            case Step.CarryOre2:
                 target = storageCrateOre;
                 hideRadius = oreDepot != null ? oreDepot.DepositRadius : GatherHideRadius;
                 break;
             case Step.QuickCraft:
-            case Step.PreciseCraft:
                 target = smithy;
                 hideRadius = craftingStation != null ? craftingStation.InteractRadius : GatherHideRadius;
                 break;
-            case Step.Sell:
+            case Step.SellWeapon:
                 target = salesCounter;
                 hideRadius = orderQueueManager != null ? orderQueueManager.InteractRadius : GatherHideRadius;
                 break;
+            case Step.HuntMonster:
+                target = FindNearestAvailable<Monster>(m => m.IsAvailable);
+                break;
+            case Step.PreciseCraft:
+                target = ResolvePreciseCraftArrowTarget(out hideRadius);
+                break;
+            // Equip/StageProgress/DungeonProgress all point at screen-space UI icons (BAG/STAGE),
+            // not a world position - no arrow target makes sense for them, same as Welcome/Done.
         }
 
         if (target == null || PlayerMotor.Instance == null)
@@ -406,6 +471,41 @@ public class GuidedTutorial : MonoBehaviour
         Vector3 direction = toTarget.normalized;
         arrowRoot.position = playerPos + direction * 1.6f + Vector3.up * 1.3f;
         arrowRoot.rotation = Quaternion.LookRotation(direction, Vector3.up);
+    }
+
+    // Mirrors UpdatePreciseCraftBanner()'s own Needs*/carried-count reads so the arrow always
+    // points at whatever that banner is currently asking for (gather -> carry to box -> smithy),
+    // instead of a separately-maintained copy of the same logic that could drift out of sync.
+    private Transform ResolvePreciseCraftArrowTarget(out float hideRadius)
+    {
+        hideRadius = GatherHideRadius;
+
+        if (craftingStation != null && craftingStation.NeedsWood)
+        {
+            int carried = playerCarryStack != null ? playerCarryStack.GetCount(CarryLayer.Wood) : 0;
+            if (carried >= WoodTarget)
+            {
+                hideRadius = woodDepot != null ? woodDepot.DepositRadius : GatherHideRadius;
+                return storageCrateWood;
+            }
+
+            return FindNearestAvailable<WoodNode>(n => n.IsAvailable);
+        }
+
+        if (craftingStation != null && craftingStation.NeedsOre)
+        {
+            int carried = playerCarryStack != null ? playerCarryStack.GetCount(CarryLayer.Ore) : 0;
+            if (carried >= OreTarget)
+            {
+                hideRadius = oreDepot != null ? oreDepot.DepositRadius : GatherHideRadius;
+                return storageCrateOre;
+            }
+
+            return FindNearestAvailable<OreNode>(n => n.IsAvailable);
+        }
+
+        hideRadius = craftingStation != null ? craftingStation.InteractRadius : GatherHideRadius;
+        return smithy;
     }
 
     // Trees/ore chunks are scattered at runtime by TreeFieldSpawner/ResourceFieldSpawner, not

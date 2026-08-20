@@ -2249,3 +2249,50 @@ FORGE/CANCEL 실측 size=(210,100), 무기 버튼 4개 위치/탭 반응 정상.
 ### 다음
 - [ ] `DevAutoPlayController`로 자동 진행시키며 콘솔 에러만 지켜보는 안전 점검 (UI는 안 건드림)
 - [ ] 사용자가 직접 무기 선택 버튼 4개 + 장비창(EQUIPPED 카드/DEL) 눈으로 확인
+
+## 2026-08-20 - 보관함 상자 통일 + 가이드 튜토리얼 v2(던전까지 전체 루프)
+
+### 사용자 요청
+"보관함은 상자모양 하나로 통일하자. 그럼 이제 튜토리얼도 수정해야 할 것 같아" +
+나무→상자→광석→상자→퀵→무기 운반 및 판매→필드 몬스터 사냥 및 마석 획득→무기 수동 제작→
+장착→스테이지 진행→던전 진행 순서 지정.
+
+### 보관함 통일
+목재/광물/마석 보관함 셋 다 이미 큐브 메시였지만 각자 담는 자원 색을 그대로 물려받은 별도
+재질(TreeTrunk 갈색/OreRock 회갈색/코드 지정 보라)이라 "세 개의 다른 상자"처럼 보였음. 신규
+`StorageBox.mat` 하나로 `StorageCrate1`/`StorageCrate2`(Smithy.prefab, prefab stage 편집) 배정,
+런타임 코드로 생성되는 `ManaStoneDepotBootstrap`의 마석 크레이트도 동일 RGB로 맞춤. 위치/기능
+(자원별 별도 오브젝트+`CarryLayer`)은 그대로 - 외형만 통일.
+
+### 가이드 튜토리얼 v2 (guided_tutorial_design_v2.html 신규 - v1 구조 변경이라 별도 파일)
+기존엔 채집→퀵제작→판매에서 끝났는데, 이번에 필드 사냥→수동 제작→장착→스테이지→던전까지
+전체 게임 루프를 한 바퀴 도는 흐름으로 확장. `GuidedTutorial.cs` 전면 개편:
+- Step enum: `GatherWood2/CarryWood2/GatherOre2/CarryOre2`(고정 2차 채집 4단계) 제거 →
+  `PreciseCraft` 스텝이 `CraftingStation.NeedsWood/NeedsOre`(DevAutoPlayController 자동 진행
+  로직과 동일 판정)를 읽어 부족한 재료를 동적으로 채집시키는 서브 로직으로 흡수.
+- 신규 스텝: `SellWeapon`(구 Sell을 QuickCraft 직후로 이동 - QUICK CRAFT 결과물이 이제
+  `CarryLayer.Weapon`으로 등짐에 실려 판매대까지 운반해야 함, customer_order_design_v7 개편
+  반영), `HuntMonster`(등짐 마석 ≥1 - 확률 드랍이라 처치 횟수 대신 소지량으로 판정),
+  `Equip`(BAG에서 실제 장착 - `EquippedWeapon.HasExplicitChoice` 공개 게터 신규 추가),
+  `StageProgress`(스테이지 전부 클리어 - 던전 해금 조건과 동일), `DungeonProgress`(던전 1층
+  클리어 - 반복 컨텐츠라 완주 개념 없이 1회로 완료).
+- **버그 수정 겸함**: `IsEquipmentUnlocked`가 예전엔 `step >= GatherWood2`(퀵제작 직후)였는데,
+  QUICK CRAFT 결과물이 더 이상 `ToolInventory`에 안 들어가므로 그 시점엔 BAG를 열어도 빈 화면.
+  `step >= Equip`(수동 제작 완료 직후)로 정정.
+- `IsStagesUnlocked`도 `HasCompletedTutorial` 단독 조건 → `|| step >= StageProgress`로 확장(
+  스테이지 진행 자체가 튜토리얼 스텝이라 그 배너가 뜰 때 STAGE 아이콘도 같이 나와야 함).
+  `IsBlackMarketUnlocked`는 새 시퀀스에 없어서 그대로(튜토리얼 완주 후).
+- 스테이지/던전 씬은 Additive 로드라 `GuidedTutorial`(DontDestroyOnLoad)이 계속 살아있음 -
+  크로스씬 처리 불필요. 다만 전투 중(`StageEncounterController`/`DungeonEncounterController`
+  `.IsEncounterActive`)엔 화살표만 숨김(배너는 유지).
+- `StageSelectUI.cs`/`PlayerInventoryUI.cs`의 관련 주석도 새 해금 시점에 맞게 정정.
+
+컴파일: `refresh_unity` 재요청 후 `read_console` - 에러/경고 0건(중간에 뜬 CS0103은 편집
+도중의 stale 캐시였고 이후 재확인 시 사라짐).
+
+### 다음에 할 일 (TODO)
+- [ ] 다음 세션: Play Mode에서 새 튜토리얼 11단계 전체(특히 SellWeapon 자동예치+판매, HuntMonster
+  마석 획득, PreciseCraft 동적 재채집, Equip/StageProgress/DungeonProgress 아이콘 해금 타이밍)
+  실제로 끝까지 밟아서 확인 - 세션이 길어 이번엔 리뷰만 완료
+- [ ] 보관함 새 색상(StorageBox.mat 앰버톤) 스크린샷으로 눈으로 확인
+- [ ] 커밋 예정

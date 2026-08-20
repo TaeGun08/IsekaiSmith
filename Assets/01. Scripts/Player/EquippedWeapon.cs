@@ -17,6 +17,11 @@ public static class EquippedWeapon
     private static ManaElement chosenElement;
     private static ManaGrade chosenManaGrade;
 
+    // Lets GuidedTutorial detect "the player equipped something" without duplicating the
+    // stock-fallback logic Resolve() already does - only ever true once a row has actually been
+    // tapped in PlayerInventoryUI.
+    public static bool HasExplicitChoice => hasExplicitChoice;
+
     public static void Equip(WeaponType weapon, OreGrade oreGrade, ManaElement element, ManaGrade manaGrade)
     {
         hasExplicitChoice = true;

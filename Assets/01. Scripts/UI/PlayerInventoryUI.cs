@@ -235,9 +235,10 @@ public class PlayerInventoryUI : MonoBehaviour
         confirmDialog.SetActive(false);
     }
 
-    // Hidden until the tutorial teaches crafting (GuidedTutorial.IsEquipmentUnlocked) - nothing to
-    // equip yet before that, and showing it early just invites a confused tap (user request:
-    // "튜토리얼 중에는 튜토리얼만 오로지 깰 수 있게").
+    // Hidden until the tutorial's precise CRAFT succeeds (GuidedTutorial.IsEquipmentUnlocked) -
+    // QUICK CRAFT output never lands in ToolInventory (sell-only, carried straight to the counter),
+    // so there's genuinely nothing to equip before that, and showing it early just invites a
+    // confused tap (user request: "튜토리얼 중에는 튜토리얼만 오로지 깰 수 있게").
     private void Update()
     {
         if (icon == null)

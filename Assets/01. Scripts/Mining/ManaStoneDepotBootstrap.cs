@@ -61,7 +61,10 @@ public class ManaStoneDepotBootstrap : MonoBehaviour
         crateGO.transform.position = position;
         crateGO.transform.rotation = oreCrateGO.transform.rotation;
         crateGO.transform.localScale = oreCrateGO.transform.localScale;
-        crateGO.GetComponent<Renderer>().material.color = new Color(0.42f, 0.3f, 0.55f);
+        // Matches StorageBox.mat (StorageCrate1/2's shared material) so all three deposit points
+        // read as "the same kind of box" instead of being color-coded per resource type (사용자
+        // 요청: "보관함은 상자모양 하나로 통일하자").
+        crateGO.GetComponent<Renderer>().material.color = new Color(0.62f, 0.42f, 0.2f);
 
         StorageDepot depot = crateGO.AddComponent<StorageDepot>();
         depot.SetAcceptedLayer(CarryLayer.ManaStone);

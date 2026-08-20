@@ -134,9 +134,11 @@ public class StageSelectUI : MonoBehaviour
         closeButton.onClick.AddListener(TogglePanel);
     }
 
-    // Hidden until the tutorial's full craft->sell loop is taught (GuidedTutorial.IsStagesUnlocked)
-    // - entering a stage half-armed just teaches "this game is unfair" (user request: "튜토리얼
-    // 중에는 튜토리얼만 오로지 깰 수 있게... 스테이지 등이 열리는 게 좋을 것 같아").
+    // Hidden until the player has an equipped, precise-crafted weapon (GuidedTutorial.
+    // IsStagesUnlocked) - entering a stage half-armed just teaches "this game is unfair" (user
+    // request: "튜토리얼 중에는 튜토리얼만 오로지 깰 수 있게... 스테이지 등이 열리는 게 좋을 것
+    // 같아"). Stages are themselves a taught tutorial step now (guided_tutorial_design_v2.html),
+    // not something withheld until the whole tutorial ends.
     private void Update()
     {
         if (icon == null)
@@ -149,9 +151,8 @@ public class StageSelectUI : MonoBehaviour
         {
             icon.SetActive(unlocked);
 
-            // No standalone toast here - Stages and the black market unlock at the exact same
-            // moment (tutorial completion), so GuidedTutorial fires one combined announcement
-            // instead of two ToastUI calls racing to overwrite each other.
+            // No toast here - GuidedTutorial fires its own "Stages Unlocked!" the instant it
+            // enters Step.StageProgress, which is exactly when this flips true.
         }
     }
 

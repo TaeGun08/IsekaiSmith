@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>이세계 대장장이 - 가이드식 튜토리얼 기획서 v2</title>
+<style>
+  :root {
+    --ink: #2b2420; --paper: #f6f1e7; --card: #ffffff; --border: #dcd3c2; --accent: #b5651d;
+    --good: #4f8f5f; --warn: #c1440e; --gold: #d9a441;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 20px 80px; background: var(--paper); color: var(--ink);
+    font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .doc { width: 100%; max-width: 1080px; }
+  h1 { font-size: 25px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 8px; color: #6b6155; font-size: 14px; }
+  p.pitch {
+    font-size: 15px; line-height: 1.75; background: var(--card); border: 1px solid var(--border);
+    border-left: 4px solid var(--accent); border-radius: 8px; padding: 16px 18px; margin: 16px 0 32px;
+  }
+  h2 { font-size: 19px; margin: 46px 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+  h2 .num { color: var(--accent); margin-right: 8px; }
+  h2 .tag { font-size: 11px; font-weight: bold; border-radius: 5px; padding: 2px 8px; margin-left: 8px; vertical-align: 2px; background:#f3ece0; color: var(--warn); }
+  h2 .tag.new { color: var(--good); }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); }
+  .note { font-size: 12.5px; color: #6b6155; line-height: 1.7; margin-top: 8px; }
+  .qa-list { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.9; }
+  .qa-list li b { color: var(--accent); }
+
+  table.spec { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12.5px; }
+  table.spec th, table.spec td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+  table.spec th { background: #efe8d9; font-size: 12px; white-space: nowrap; }
+  table.spec td.new-row { background: #eef3ea; }
+
+  .swatch-row { display:flex; gap:14px; margin-top:14px; flex-wrap:wrap; }
+  .swatch { display:flex; align-items:center; gap:8px; font-size:12.5px; }
+  .swatch .box { width:26px; height:26px; border-radius:4px; border:1px solid rgba(0,0,0,0.15); }
+
+  footer { margin-top: 40px; font-size: 12px; color: #948a7c; text-align: center; }
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <h1>가이드식 튜토리얼 기획서 v2</h1>
+  <p class="sub">guided_tutorial_design_v2.html · guided_tutorial_design.html을 대체 (구조 변경 - 신규 파일, [[design_doc_versioning]])</p>
+  <p class="pitch">
+    사용자 요청: <b>"보관함은 상자모양 하나로 통일하자"</b> + 튜토리얼을 채집→퀵제작→판매에서 그치지 않고
+    <b>필드 사냥 → 수동 제작 → 장착 → 스테이지 → 던전까지</b> 전체 게임 루프를 한 바퀴 도는 흐름으로 확장.
+    customer_order_design_v7.html(QUICK CRAFT 등짐 운반+판매대 줄서기 개편)이 이미 진행 중이던 참이라,
+    이번 튜토리얼 개편은 그 신규 흐름을 그대로 얹는 형태.
+  </p>
+
+  <h2><span class="num">①</span>보관함 상자 통일<span class="tag new">완료</span></h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;">
+    목재(<code>StorageCrate1</code>)/광물(<code>StorageCrate2</code>)/마석(<code>StorageCrateMana</code>) 보관함
+    셋 다 이미 큐브 메시였지만, 각자 <b>자기가 담는 자원의 색을 그대로 물려받은 별도 재질</b>을 쓰고 있었음
+    (목재=<code>TreeTrunk.mat</code> 갈색, 광물=<code>OreRock.mat</code> 회갈색, 마석=코드로 지정한 보라).
+    자원마다 색이 달라 "세 개의 다른 상자"처럼 읽히던 것을, 신규 공유 재질 하나로 교체.
+    </p>
+    <div class="swatch-row">
+      <div class="swatch"><div class="box" style="background:#664019"></div>이전 - TreeTrunk(목재 보관함)</div>
+      <div class="swatch"><div class="box" style="background:#5c4d42"></div>이전 - OreRock(광물 보관함)</div>
+      <div class="swatch"><div class="box" style="background:#6b4d8c"></div>이전 - 코드 지정(마석 보관함)</div>
+      <div class="swatch"><div class="box" style="background:#9e6b33"></div><b>신규 - StorageBox.mat(공통)</b></div>
+    </div>
+    <p class="note">
+    구현: <code>Assets/03. Art/Materials/StorageBox.mat</code> 신규 생성 후 <code>StorageCrate1</code>/
+    <code>StorageCrate2</code>(Smithy.prefab)에 배정. <code>ManaStoneDepotBootstrap</code>은 런타임 코드로 큐브를
+    생성하는 구조라 에셋을 직접 참조하지 않고, 기존 코드 관례(<code>CarryItemTemplates</code> 등도 색을 코드로
+    직접 지정)를 따라 동일 RGB 값을 코드에 하드코딩. 세 보관함 모두 여전히 별도 오브젝트·별도 위치·별도
+    <code>CarryLayer</code>를 받는 기능은 그대로(위치까지 하나로 합치는 건 요청 범위 밖 - "상자모양 하나로"는
+    외형 통일이지 배치 통합이 아니라고 해석).
+    </p>
+  </div>
+
+  <h2><span class="num">②</span>새 튜토리얼 시퀀스</h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;">사용자가 지정한 순서 그대로:</p>
+    <table class="spec">
+      <tr><th>#</th><th>단계</th><th>비고</th></tr>
+      <tr><td>1</td><td>나무</td><td>기존 GatherWood1 그대로</td></tr>
+      <tr><td>2</td><td>상자</td><td>기존 CarryWood1, 배너 문구만 "storage crate"→"the box"</td></tr>
+      <tr><td>3</td><td>광석</td><td>기존 GatherOre1 그대로</td></tr>
+      <tr><td>4</td><td>상자</td><td>기존 CarryOre1</td></tr>
+      <tr><td>5</td><td>퀵</td><td>기존 QuickCraft 그대로(QUICK CRAFT 버튼)</td></tr>
+      <tr class="new-row"><td>6</td><td>무기 운반 및 판매</td><td><b>신규</b> - 옛 Sell 스텝을 여기로 이동. QUICK CRAFT 결과물이 이제
+      <code>CarryLayer.Weapon</code>으로 등에 실리므로(진행 중이던 v7 개편), 판매대까지 걸어가면 자동 예치 →
+      맨 앞 손님 말풍선 탭으로 판매. 골드 증가로 완료 판정(기존 로직 그대로 재사용)</td></tr>
+      <tr class="new-row"><td>7</td><td>필드 몬스터 사냥 및 마석 획득</td><td><b>신규</b> - 근처 <code>Monster</code> 처치 안내(기존
+      <code>FindNearestAvailable&lt;T&gt;</code> 헬퍼 재사용). 마석은 확률 드랍(기본 45%)이라 "처치"가 아니라
+      <b>등짐의 마석 개수 ≥ 1</b>로 완료 판정 - 못 얻으면 자연히 몇 마리 더 잡게 됨</td></tr>
+      <tr class="new-row"><td>8</td><td>무기 수동 제작</td><td>기존 PreciseCraft를 확장 - 원래는 이 단계 진입 전 별도
+      GatherWood2/CarryOre2 4단계가 있었는데, 사용자가 준 시퀀스엔 그 반복 채집이 명시되어 있지 않아
+      <b>PreciseCraft 스텝 내부의 서브 로직</b>으로 접음: <code>CraftingStation.CanCraft</code>가 false면
+      부족한 쪽(<code>NeedsWood</code>/<code>NeedsOre</code> - DevAutoPlayController가 쓰는 것과 동일 판정)으로
+      화살표+배너를 띄우고, 충족되면 곧장 "CRAFT 버튼을 눌러라" 배너로 전환. 완료 판정은 기존 그대로
+      <code>preciseCraftDone</code></td></tr>
+      <tr class="new-row"><td>9</td><td>장착</td><td><b>신규</b> - BAG 아이콘(화면 UI, 월드 좌표 없음 → 화살표 없이 배너만)을 열어
+      한 줄 탭. <code>EquippedWeapon</code>에 <code>HasExplicitChoice</code> 공개 게터 추가해서 감지</td></tr>
+      <tr class="new-row"><td>10</td><td>스테이지 진행</td><td><b>신규</b> - STAGE 아이콘도 화면 UI라 화살표 없음. 던전 해금 조건이
+      <code>DungeonBank.IsUnlocked = StageBank.AllStagesCleared</code>(스테이지 3개 전부)라 이 스텝의 완료
+      조건도 동일하게 <b>전 스테이지 클리어</b>로 맞춤 - 배너에 "n/3 Stages Cleared" 진행률 표시</td></tr>
+      <tr class="new-row"><td>11</td><td>던전 진행</td><td><b>신규</b> - 반복형 컨텐츠라 "완주" 개념이 없음(사용자 요청:
+      "던전을 최대한 많이 만들어도 좋아"). 1층 클리어(<code>DungeonBank.DeepestFloorCleared &gt; 0</code>) 한 번으로 완료</td></tr>
+      <tr><td>-</td><td>Done</td><td>기존 그대로 - <code>HasCompletedTutorial</code> 설정 + 토스트</td></tr>
+    </table>
+  </div>
+
+  <h2><span class="num">③</span>단계적 해금 게이트 재배선</h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;">
+    기존엔 Equipment/Stages 아이콘이 각각 <code>step &gt;= GatherWood2</code> / <code>HasCompletedTutorial</code>로
+    풀렸음. 새 시퀀스에 맞춰:
+    </p>
+    <table class="spec">
+      <tr><th>아이콘</th><th>이전 조건</th><th>신규 조건</th><th>이유</th></tr>
+      <tr><td><code>IsEquipmentUnlocked</code>(BAG)</td><td><code>step &gt;= GatherWood2</code>(=퀵제작 직후)</td>
+      <td><code>step &gt;= Equip</code>(=수동제작 완료 직후)</td>
+      <td><b>버그 수정</b> 겸함 - QUICK CRAFT 결과물이 더 이상 <code>ToolInventory</code>로 안 들어가므로(등에 실려
+      판매대 전용), 옛 조건대로면 BAG를 열어도 장착할 게 하나도 없는 빈 화면만 보임. 수동 제작 결과물만
+      장착 가능하므로 그때 열려야 맞음</td></tr>
+      <tr><td><code>IsStagesUnlocked</code>(STAGE)</td><td><code>HasCompletedTutorial</code></td>
+      <td><code>HasCompletedTutorial || step &gt;= StageProgress</code></td>
+      <td>스테이지 진행 자체가 튜토리얼 스텝이므로 그 배너가 뜨는 시점에 아이콘도 같이 나와야 탭할 수 있음</td></tr>
+      <tr><td><code>IsBlackMarketUnlocked</code></td><td><code>HasCompletedTutorial</code></td>
+      <td>변경 없음</td><td>블랙마켓은 새 시퀀스에 없음 - 튜토리얼 완주(던전까지 끝) 이후 그대로 유지</td></tr>
+    </table>
+  </div>
+
+  <h2><span class="num">④</span>스테이지/던전 중 배너 처리</h2>
+  <div class="card">
+    <p style="margin:0 0 10px; font-size:13px; line-height:1.75;">
+    <code>StageSceneController</code>/<code>DungeonSceneController</code>는 씬을 전환하지 않고 <b>Additive 로드</b>라
+    <code>GuidedTutorial</code>(DontDestroyOnLoad)이 계속 살아있음 - 별도 크로스씬 처리 불필요. 다만 전투 중
+    (<code>StageEncounterController.IsEncounterActive</code> / <code>DungeonEncounterController.IsEncounterActive</code>)엔
+    화살표가 전투 UI를 가리지 않도록 숨김(배너 텍스트는 유지, "진행률" 정도는 계속 보여도 방해되지 않음).
+    </p>
+  </div>
+
+  <footer>guided_tutorial_design_v2.html · 이 문서 작성 직후 바로 구현 진행</footer>
+</div>
+</body>
+</html>
