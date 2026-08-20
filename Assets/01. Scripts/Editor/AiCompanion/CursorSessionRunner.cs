@@ -41,6 +41,9 @@ public class CursorSessionRunner : IAiSessionRunner
     private string sessionId;
     private bool reloadLocked;
     private DateTime lastActivityUtc;
+    // Deferred until __exited__ instead of firing the instant "result" arrives - see
+    // ClaudeSessionRunner's turnCompletePending comment for the full rationale.
+    private bool turnCompletePending;
 
     public CursorSessionRunner(string workingDirectory)
     {
@@ -110,6 +113,7 @@ public class CursorSessionRunner : IAiSessionRunner
         };
 
         stderrBuffer.Clear();
+        turnCompletePending = false;
         LockReload();
         IsBusy = true;
         lastActivityUtc = DateTime.UtcNow;
@@ -151,6 +155,9 @@ public class CursorSessionRunner : IAiSessionRunner
 
         IsBusy = false;
         UnlockReload();
+        // Cancelling always wins over a deferred completion that arrived a moment before Kill() -
+        // see ClaudeSessionRunner.Kill()'s matching comment.
+        turnCompletePending = false;
     }
 
     private void LockReload()
@@ -223,8 +230,11 @@ public class CursorSessionRunner : IAiSessionRunner
         }
         else if (IsBusy && DateTime.UtcNow - lastActivityUtc > IdleTimeout)
         {
-            OnError?.Invoke($"cursor-agent 프로세스가 {IdleTimeout.TotalMinutes}분 동안 응답이 없어 강제 종료합니다.");
+            // Kill() first - see ClaudeSessionRunner.Pump()'s matching comment: it synchronously
+            // resets IsBusy/UnlockReload, so a queued follow-up CompanionSession tries to send off
+            // the back of this OnError won't silently no-op against a still-true IsBusy.
             Kill();
+            OnError?.Invoke($"cursor-agent 프로세스가 {IdleTimeout.TotalMinutes}분 동안 응답이 없어 강제 종료합니다.");
         }
     }
 
@@ -234,13 +244,20 @@ public class CursorSessionRunner : IAiSessionRunner
         {
             IsBusy = false;
             UnlockReload();
+
+            if (turnCompletePending)
+            {
+                turnCompletePending = false;
+                OnTurnComplete?.Invoke();
+            }
             // Only stderr from a process that actually failed is a real error - a clean exit
             // (code 0) means whatever it printed to stderr along the way was just diagnostic
             // noise (see stderrBuffer's declaration comment).
-            if (process != null && process.ExitCode != 0 && stderrBuffer.Length > 0)
+            else if (process != null && process.ExitCode != 0 && stderrBuffer.Length > 0)
             {
                 OnError?.Invoke(stderrBuffer.ToString().Trim());
             }
+
             stderrBuffer.Clear();
             return;
         }
@@ -304,7 +321,8 @@ public class CursorSessionRunner : IAiSessionRunner
         }
         else if (type == "result")
         {
-            OnTurnComplete?.Invoke();
+            // Deferred to __exited__ - see turnCompletePending's declaration comment.
+            turnCompletePending = true;
         }
     }
 }

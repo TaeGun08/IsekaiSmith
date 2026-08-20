@@ -38,6 +38,14 @@ public class CodexSessionRunner : IAiSessionRunner
     private string sessionId;
     private bool reloadLocked;
     private DateTime lastActivityUtc;
+    // Both deferred until __exited__ instead of firing the instant the JSON line arrives - see
+    // ClaudeSessionRunner's turnCompletePending comment for the full rationale
+    // (CompanionSession.AdvanceQueueOrNotify sends a queued follow-up synchronously off
+    // OnTurnComplete/OnError, and Runner.Send() silently no-ops while IsBusy is still true, which
+    // only flips false on __exited__). pendingErrorMessage doubles as "is an error pending" via
+    // null-check, so only one of the two should ever end up set for a given turn.
+    private bool turnCompletePending;
+    private string pendingErrorMessage;
 
     public CodexSessionRunner(string workingDirectory)
     {
@@ -118,6 +126,8 @@ public class CodexSessionRunner : IAiSessionRunner
         };
 
         stderrBuffer.Clear();
+        turnCompletePending = false;
+        pendingErrorMessage = null;
         LockReload();
         IsBusy = true;
         lastActivityUtc = DateTime.UtcNow;
@@ -162,6 +172,10 @@ public class CodexSessionRunner : IAiSessionRunner
 
         IsBusy = false;
         UnlockReload();
+        // Cancelling always wins over a deferred outcome that arrived a moment before Kill() -
+        // see ClaudeSessionRunner.Kill()'s matching comment.
+        turnCompletePending = false;
+        pendingErrorMessage = null;
     }
 
     private void LockReload()
@@ -237,8 +251,12 @@ public class CodexSessionRunner : IAiSessionRunner
         }
         else if (IsBusy && DateTime.UtcNow - lastActivityUtc > IdleTimeout)
         {
-            OnError?.Invoke($"codex 프로세스가 {IdleTimeout.TotalMinutes}분 동안 응답이 없어 강제 종료합니다.");
+            // Kill() first - it synchronously resets IsBusy/UnlockReload, so by the time this
+            // OnError reaches CompanionSession (which may immediately try to send a queued
+            // follow-up off the back of it), the runner is actually free to accept it instead of
+            // Runner.Send() silently no-opping on a still-true IsBusy.
             Kill();
+            OnError?.Invoke($"codex 프로세스가 {IdleTimeout.TotalMinutes}분 동안 응답이 없어 강제 종료합니다.");
         }
     }
 
@@ -248,13 +266,27 @@ public class CodexSessionRunner : IAiSessionRunner
         {
             IsBusy = false;
             UnlockReload();
+
+            if (pendingErrorMessage != null)
+            {
+                string message = pendingErrorMessage;
+                pendingErrorMessage = null;
+                turnCompletePending = false;
+                OnError?.Invoke(message);
+            }
+            else if (turnCompletePending)
+            {
+                turnCompletePending = false;
+                OnTurnComplete?.Invoke();
+            }
             // Only stderr from a process that actually failed is a real error - a clean exit
             // (code 0) means whatever it printed to stderr along the way was just diagnostic
             // noise (see stderrBuffer's declaration comment).
-            if (process != null && process.ExitCode != 0 && stderrBuffer.Length > 0)
+            else if (process != null && process.ExitCode != 0 && stderrBuffer.Length > 0)
             {
                 OnError?.Invoke(stderrBuffer.ToString().Trim());
             }
+
             stderrBuffer.Clear();
             return;
         }
@@ -292,16 +324,17 @@ public class CodexSessionRunner : IAiSessionRunner
         }
         else if (type == "turn.completed")
         {
-            OnTurnComplete?.Invoke();
+            // Deferred to __exited__ - see turnCompletePending's declaration comment.
+            turnCompletePending = true;
         }
         else if (type == "turn.failed")
         {
             JObject error = json["error"] as JObject;
-            OnError?.Invoke(error?.Value<string>("message") ?? "알 수 없는 오류가 발생했습니다.");
+            pendingErrorMessage = error?.Value<string>("message") ?? "알 수 없는 오류가 발생했습니다.";
         }
         else if (type == "error")
         {
-            OnError?.Invoke(json.Value<string>("message") ?? "알 수 없는 오류가 발생했습니다.");
+            pendingErrorMessage = json.Value<string>("message") ?? "알 수 없는 오류가 발생했습니다.";
         }
     }
 
@@ -336,7 +369,8 @@ public class CodexSessionRunner : IAiSessionRunner
                 OnToolActivity?.Invoke("tool_result received");
                 break;
             case "error":
-                OnError?.Invoke(item.Value<string>("message") ?? "알 수 없는 오류가 발생했습니다.");
+                // Deferred to __exited__ too - see turnCompletePending's declaration comment.
+                pendingErrorMessage = item.Value<string>("message") ?? "알 수 없는 오류가 발생했습니다.";
                 break;
         }
     }

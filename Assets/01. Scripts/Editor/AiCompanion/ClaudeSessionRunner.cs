@@ -35,6 +35,14 @@ public class ClaudeSessionRunner : IAiSessionRunner
     private string sessionId;
     private bool reloadLocked;
     private DateTime lastActivityUtc;
+    // Set when the "result" line arrives, but OnTurnComplete itself isn't fired until __exited__
+    // (see HandleLine) - CompanionSession.AdvanceQueueOrNotify sends the next queued message
+    // synchronously off OnTurnComplete, and Runner.Send() silently no-ops while IsBusy is still
+    // true. IsBusy only flips to false on __exited__, which (in the same Pump() drain) is
+    // typically processed right after "result" - so firing OnTurnComplete that early meant a
+    // queued follow-up message got dropped on the floor with no error, ever (2026-08-20 report:
+    // "입력을 보냈는데 갑자기 대기중으로 변경").
+    private bool turnCompletePending;
 
     public ClaudeSessionRunner(string workingDirectory)
     {
@@ -125,6 +133,7 @@ public class ClaudeSessionRunner : IAiSessionRunner
         };
 
         stderrBuffer.Clear();
+        turnCompletePending = false;
         // Defer any pending domain reload (script recompile) until this turn finishes,
         // so a compile elsewhere in the project doesn't kill an in-flight response.
         LockReload();
@@ -180,6 +189,11 @@ public class ClaudeSessionRunner : IAiSessionRunner
 
         IsBusy = false;
         UnlockReload();
+        // Cancelling always wins, even if "result" had already arrived a moment before Kill() -
+        // otherwise the killed process's later __exited__ would still fire a deferred
+        // OnTurnComplete for a turn the caller (CompanionSession.CancelTurn) already treated as
+        // cancelled and advanced past.
+        turnCompletePending = false;
     }
 
     private void LockReload()
@@ -258,8 +272,12 @@ private static string cachedClaudePath;
         }
         else if (IsBusy && DateTime.UtcNow - lastActivityUtc > IdleTimeout)
         {
-            OnError?.Invoke($"claude 프로세스가 {IdleTimeout.TotalMinutes}분 동안 응답이 없어 강제 종료합니다.");
+            // Kill() first - it synchronously resets IsBusy/UnlockReload, so by the time this
+            // OnError reaches CompanionSession (which may immediately try to send a queued
+            // follow-up off the back of it), the runner is actually free to accept it instead of
+            // Runner.Send() silently no-opping on a still-true IsBusy.
             Kill();
+            OnError?.Invoke($"claude 프로세스가 {IdleTimeout.TotalMinutes}분 동안 응답이 없어 강제 종료합니다.");
         }
     }
 
@@ -269,13 +287,25 @@ private static string cachedClaudePath;
         {
             IsBusy = false;
             UnlockReload();
+
+            if (turnCompletePending)
+            {
+                // The reply already arrived successfully ("result" was seen) - fire now that
+                // IsBusy is actually false, so a queued follow-up message (see turnCompletePending's
+                // declaration comment) can really be sent instead of silently dropped. A stray
+                // nonzero exit code after a successful reply isn't worth second-guessing here,
+                // same spirit as the stderr-buffering below.
+                turnCompletePending = false;
+                OnTurnComplete?.Invoke();
+            }
             // Only stderr from a process that actually failed is a real error - a clean exit
             // (code 0) means whatever it printed to stderr along the way was just diagnostic
             // noise (see stderrBuffer's declaration comment).
-            if (process != null && process.ExitCode != 0 && stderrBuffer.Length > 0)
+            else if (process != null && process.ExitCode != 0 && stderrBuffer.Length > 0)
             {
                 OnError?.Invoke(stderrBuffer.ToString().Trim());
             }
+
             stderrBuffer.Clear();
             return;
         }
@@ -336,7 +366,9 @@ private static string cachedClaudePath;
         }
         else if (type == "result")
         {
-            OnTurnComplete?.Invoke();
+            // Deferred to __exited__ (see turnCompletePending's declaration comment) instead of
+            // firing immediately here - IsBusy is still true at this exact point.
+            turnCompletePending = true;
         }
         else if (type == "system")
         {
