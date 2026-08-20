@@ -124,7 +124,12 @@ public class CursorSessionRunner : IAiSessionRunner
         {
             if (process != null && !process.HasExited)
             {
-                process.Kill();
+                // entireProcessTree: true - see ClaudeSessionRunner.Kill()'s comment. Whether
+                // cursor-agent resolves to a direct executable or a wrapping shell shim can vary
+                // by install method, so this is the safe default either way: it never leaves a
+                // grandchild process alive to keep writing into outputQueue after this "cancel"
+                // was supposed to end the turn.
+                process.Kill(entireProcessTree: true);
             }
         }
         catch (Exception)

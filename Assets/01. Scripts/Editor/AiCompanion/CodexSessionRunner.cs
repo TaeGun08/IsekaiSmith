@@ -146,7 +146,11 @@ public class CodexSessionRunner : IAiSessionRunner
         {
             if (process != null && !process.HasExited)
             {
-                process.Kill();
+                // entireProcessTree: true - see ClaudeSessionRunner.Kill()'s comment. codex.cmd is
+                // the same kind of cmd.exe-wrapping batch shim, so a plain Kill() would only kill
+                // the wrapper and leave the real codex process running (and still able to feed
+                // stale events into outputQueue after this "cancel" was supposed to end the turn).
+                process.Kill(entireProcessTree: true);
             }
         }
         catch (Exception)

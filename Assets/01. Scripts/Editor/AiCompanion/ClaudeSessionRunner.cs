@@ -160,7 +160,16 @@ public class ClaudeSessionRunner : IAiSessionRunner
         {
             if (process != null && !process.HasExited)
             {
-                process.Kill();
+                // entireProcessTree: true - ResolveClaudeExecutablePath() resolves to claude.cmd
+                // on Windows, a batch shim .NET launches through cmd.exe (see the comment on
+                // Send()'s command-line-length limit above), so the tracked `process` is that
+                // cmd.exe wrapper, not the real claude/node process running underneath it. A
+                // plain Kill() only killed the wrapper - the actual CLI kept running in the
+                // background, unaware anything had "cancelled" it, and its later __exited__/
+                // result output still landed in this same outputQueue and got misread as
+                // belonging to whatever turn was running by then (surfacing as the character
+                // snapping back to Idle mid-turn - user report, 2026-08-20).
+                process.Kill(entireProcessTree: true);
             }
         }
         catch (Exception)
