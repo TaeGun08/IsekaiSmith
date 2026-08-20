@@ -7,7 +7,8 @@ using UnityEngine.UI;
 // at runtime like the game's other self-built UI, so no prefab/scene wiring is needed. Spawned,
 // positioned, and despawned by CustomerVisualManager - this class only knows how to walk to a
 // target and show/hide its own order display; it has no idea what a "slot" or "order queue" is.
-// See customer_order_design_v4.html §2/§3.
+// See customer_order_design_v7.html §3 - only the front-of-line customer is ever interactable
+// (SetInteractable), everyone behind them just stands and shows their own requested count.
 public class Customer : MonoBehaviour
 {
     private const float WalkSpeed = 2.4f;
@@ -15,12 +16,14 @@ public class Customer : MonoBehaviour
 
     private Transform bubbleRoot;
     private TMP_Text gradeLabel;
-    private Image patienceFillImage;
+    private Image progressFillImage;
+    private Image bubbleBackgroundImage;
     private Button bubbleButton;
 
-    private readonly Color patienceGood = new Color(0.35f, 0.62f, 0.32f);
-    private readonly Color patienceBad = new Color(0.82f, 0.28f, 0.1f);
-    private const float PatienceBarWidth = 150f;
+    private readonly Color progressFillColor = new Color(0.35f, 0.62f, 0.32f);
+    private readonly Color activeBubbleAlpha = new Color(1f, 1f, 1f, 0.98f);
+    private readonly Color inactiveBubbleAlpha = new Color(1f, 1f, 1f, 0.55f);
+    private const float ProgressBarWidth = 150f;
 
     private Vector3 walkTarget;
     private bool despawnOnArrive;
@@ -66,10 +69,10 @@ public class Customer : MonoBehaviour
         bgRect.anchorMax = Vector2.one;
         bgRect.offsetMin = Vector2.zero;
         bgRect.offsetMax = Vector2.zero;
-        var bgImage = bg.GetComponent<Image>();
-        bgImage.color = new Color(0.97f, 0.93f, 0.85f, 0.98f);
+        bubbleBackgroundImage = bg.GetComponent<Image>();
+        bubbleBackgroundImage.color = new Color(0.97f, 0.93f, 0.85f, 0.98f);
         // Not the tap target itself (see TapZone below) - visual only, must not steal raycasts.
-        bgImage.raycastTarget = false;
+        bubbleBackgroundImage.raycastTarget = false;
 
         // Queue slots stand only 1.4m apart (QueuePoint0/1/2 in the scene), but this bubble is a
         // full 2.2m wide (canvasRect 220 * 0.01 world scale) - if the whole background were the
@@ -94,26 +97,26 @@ public class Customer : MonoBehaviour
         gradeLabel.color = new Color(0.16f, 0.13f, 0.1f);
         gradeLabel.fontStyle = FontStyles.Bold;
 
-        var patienceBg = new GameObject("PatienceBg", typeof(RectTransform), typeof(Image));
-        patienceBg.transform.SetParent(bg.transform, false);
-        var patienceBgRect = patienceBg.GetComponent<RectTransform>();
-        patienceBgRect.anchorMin = new Vector2(0.5f, 0f);
-        patienceBgRect.anchorMax = new Vector2(0.5f, 0f);
-        patienceBgRect.pivot = new Vector2(0.5f, 0f);
-        patienceBgRect.anchoredPosition = new Vector2(0f, 16f);
-        patienceBgRect.sizeDelta = new Vector2(PatienceBarWidth, 16f);
-        patienceBg.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.2f);
+        var progressBg = new GameObject("ProgressBg", typeof(RectTransform), typeof(Image));
+        progressBg.transform.SetParent(bg.transform, false);
+        var progressBgRect = progressBg.GetComponent<RectTransform>();
+        progressBgRect.anchorMin = new Vector2(0.5f, 0f);
+        progressBgRect.anchorMax = new Vector2(0.5f, 0f);
+        progressBgRect.pivot = new Vector2(0.5f, 0f);
+        progressBgRect.anchoredPosition = new Vector2(0f, 16f);
+        progressBgRect.sizeDelta = new Vector2(ProgressBarWidth, 16f);
+        progressBg.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.2f);
 
-        var fillGO = new GameObject("PatienceFill", typeof(RectTransform), typeof(Image));
-        fillGO.transform.SetParent(patienceBg.transform, false);
+        var fillGO = new GameObject("ProgressFill", typeof(RectTransform), typeof(Image));
+        fillGO.transform.SetParent(progressBg.transform, false);
         var fillRect = fillGO.GetComponent<RectTransform>();
         fillRect.anchorMin = new Vector2(0f, 0f);
         fillRect.anchorMax = new Vector2(0f, 1f);
         fillRect.pivot = new Vector2(0f, 0.5f);
         fillRect.anchoredPosition = Vector2.zero;
-        fillRect.sizeDelta = new Vector2(PatienceBarWidth, 0f);
-        patienceFillImage = fillGO.GetComponent<Image>();
-        patienceFillImage.color = patienceGood;
+        fillRect.sizeDelta = new Vector2(0f, 0f);
+        progressFillImage = fillGO.GetComponent<Image>();
+        progressFillImage.color = progressFillColor;
     }
 
     private TMP_Text MakeText(Transform parent, string name, int fontSize, Vector2 anchoredPos, Vector2 size)
@@ -132,13 +135,25 @@ public class Customer : MonoBehaviour
         return tmp;
     }
 
-    // Called by CustomerVisualManager every frame the order is still active - grade rarely
-    // changes (never, in practice - one order per customer) but patience does.
-    public void SetOrder(CraftGrade minGrade, float patience01)
+    // Called by CustomerVisualManager every frame the order is still active - shows delivered/
+    // requested (e.g. "1/3") and fills the bar to match (customer_order_design_v7.html §1/§3 -
+    // no grade requirement to show anymore, just a count).
+    public void SetOrder(int deliveredCount, int requestedCount)
     {
-        gradeLabel.text = CraftGradeUtility.DisplayName(minGrade) + "+";
-        patienceFillImage.rectTransform.sizeDelta = new Vector2(PatienceBarWidth * patience01, 0f);
-        patienceFillImage.color = Color.Lerp(patienceBad, patienceGood, patience01);
+        gradeLabel.text = deliveredCount + " / " + requestedCount;
+        float progress01 = requestedCount > 0 ? (float)deliveredCount / requestedCount : 0f;
+        progressFillImage.rectTransform.sizeDelta = new Vector2(ProgressBarWidth * progress01, 0f);
+    }
+
+    // Only the front-of-line customer can actually be served right now (OrderQueueManager.
+    // TryFulfill always targets queue[0]) - everyone behind them still shows their order but their
+    // bubble shouldn't invite a tap that would silently do nothing useful.
+    public void SetInteractable(bool interactable)
+    {
+        bubbleButton.interactable = interactable;
+        bubbleBackgroundImage.color = interactable
+            ? new Color(0.97f, 0.93f, 0.85f, activeBubbleAlpha.a)
+            : new Color(0.97f, 0.93f, 0.85f, inactiveBubbleAlpha.a);
     }
 
     public void WalkTo(Vector3 groundPosition)

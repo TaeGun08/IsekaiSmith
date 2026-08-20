@@ -1,23 +1,21 @@
-using UnityEngine;
-
-// Plain data for one order occupying a counter slot - no MonoBehaviour, so OrderQueueManager can
-// hold a plain array of these instead of juggling child GameObjects for state that never needs a
-// Transform of its own.
+// Plain data for one customer standing in the sales counter's line - no MonoBehaviour, so
+// OrderQueueManager can hold a plain list of these instead of juggling child GameObjects for state
+// that never needs a Transform of its own. No grade requirement anymore (customer_order_design_
+// v7.html §1) - a customer just wants RequestedCount weapons, period; OrderQueueManager matches
+// against counter stock regardless of grade (cheapest/oldest first), so which grade actually
+// changes hands is a payout detail, not an order-eligibility one.
 public class CustomerOrder
 {
     public readonly int Id;
-    public readonly CraftGrade MinGrade;
-    public readonly float PatienceMax;
+    public readonly int RequestedCount;
 
-    public float PatienceRemaining;
+    public int DeliveredCount;
 
-    public CustomerOrder(int id, CraftGrade minGrade, float patienceMax)
+    public CustomerOrder(int id, int requestedCount)
     {
         Id = id;
-        MinGrade = minGrade;
-        PatienceMax = patienceMax;
-        PatienceRemaining = patienceMax;
+        RequestedCount = requestedCount;
     }
 
-    public float Patience01 => PatienceMax > 0f ? Mathf.Clamp01(PatienceRemaining / PatienceMax) : 0f;
+    public bool IsComplete => DeliveredCount >= RequestedCount;
 }

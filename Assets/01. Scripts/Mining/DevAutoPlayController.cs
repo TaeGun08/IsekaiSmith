@@ -386,7 +386,7 @@ public class DevAutoPlayController : MonoBehaviour
                 return false;
 
             case Goal.Depot:
-                return targetDepot != null && cachedCarryStack.GetCount(targetDepot.AcceptedLayer) > 0;
+                return targetDepot != null && CarriedAnyAcceptedLayer(targetDepot);
 
             case Goal.Smithy:
                 return targetSmithy != null;
@@ -396,21 +396,28 @@ public class DevAutoPlayController : MonoBehaviour
         }
     }
 
-    private void ChooseGoal()
+    // Any accepted layer being full is reason enough to head to the (now singular) storage box -
+    // it takes Wood/Ore/ManaStone all through the same object, so there's no more "which depot"
+    // branching to do per resource.
+    private bool CarriedAnyAcceptedLayer(StorageDepot depot)
     {
-        if (cachedCarryStack.IsFull(CarryLayer.Ore))
+        CarryLayer[] layers = depot.AcceptedLayers;
+        for (int i = 0; i < layers.Length; i++)
         {
-            StorageDepot depot = FindNearest(FindObjectsByType<StorageDepot>(FindObjectsSortMode.None), d => d.AcceptedLayer == CarryLayer.Ore, d => d.transform.position);
-            if (depot != null)
+            if (cachedCarryStack.GetCount(layers[i]) > 0)
             {
-                SetDepotGoal(depot);
-                return;
+                return true;
             }
         }
 
-        if (cachedCarryStack.IsFull(CarryLayer.Wood))
+        return false;
+    }
+
+    private void ChooseGoal()
+    {
+        if (cachedCarryStack.IsFull(CarryLayer.Ore) || cachedCarryStack.IsFull(CarryLayer.Wood))
         {
-            StorageDepot depot = FindNearest(FindObjectsByType<StorageDepot>(FindObjectsSortMode.None), d => d.AcceptedLayer == CarryLayer.Wood, d => d.transform.position);
+            StorageDepot depot = FindNearest(FindObjectsByType<StorageDepot>(FindObjectsSortMode.None), d => true, d => d.transform.position);
             if (depot != null)
             {
                 SetDepotGoal(depot);

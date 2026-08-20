@@ -6,13 +6,14 @@ public enum CarryLayer
 {
     Ore,
     Wood,
-    ManaStone
+    ManaStone,
+    Weapon
 }
 
 public class CarryStack : MonoBehaviour
 {
     // Keep in sync with CarryLayer's member count - see LocalSlotPosition/Awake.
-    private const int LayerCount = 3;
+    private const int LayerCount = 4;
 
     [SerializeField] private Transform stackAnchor;
     [SerializeField] private int oreCapacity = 8;
@@ -21,11 +22,19 @@ public class CarryStack : MonoBehaviour
     // trickle, not a farm. Also the first field meant to be raised later by a gold-cost carry
     // capacity upgrade (not built yet - see combat_design_v1.html follow-up notes).
     [SerializeField] private int manaCapacity = 6;
+    // QUICK CRAFT output (customer_order_design_v7.html §2/§4) - carried from the smithy to the
+    // sales counter instead of teleporting straight into ToolInventory. Small on purpose, same
+    // rationale as manaCapacity: keeps the carry loop as a steady trickle of trips, not a single
+    // dump-everything haul.
+    [SerializeField] private int weaponCapacity = 6;
     [SerializeField] private float itemHeight = 0.5f;
     [SerializeField] private float woodItemHeight = 0.4f;
     [SerializeField] private float manaItemHeight = 0.22f;
+    [SerializeField] private float weaponItemHeight = 0.3f;
     [SerializeField] private float woodBackOffset = 0.35f;
     [SerializeField] private float manaSideOffset = 0.4f;
+    // Opposite side from manaSideOffset - keeps every layer's pile visually separate at a glance.
+    [SerializeField] private float weaponSideOffset = 0.4f;
     [SerializeField] private float swayAmplitude = 6f;
     [SerializeField] private float swaySpeed = 6f;
     [SerializeField] private float flightDuration = 0.4f;
@@ -49,7 +58,7 @@ public class CarryStack : MonoBehaviour
     private void Awake()
     {
         body = GetComponentInParent<Rigidbody>();
-        capacities = new[] { oreCapacity, woodCapacity, manaCapacity };
+        capacities = new[] { oreCapacity, woodCapacity, manaCapacity, weaponCapacity };
 
         for (int i = 0; i < LayerCount; i++)
         {
@@ -94,9 +103,20 @@ public class CarryStack : MonoBehaviour
                 return new Vector3(0f, index * woodItemHeight, -woodBackOffset);
             case CarryLayer.ManaStone:
                 return new Vector3(manaSideOffset, index * manaItemHeight, 0f);
+            case CarryLayer.Weapon:
+                return new Vector3(-weaponSideOffset, index * weaponItemHeight, 0f);
             default:
                 return new Vector3(0f, index * itemHeight, 0f);
         }
+    }
+
+    // Weapons lie flat, laid crosswise over the back (blade running left-right) instead of
+    // pointing straight forward/back like every other layer's default identity rotation - reads
+    // clearly as "a sword laid down" rather than "a lance" (사용자 요청 2026-08-21: "손에 검을 들
+    // 때 가로로 눕혀서 쌓이도록"). Every other layer keeps the plain identity rotation it already had.
+    private static Quaternion LocalSlotRotation(CarryLayer layer)
+    {
+        return layer == CarryLayer.Weapon ? Quaternion.Euler(0f, 90f, 0f) : Quaternion.identity;
     }
 
     public void Clear(CarryLayer layer)
@@ -125,6 +145,35 @@ public class CarryStack : MonoBehaviour
         {
             Clear((CarryLayer)i);
         }
+    }
+
+    // Pulls exactly the top (most recently stacked) item and flies it to targetPosition, instead
+    // of Deposit()'s "transfer the whole pile in one instant" - lets a depot pace deposits out one
+    // at a time (see StorageDepot/OrderQueueManager) so the conveyor-belt effect actually reads as
+    // individual items leaving, not the whole stack teleporting away the moment the count updates.
+    // Removes from the end of the list (the most recently added, i.e. visually topmost item) so
+    // every remaining item keeps the exact slot index - and therefore position - it already had;
+    // no repositioning pass needed. Returns false if the layer is already empty.
+    public bool TryDepositOne(CarryLayer layer, Vector3 targetPosition)
+    {
+        List<Transform> items = itemsByLayer[(int)layer];
+        if (items.Count == 0)
+        {
+            return false;
+        }
+
+        int lastIndex = items.Count - 1;
+        Transform item = items[lastIndex];
+        items.RemoveAt(lastIndex);
+        reservedByLayer[(int)layer]--;
+
+        if (item != null)
+        {
+            item.SetParent(null, true);
+            StartCoroutine(DepositFlightRoutine(item, targetPosition, 0f));
+        }
+
+        return true;
     }
 
     public void Deposit(CarryLayer layer, Vector3 targetPosition)
@@ -246,7 +295,7 @@ public class CarryStack : MonoBehaviour
 
         item.SetParent(stackAnchor, false);
         item.localPosition = targetLocalPosition;
-        item.localRotation = Quaternion.identity;
+        item.localRotation = LocalSlotRotation(layer);
 
         itemsByLayer[(int)layer].Add(item);
     }
@@ -263,16 +312,22 @@ public class CarryStack : MonoBehaviour
 
         for (int i = 0; i < LayerCount; i++)
         {
-            ApplySway(itemsByLayer[i], sway);
+            ApplySway(itemsByLayer[i], (CarryLayer)i, sway);
         }
     }
 
-    private static void ApplySway(List<Transform> items, float sway)
+    // Composes the sway on top of each layer's own resting rotation (LocalSlotRotation) instead of
+    // overwriting localRotation outright - previously this always wrote a Z-only Euler, which was
+    // harmless while every layer rested at identity but would have silently un-rotated the Weapon
+    // layer's crosswise-lie the moment the player started moving.
+    private static void ApplySway(List<Transform> items, CarryLayer layer, float sway)
     {
+        Quaternion rest = LocalSlotRotation(layer);
+
         for (int i = 0; i < items.Count; i++)
         {
             float weight = (i + 1f) / items.Count;
-            items[i].localRotation = Quaternion.Euler(0f, 0f, sway * weight);
+            items[i].localRotation = rest * Quaternion.Euler(0f, 0f, sway * weight);
         }
     }
 }

@@ -1,53 +1,70 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-// Runs the sales counter's order logic: fixed slots hold CustomerOrders, empty slots refill on a
-// short delay (shorter during rush hour), patience ticks down per slot, and TryFulfill() checks a
-// slot against ToolInventory for a payout. Simulation always runs (customers keep arriving/waiting/
-// leaving whether or not the player is nearby - a shop that's only "open" when you're standing at
-// the counter felt lifeless in testing); PlayerNear only gates TryFulfill, since you still have to
-// physically walk up to hand over the goods. Pure order logic - CustomerVisualManager (sibling
-// component) polls Slots/InRush to drive the physical customer characters; this class has no idea
-// they exist. See customer_order_design_v4.html.
+// Runs the sales counter: a single-file line of CustomerOrders (index 0 = the one actually being
+// served) fed by two separate things the player has to do in person - carry QUICK CRAFT weapons
+// over from the smithy (auto-deposited into counter stock on approach, StorageDepot-style) and tap
+// the front customer's speech bubble to hand some over. No per-order grade requirement anymore -
+// a customer just wants RequestedCount weapons; TryFulfill spends counter stock cheapest(oldest)-
+// grade-first and pays per unit at whatever grade that unit actually was, so a mid-queue forge
+// upgrade never strands an order (old stock keeps selling until it's gone, then the exact same
+// order keeps being served from new stock with nothing to reconcile). No patience/time limit and
+// no reputation system either - customer_order_design_v7.html §0 Q3 dropped both; a customer just
+// waits until stock shows up. Simulation always runs (customers keep arriving/waiting whether or
+// not the player is nearby - CustomerVisualManager polls Queue to drive the physical characters);
+// PlayerNear only gates deposit/fulfill, since both still require physically being at the counter.
+// See customer_order_design_v7.html.
 public class OrderQueueManager : MonoBehaviour
 {
     [Header("Counter")]
     [SerializeField] private float interactRadius = 2.5f;
-    [SerializeField] private int slotCount = 3;
+    // Conveyor-belt pacing (Pizza Ready / hyper-casual tycoon reference, 사용자 요청 2026-08-21) -
+    // same one-item-at-a-time, only-while-in-zone, ramping-up rhythm as StorageDepot instead of the
+    // old "dump the whole carried stack in a single instant transfer". See StorageDepot's matching
+    // fields for the full rationale.
+    [SerializeField] private float depositIntervalStart = 0.32f;
+    [SerializeField] private float depositIntervalFloor = 0.06f;
+    [SerializeField] private float depositIntervalAcceleration = 0.82f;
+    // Only one customer at a time (사용자 요청 2026-08-21: "손님은 한명씩 차례로 오는 걸로") - the
+    // v7 rework's multi-person line read as several customers all waiting/ordering at once, which
+    // wasn't the intent. The next customer simply arrives on the usual arrival-pacing delay once
+    // this one's order is fully delivered and removed from the queue.
+    [SerializeField] private int maxQueueLength = 1;
 
-    [Header("Refill Pacing")]
-    [SerializeField] private float refillDelayMin = 1f;
-    [SerializeField] private float refillDelayMax = 2f;
+    [Header("Arrival Pacing")]
+    [SerializeField] private float arrivalIntervalMin = 3f;
+    [SerializeField] private float arrivalIntervalMax = 5f;
 
     [Header("Rush Wave")]
     [SerializeField] private float waveIntervalMin = 60f;
     [SerializeField] private float waveIntervalMax = 90f;
     [SerializeField] private float waveDurationMin = 8f;
     [SerializeField] private float waveDurationMax = 12f;
-    [SerializeField] private float rushRefillDelayMin = 0.3f;
-    [SerializeField] private float rushRefillDelayMax = 0.6f;
+    [SerializeField] private float rushArrivalIntervalMin = 1f;
+    [SerializeField] private float rushArrivalIntervalMax = 2f;
 
     [Header("Order Content")]
-    [SerializeField] private CraftGrade minGradeFloor = CraftGrade.Rough;
-    // Capped at Common ("일반 등급") per playtest feedback - Superior+ felt out of reach for
-    // early play since QUICK CRAFT only ever produces Fine and precise crafting needs real skill.
-    [SerializeField] private CraftGrade minGradeCeiling = CraftGrade.Common;
-    [SerializeField] private float patienceForRough = 25f;
-    [SerializeField] private float patiencePerGradeStep = 6f;
+    [SerializeField] private int minRequestedCount = 1;
+    [SerializeField] private int maxRequestedCount = 3;
 
-    [Header("Payout")]
-    [SerializeField] private float speedBonusMax = 0.5f;
+    private static readonly CraftGrade[] AscendingGrades = (CraftGrade[])Enum.GetValues(typeof(CraftGrade));
 
-    private CustomerOrder[] slots;
-    private float[] refillTimers;
+    private readonly List<CustomerOrder> queue = new List<CustomerOrder>();
+    private readonly Dictionary<CraftGrade, int> counterStock = new Dictionary<CraftGrade, int>();
+
     private int nextOrderId;
+    private float arrivalTimer;
+    private float depositTimer;
+    private float currentDepositInterval;
+    private CarryStack playerCarryStack;
 
     private bool inRush;
     private float waveClock;
     private float waveClockTarget;
 
     public bool PlayerNear { get; private set; }
-    public IReadOnlyList<CustomerOrder> Slots => slots;
+    public IReadOnlyList<CustomerOrder> Queue => queue;
     public bool InRush => inRush;
 
     // Lets GuidedTutorial hide its floor arrow once the player is already within interacting
@@ -56,15 +73,9 @@ public class OrderQueueManager : MonoBehaviour
 
     private void Awake()
     {
-        slots = new CustomerOrder[slotCount];
-        refillTimers = new float[slotCount];
-        waveClockTarget = Random.Range(waveIntervalMin, waveIntervalMax);
-
-        for (int i = 0; i < slotCount; i++)
-        {
-            refillTimers[i] = Random.Range(refillDelayMin, refillDelayMax);
-        }
-
+        waveClockTarget = UnityEngine.Random.Range(waveIntervalMin, waveIntervalMax);
+        arrivalTimer = UnityEngine.Random.Range(arrivalIntervalMin, arrivalIntervalMax);
+        currentDepositInterval = depositIntervalStart;
         InteractionPadIndicator.Attach(transform, interactRadius);
     }
 
@@ -74,7 +85,8 @@ public class OrderQueueManager : MonoBehaviour
             (PlayerMotor.Instance.transform.position - transform.position).sqrMagnitude <= interactRadius * interactRadius;
 
         TickWave(Time.deltaTime);
-        TickSlots(Time.deltaTime);
+        TickArrivals(Time.deltaTime);
+        TickDeposit(Time.deltaTime);
     }
 
     private void TickWave(float dt)
@@ -88,76 +100,143 @@ public class OrderQueueManager : MonoBehaviour
         waveClock = 0f;
         inRush = !inRush;
         waveClockTarget = inRush
-            ? Random.Range(waveDurationMin, waveDurationMax)
-            : Random.Range(waveIntervalMin, waveIntervalMax);
+            ? UnityEngine.Random.Range(waveDurationMin, waveDurationMax)
+            : UnityEngine.Random.Range(waveIntervalMin, waveIntervalMax);
     }
 
-    private void TickSlots(float dt)
+    private void TickArrivals(float dt)
     {
-        for (int i = 0; i < slotCount; i++)
+        if (queue.Count >= maxQueueLength)
         {
-            if (slots[i] == null)
-            {
-                refillTimers[i] -= dt;
-                if (refillTimers[i] <= 0f)
-                {
-                    SpawnOrder(i);
-                }
+            return;
+        }
 
+        arrivalTimer -= dt;
+        if (arrivalTimer > 0f)
+        {
+            return;
+        }
+
+        arrivalTimer = NextArrivalDelay();
+        int count = UnityEngine.Random.Range(minRequestedCount, maxRequestedCount + 1);
+        queue.Add(new CustomerOrder(nextOrderId++, count));
+    }
+
+    private float NextArrivalDelay()
+    {
+        return inRush
+            ? UnityEngine.Random.Range(rushArrivalIntervalMin, rushArrivalIntervalMax)
+            : UnityEngine.Random.Range(arrivalIntervalMin, arrivalIntervalMax);
+    }
+
+    // Auto-deposit, same pacing as StorageDepot: standing near the counter with QUICK CRAFT
+    // weapons on CarryLayer.Weapon pulls them into counter stock one at a time, ramping up the
+    // longer the player stays in the zone, and only while they're actually in it (see
+    // StorageDepot's matching fields for the full rationale). Grade is resolved right now
+    // (ForgeUpgrade.CurrentTier), not tracked back to whenever each item was actually crafted -
+    // same "resolve at deposit" convention OreBank.DepositMined already uses.
+    private void TickDeposit(float dt)
+    {
+        if (!PlayerNear)
+        {
+            currentDepositInterval = depositIntervalStart;
+            depositTimer = 0f;
+            return;
+        }
+
+        depositTimer -= dt;
+        if (depositTimer > 0f)
+        {
+            return;
+        }
+
+        if (playerCarryStack == null)
+        {
+            playerCarryStack = PlayerMotor.Instance.GetComponentInChildren<CarryStack>();
+            if (playerCarryStack == null)
+            {
+                return;
+            }
+        }
+
+        if (playerCarryStack.GetCount(CarryLayer.Weapon) <= 0)
+        {
+            depositTimer = depositIntervalStart;
+            return;
+        }
+
+        if (!playerCarryStack.TryDepositOne(CarryLayer.Weapon, transform.position + Vector3.up * 0.4f))
+        {
+            depositTimer = depositIntervalStart;
+            return;
+        }
+
+        CraftGrade grade = ForgeUpgrade.CurrentTier;
+        counterStock[grade] = GetStock(grade) + 1;
+
+        depositTimer = currentDepositInterval;
+        currentDepositInterval = Mathf.Max(depositIntervalFloor, currentDepositInterval * depositIntervalAcceleration);
+    }
+
+    private int GetStock(CraftGrade grade)
+    {
+        return counterStock.TryGetValue(grade, out int value) ? value : 0;
+    }
+
+    // Called when the player taps the front customer's speech bubble (see Customer/
+    // CustomerVisualManager - only the front of the line gets a tappable bubble). Delivers as much
+    // of the remaining request as counter stock allows, cheapest grade first - may be a partial
+    // delivery if stock runs short, in which case the same order just waits for more. Pays per
+    // unit actually handed over. Returns whether anything was delivered.
+    public bool TryFulfill()
+    {
+        if (!PlayerNear || queue.Count == 0)
+        {
+            return false;
+        }
+
+        CustomerOrder order = queue[0];
+        int remaining = order.RequestedCount - order.DeliveredCount;
+        if (remaining <= 0)
+        {
+            return false;
+        }
+
+        int delivered = 0;
+        int payout = 0;
+
+        foreach (CraftGrade grade in AscendingGrades)
+        {
+            int stock = GetStock(grade);
+            int take = Mathf.Min(stock, remaining - delivered);
+            if (take <= 0)
+            {
                 continue;
             }
 
-            slots[i].PatienceRemaining -= dt;
-            if (slots[i].PatienceRemaining <= 0f)
+            counterStock[grade] = stock - take;
+            payout += SalesPricing.BaseFor(grade) * take;
+            delivered += take;
+
+            if (delivered >= remaining)
             {
-                ExpireOrder(i);
+                break;
             }
         }
-    }
 
-    private void SpawnOrder(int slotIndex)
-    {
-        CraftGrade minGrade = (CraftGrade)Random.Range((int)minGradeFloor, (int)minGradeCeiling + 1);
-        float patience = patienceForRough + patiencePerGradeStep * (int)minGrade;
-        slots[slotIndex] = new CustomerOrder(nextOrderId++, minGrade, patience);
-    }
-
-    private void ExpireOrder(int slotIndex)
-    {
-        slots[slotIndex] = null;
-        refillTimers[slotIndex] = NextRefillDelay();
-        Reputation.OnOrderFailed();
-    }
-
-    private float NextRefillDelay()
-    {
-        return inRush
-            ? Random.Range(rushRefillDelayMin, rushRefillDelayMax)
-            : Random.Range(refillDelayMin, refillDelayMax);
-    }
-
-    // Called when the player taps a customer's speech bubble (see Customer/CustomerVisualManager).
-    // Returns whether it was fulfilled.
-    public bool TryFulfill(int slotIndex)
-    {
-        if (!PlayerNear || slotIndex < 0 || slotIndex >= slots.Length)
+        if (delivered <= 0)
         {
             return false;
         }
 
-        CustomerOrder order = slots[slotIndex];
-        if (order == null || !ToolInventory.TrySpendAtLeast(order.MinGrade, out CraftGrade spentGrade))
+        order.DeliveredCount += delivered;
+        SalesCurrency.Add(payout);
+
+        if (order.IsComplete)
         {
-            return false;
+            queue.RemoveAt(0);
         }
 
-        float speedBonus = order.Patience01 * speedBonusMax;
-        int pay = Mathf.RoundToInt(SalesPricing.BaseFor(spentGrade) * (1f + speedBonus) * Reputation.Multiplier);
-        SalesCurrency.Add(pay);
-        Reputation.OnOrderSuccess();
-
-        slots[slotIndex] = null;
-        refillTimers[slotIndex] = NextRefillDelay();
         return true;
     }
 }

@@ -3,14 +3,14 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// Drives the physical Customer instances for OrderQueueManager's slots - a pure presentation
-// layer that polls manager.Slots each frame (same pattern the old SalesCounterUI used) and diffs
-// against its own last-known customer array: order appeared -> spawn + walk in, order gone ->
-// walk the existing customer out and let it self-despawn. Runs regardless of player distance -
-// customers should keep arriving/waiting/leaving on their own even while the player is off
-// gathering, not just pop into existence the moment the player walks up to the counter
-// (playtest feedback). OrderQueueManager has no reference back to this class and doesn't know
-// customers exist - it only ever sees slot indices. See customer_order_design_v4.html.
+// Drives the physical Customer instances for OrderQueueManager's line - a pure presentation layer
+// that polls manager.Queue each frame and diffs against its own last-known-by-id map: a new order
+// id -> spawn a customer and walk it to its current line position, an order id no longer anywhere
+// in the queue -> walk that customer out and let it self-despawn. Runs regardless of player
+// distance - customers should keep arriving/waiting on their own even while the player is off
+// gathering, not just pop into existence the moment the player walks up to the counter (playtest
+// feedback). OrderQueueManager has no reference back to this class and doesn't know customers
+// exist. See customer_order_design_v7.html.
 [RequireComponent(typeof(OrderQueueManager))]
 public class CustomerVisualManager : MonoBehaviour
 {
@@ -18,23 +18,20 @@ public class CustomerVisualManager : MonoBehaviour
     [SerializeField] private Transform spawnPoint;
 
     private OrderQueueManager manager;
-    private Customer[] customers;
-    private int[] trackedOrderIds;
-    private const int NoOrder = -1;
+
+    // Keyed by CustomerOrder.Id rather than a fixed-size positional array - the queue compacts
+    // (RemoveAt(0)) whenever the front order finishes, so every remaining order's index shifts by
+    // one each time. Tracking by id lets an existing Customer just WalkTo its new queuePoint
+    // (stepping forward in line) instead of despawning/respawning from the spawn point on every
+    // single sale.
+    private readonly Dictionary<int, Customer> customersById = new Dictionary<int, Customer>();
+    private readonly List<int> staleIdsScratch = new List<int>();
 
     private TMP_Text rushLabel;
 
     private void Awake()
     {
         manager = GetComponent<OrderQueueManager>();
-        int slotCount = queuePoints != null ? queuePoints.Length : 0;
-        customers = new Customer[slotCount];
-        trackedOrderIds = new int[slotCount];
-        for (int i = 0; i < trackedOrderIds.Length; i++)
-        {
-            trackedOrderIds[i] = NoOrder;
-        }
-
         BuildRushLabel();
         BuildCounterVisual();
         BuildApproachPath();
@@ -117,35 +114,57 @@ public class CustomerVisualManager : MonoBehaviour
             rushLabel.transform.parent.rotation = Camera.main.transform.rotation;
         }
 
-        IReadOnlyList<CustomerOrder> slots = manager.Slots;
-        int count = Mathf.Min(slots.Count, customers.Length);
+        IReadOnlyList<CustomerOrder> queue = manager.Queue;
+        // Bounded by however many physical queuePoints exist - if the queue somehow outgrows that
+        // (shouldn't happen once maxQueueLength <= queuePoints.Length in the Inspector), the
+        // overflow just doesn't get a visual customer yet rather than crashing on a missing point.
+        int count = Mathf.Min(queue.Count, queuePoints.Length);
 
         for (int i = 0; i < count; i++)
         {
-            CustomerOrder order = slots[i];
+            CustomerOrder order = queue[i];
 
-            if (order == null)
+            if (!customersById.TryGetValue(order.Id, out Customer customer))
             {
-                if (customers[i] != null)
-                {
-                    customers[i].ExitAndDespawn(spawnPoint.position);
-                    customers[i] = null;
-                    trackedOrderIds[i] = NoOrder;
-                }
-
-                continue;
-            }
-
-            if (customers[i] == null || trackedOrderIds[i] != order.Id)
-            {
-                int slotIndex = i;
                 Color tint = Color.HSVToRGB((order.Id * 0.618033f) % 1f, 0.55f, 0.85f);
-                customers[i] = Customer.Spawn(spawnPoint.position, tint, () => manager.TryFulfill(slotIndex), transform);
-                customers[i].WalkTo(queuePoints[i].position);
-                trackedOrderIds[i] = order.Id;
+                customer = Customer.Spawn(spawnPoint.position, tint, () => manager.TryFulfill(), transform);
+                customersById[order.Id] = customer;
             }
 
-            customers[i].SetOrder(order.MinGrade, order.Patience01);
+            // Cheap to set every frame (just assigns a field) - self-heals if this order moved up
+            // a spot since last frame instead of needing a separate "did the index change" check.
+            customer.WalkTo(queuePoints[i].position);
+            customer.SetOrder(order.DeliveredCount, order.RequestedCount);
+            // Only the front of the line (index 0) is actually servable right now -
+            // OrderQueueManager.TryFulfill always targets queue[0].
+            customer.SetInteractable(i == 0);
+        }
+
+        // Anything still tracked whose order no longer exists anywhere in the queue (served to
+        // completion and removed) walks out and despawns.
+        staleIdsScratch.Clear();
+        foreach (KeyValuePair<int, Customer> tracked in customersById)
+        {
+            bool stillWaiting = false;
+            for (int i = 0; i < queue.Count; i++)
+            {
+                if (queue[i].Id == tracked.Key)
+                {
+                    stillWaiting = true;
+                    break;
+                }
+            }
+
+            if (!stillWaiting)
+            {
+                staleIdsScratch.Add(tracked.Key);
+            }
+        }
+
+        for (int i = 0; i < staleIdsScratch.Count; i++)
+        {
+            customersById[staleIdsScratch[i]].ExitAndDespawn(spawnPoint.position);
+            customersById.Remove(staleIdsScratch[i]);
         }
     }
 }

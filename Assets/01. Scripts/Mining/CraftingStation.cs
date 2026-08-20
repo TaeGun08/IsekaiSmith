@@ -38,6 +38,17 @@ public class CraftingStation : MonoBehaviour
     [SerializeField] private float pulseStrength = 0.12f;
     [SerializeField] private float pulseSpeed = 10f;
 
+    // This component lives on FurnaceBody itself (Smithy.prefab), so transform.position/.right are
+    // the furnace's own - QUICK CRAFT output used to spawn exactly there, which buried the sword
+    // prop inside the furnace mesh at the moment it appeared (사용자 요청 2026-08-21: "완성된 검이
+    // 시각적으로 잘보이도록... 용광로 왼쪽에 배치"). AnvilTop sits on the furnace's +right side
+    // (local x -0.55 vs the furnace's -1.6), so -transform.right reliably means "away from the
+    // anvil" - i.e. the furnace's left - regardless of how the whole Smithy prefab is rotated when
+    // placed in a scene (transform.right already reflects that rotation; unlike a raw local-space
+    // offset, it isn't distorted by the furnace's own non-uniform scale either).
+    [SerializeField] private float weaponOutputLeftOffset = 1.3f;
+    [SerializeField] private float weaponOutputHeightOffset = 0.3f;
+
     [Header("Smelting Minigame (Drag Pump) - drag the handle up/down; heat always fades")]
     [SerializeField] private float temperatureDuration = 9f;
     [SerializeField] private float sweetMin = 0.55f;
@@ -131,6 +142,11 @@ public class CraftingStation : MonoBehaviour
     // distance, instead of a separately hardcoded distance that could drift out of sync.
     public float InteractRadius => interactRadius;
 
+    // Where a freshly QUICK CRAFT'd weapon actually appears - see weaponOutputLeftOffset's
+    // declaration comment for why this isn't just transform.position.
+    private Vector3 WeaponOutputPosition =>
+        transform.position - transform.right * weaponOutputLeftOffset + Vector3.up * weaponOutputHeightOffset;
+
     // Bypasses the silhouette/minigame flow and applies the same fixed-quality result as the
     // QUICK CRAFT button. Used by DevAutoPlayController for automated loop testing.
     public bool TryDevQuickCraft(out CraftGrade grade, out int amount)
@@ -218,11 +234,50 @@ public class CraftingStation : MonoBehaviour
             }
         }
 
-        CraftGrade grade = CraftGradeUtility.GradeFor(quality);
+        // QUICK CRAFT no longer rolls a quality-derived grade - it always produces exactly
+        // whatever ForgeUpgrade has currently unlocked (customer_order_design_v7.html §2), fixed
+        // rather than a range. Precise crafting (the silhouette/minigame path) still uses the
+        // quality roll as before.
+        CraftGrade grade = isQuickCraft ? ForgeUpgrade.CurrentTier : CraftGradeUtility.GradeFor(quality);
         amount = outputAmount + CraftGradeUtility.BonusAmount(grade);
-        ToolInventory.Add(weapon, oreGrade, grade, element, manaGrade, amount);
+
+        if (isQuickCraft)
+        {
+            // Sell-only pipeline: physical props onto the player's CarryStack (smithy -> sales
+            // counter), never ToolInventory - QUICK CRAFT output is no longer equippable, only
+            // precise-crafted gear is (customer_order_design_v7.html §0 Q2). Weapon/oreGrade/
+            // element/manaGrade are meaningless for this path since only the count and grade
+            // matter once it's counter stock; grade itself gets resolved again at deposit time
+            // (CounterStock reads ForgeUpgrade.CurrentTier then), same "resolve at deposit, not at
+            // gather" convention OreBank.DepositMined already uses.
+            CarryStack carryStack = ResolvePlayerCarryStack();
+            Vector3 spawnPosition = WeaponOutputPosition;
+            for (int i = 0; i < amount && carryStack != null; i++)
+            {
+                carryStack.TryAdd(CarryItemTemplates.QuickCraftWeaponProp, spawnPosition, CarryLayer.Weapon);
+            }
+        }
+        else
+        {
+            ToolInventory.Add(weapon, oreGrade, grade, element, manaGrade, amount);
+        }
+
         OnCrafted?.Invoke(isQuickCraft);
         return grade;
+    }
+
+    private CarryStack cachedPlayerCarryStack;
+
+    // Same lazy-cache-once pattern StorageDepot uses - PlayerMotor.Instance is a session-wide
+    // singleton, so its CarryStack child never changes after the first resolve.
+    private CarryStack ResolvePlayerCarryStack()
+    {
+        if (cachedPlayerCarryStack == null && PlayerMotor.Instance != null)
+        {
+            cachedPlayerCarryStack = PlayerMotor.Instance.GetComponentInChildren<CarryStack>();
+        }
+
+        return cachedPlayerCarryStack;
     }
 
     private void UpdatePulse()

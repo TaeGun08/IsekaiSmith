@@ -1,5 +1,6 @@
 using TMPro;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 public class ResourceHUD : MonoBehaviour
 {
@@ -8,7 +9,12 @@ public class ResourceHUD : MonoBehaviour
     [SerializeField] private TMP_Text manaText;
     [SerializeField] private TMP_Text toolText;
     [SerializeField] private TMP_Text goldText;
-    [SerializeField] private TMP_Text reputationText;
+    // Reputation is gone (customer_order_design_v7.html §0 Q3 - no expiration means nothing ever
+    // triggers OnOrderFailed, so the stat could only ever read 100%). Repurposed this slot for the
+    // new forge upgrade tier instead of leaving a dead stat on screen - FormerlySerializedAs keeps
+    // the existing scene wiring intact rather than needing the Inspector reference redone.
+    [FormerlySerializedAs("reputationText")]
+    [SerializeField] private TMP_Text forgeTierText;
 
     private const int HudFontSize = 30;
     private const float HudLineHeight = 42f;
@@ -20,7 +26,7 @@ public class ResourceHUD : MonoBehaviour
     private int lastMana = -1;
     private int lastTool = -1;
     private int lastGold = -1;
-    private int lastReputation = -1;
+    private CraftGrade lastForgeTier = (CraftGrade)(-1);
 
     private void Awake()
     {
@@ -39,7 +45,6 @@ public class ResourceHUD : MonoBehaviour
         StageEncounterUI.Instance.Activate();
         PlayerCombat.Instance.Activate();
         PlayerHealthHUD.Instance.Show();
-        ManaStoneDepotBootstrap.Instance.Bootstrap();
         PlayerDeathPresentation.Instance.Activate();
         PlayerInventoryUI.Instance.Activate();
         BlackMarketMerchant.Instance.Activate();
@@ -52,7 +57,7 @@ public class ResourceHUD : MonoBehaviour
     // a structural change - also self-heals if the scene's baked values ever drift again.
     private void ApplyMobileFriendlySizing()
     {
-        TMP_Text[] lines = { woodText, oreText, manaText, toolText, goldText, reputationText };
+        TMP_Text[] lines = { woodText, oreText, manaText, toolText, goldText, forgeTierText };
         RectTransform panel = null;
 
         for (int i = 0; i < lines.Length; i++)
@@ -88,10 +93,10 @@ public class ResourceHUD : MonoBehaviour
         int mana = ResourceBank.Get(ResourceType.ManaStone);
         int tool = ToolInventory.Total;
         int gold = SalesCurrency.Gold;
-        int reputation = Mathf.RoundToInt(Reputation.Percent);
+        CraftGrade forgeTier = ForgeUpgrade.CurrentTier;
 
         if (wood == lastWood && ore == lastOre && mana == lastMana && tool == lastTool
-            && gold == lastGold && reputation == lastReputation)
+            && gold == lastGold && forgeTier == lastForgeTier)
         {
             return;
         }
@@ -101,7 +106,7 @@ public class ResourceHUD : MonoBehaviour
         lastMana = mana;
         lastTool = tool;
         lastGold = gold;
-        lastReputation = reputation;
+        lastForgeTier = forgeTier;
 
         if (woodText != null)
         {
@@ -128,9 +133,9 @@ public class ResourceHUD : MonoBehaviour
             goldText.text = "Gold " + gold;
         }
 
-        if (reputationText != null)
+        if (forgeTierText != null)
         {
-            reputationText.text = "Reputation " + reputation + "%";
+            forgeTierText.text = "Forge " + CraftGradeUtility.DisplayName(forgeTier);
         }
     }
 }

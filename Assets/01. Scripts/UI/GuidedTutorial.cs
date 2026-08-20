@@ -66,12 +66,12 @@ public class GuidedTutorial : MonoBehaviour
     private Transform arrowRoot;
 
     private Transform smithy;
-    private Transform storageCrateWood;
-    private Transform storageCrateOre;
+    // One unified storage box now (사용자 요청 2026-08-21: "보관함은 하나로 통일하자") - wood/ore/
+    // mana all deposit through the same StorageDepot instead of a separate crate each.
+    private Transform storageBox;
     private Transform salesCounter;
     private CraftingStation craftingStation;
-    private StorageDepot woodDepot;
-    private StorageDepot oreDepot;
+    private StorageDepot storageDepot;
     private OrderQueueManager orderQueueManager;
     private CarryStack playerCarryStack;
 
@@ -187,13 +187,9 @@ public class GuidedTutorial : MonoBehaviour
         smithy = smithyGO != null ? smithyGO.transform : null;
         craftingStation = smithyGO != null ? smithyGO.GetComponentInChildren<CraftingStation>() : null;
 
-        GameObject woodCrateGO = GameObject.Find("StorageCrate1");
-        storageCrateWood = woodCrateGO != null ? woodCrateGO.transform : null;
-        woodDepot = woodCrateGO != null ? woodCrateGO.GetComponent<StorageDepot>() : null;
-
-        GameObject oreCrateGO = GameObject.Find("StorageCrate2");
-        storageCrateOre = oreCrateGO != null ? oreCrateGO.transform : null;
-        oreDepot = oreCrateGO != null ? oreCrateGO.GetComponent<StorageDepot>() : null;
+        GameObject storageBoxGO = GameObject.Find("StorageBox");
+        storageBox = storageBoxGO != null ? storageBoxGO.transform : null;
+        storageDepot = storageBoxGO != null ? storageBoxGO.GetComponent<StorageDepot>() : null;
 
         GameObject counterGO = GameObject.Find("SalesCounter");
         salesCounter = counterGO != null ? counterGO.transform : null;
@@ -424,15 +420,15 @@ public class GuidedTutorial : MonoBehaviour
                 target = FindNearestAvailable<WoodNode>(n => n.IsAvailable);
                 break;
             case Step.CarryWood1:
-                target = storageCrateWood;
-                hideRadius = woodDepot != null ? woodDepot.DepositRadius : GatherHideRadius;
+                target = storageBox;
+                hideRadius = storageDepot != null ? storageDepot.DepositRadius : GatherHideRadius;
                 break;
             case Step.GatherOre1:
                 target = FindNearestAvailable<OreNode>(n => n.IsAvailable);
                 break;
             case Step.CarryOre1:
-                target = storageCrateOre;
-                hideRadius = oreDepot != null ? oreDepot.DepositRadius : GatherHideRadius;
+                target = storageBox;
+                hideRadius = storageDepot != null ? storageDepot.DepositRadius : GatherHideRadius;
                 break;
             case Step.QuickCraft:
                 target = smithy;
@@ -489,8 +485,8 @@ public class GuidedTutorial : MonoBehaviour
             int carried = playerCarryStack != null ? playerCarryStack.GetCount(CarryLayer.Wood) : 0;
             if (carried >= WoodTarget)
             {
-                hideRadius = woodDepot != null ? woodDepot.DepositRadius : GatherHideRadius;
-                return storageCrateWood;
+                hideRadius = storageDepot != null ? storageDepot.DepositRadius : GatherHideRadius;
+                return storageBox;
             }
 
             return FindNearestAvailable<WoodNode>(n => n.IsAvailable);
@@ -501,8 +497,8 @@ public class GuidedTutorial : MonoBehaviour
             int carried = playerCarryStack != null ? playerCarryStack.GetCount(CarryLayer.Ore) : 0;
             if (carried >= OreTarget)
             {
-                hideRadius = oreDepot != null ? oreDepot.DepositRadius : GatherHideRadius;
-                return storageCrateOre;
+                hideRadius = storageDepot != null ? storageDepot.DepositRadius : GatherHideRadius;
+                return storageBox;
             }
 
             return FindNearestAvailable<OreNode>(n => n.IsAvailable);

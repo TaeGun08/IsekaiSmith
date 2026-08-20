@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>이세계 대장장이 - 손님 주문(판매) 시스템 기획서 v7 (최종 확정안)</title>
+<style>
+  :root {
+    --ink: #2b2420; --paper: #f6f1e7; --card: #ffffff; --border: #dcd3c2; --accent: #b5651d;
+    --good: #4f8f5f; --warn: #c1440e; --gold: #d9a441; --blue: #4472a8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 20px 80px; background: var(--paper); color: var(--ink);
+    font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .doc { width: 100%; max-width: 1080px; }
+  h1 { font-size: 25px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 8px; color: #6b6155; font-size: 14px; }
+  p.pitch {
+    font-size: 15px; line-height: 1.75; background: var(--card); border: 1px solid var(--border);
+    border-left: 4px solid var(--good); border-radius: 8px; padding: 16px 18px; margin: 16px 0 32px;
+  }
+  h2 { font-size: 19px; margin: 46px 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+  h2 .num { color: var(--accent); margin-right: 8px; }
+  h2 .tag { font-size: 11px; font-weight: bold; border-radius: 5px; padding: 2px 8px; margin-left: 8px; vertical-align: 2px; }
+  h2 .tag.changed { background: #f3ece0; color: var(--warn); }
+  h2 .tag.same { background: #eef3ea; color: var(--good); }
+  h2 .tag.new { background: #eaf1f7; color: var(--blue); }
+  h2 .tag.key { background: #fdf0d8; color: #9a6c15; }
+  h3 { font-size: 14.5px; margin: 20px 0 10px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); margin-bottom: 14px; }
+  .note { font-size: 12.5px; color: #6b6155; line-height: 1.7; margin-top: 8px; }
+  .key-box { background:#fdf7ea; border:1px solid #e6d19a; border-radius:8px; padding:12px 14px; font-size:13px; line-height:1.75; margin-top:10px; }
+  .key-box b { color:#9a6c15; }
+
+  table.spec { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12.5px; }
+  table.spec th, table.spec td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+  table.spec th { background: #efe8d9; font-size: 12px; width: 150px; }
+
+  table.tiers { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12.5px; }
+  table.tiers th, table.tiers td { border: 1px solid var(--border); padding: 7px 9px; text-align: center; }
+  table.tiers th { background: #efe8d9; font-size: 11.5px; }
+
+  .flow-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top: 12px; justify-content:center; }
+  .flow-step { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:10px 12px; font-size:12px; text-align:center; min-width: 100px; }
+  .flow-arrow { color: var(--accent); font-size:16px; }
+
+  .qa-list { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.9; }
+  .qa-list li b { color: var(--accent); }
+
+  footer { margin-top: 40px; font-size: 12px; color: #948a7c; text-align: center; }
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <h1>손님 주문(판매) 시스템 기획서 v7 <span style="font-size:14px; color:var(--good);">(최종 확정안)</span></h1>
+  <p class="sub">customer_order_design_v7.html · v6의 남은 질문 전부 답변 반영 - 구현 직전 최종 스펙 정리</p>
+  <p class="pitch">
+    주신 답변을 전부 반영해서 최종 스펙으로 정리했습니다. 정리하다 보니 답변 두 가지(등급 전환 처리 +
+    부분 배송)가 맞물리면서 <b>당초 설계보다 훨씬 단순해지는 지점</b>이 있어서 §1에 따로 짚었습니다 -
+    이 부분만 한 번 봐주시면 바로 구현 들어가겠습니다.
+  </p>
+
+  <h2><span class="num">1.</span> 핵심 통찰 - "등급 매칭"이 사실상 필요 없어짐 <span class="tag key">중요</span></h2>
+  <div class="card">
+    <div class="key-box">
+      말씀하신 두 가지를 합쳐보면 - <b>① 등급이 오르면 남은 구형 재고부터 계속 팔리고, 재고가 없으면
+      손님이 원하는 것도 자동으로 현재 등급으로 바뀐다</b>, <b>② 재고가 모자라면 있는 만큼 먼저 주고
+      나머지는 나중에 채워서 완료한다(부분 배송)</b> - 이 둘을 합치면 <b>손님은 더 이상 "특정 등급"을
+      요구할 필요가 없고, 그냥 "무기 N자루"만 원하면 됩니다.</b> 카운터에 있는 재고를 저렴한(오래된)
+      등급부터 순서대로 채워주기만 하면, 등급이 오르내리는 전환기에도 막히는 경우가 자연히 없어집니다.
+    </div>
+    <p class="note" style="margin-top:10px;">그래서 <code>CustomerOrder</code>에 "요구 등급" 필드가 아예
+    없어도 됩니다 - <code>RequestedCount</code> / <code>DeliveredCount</code>만 있으면 충분하고, 지급액은
+    "이번에 실제로 건넨 무기 각각의 등급 단가 합"으로 계산하면 §3의 개당 지급 요구사항도 자연히
+    만족됩니다. 말풍선에는 참고용으로 "지금 대장간이 뽑는 등급" 정도만 플레이버로 보여주면 됩니다
+    (예: "Fine ×3") - 실제 매칭/지급 로직과는 무관한 표시 텍스트입니다.</p>
+  </div>
+
+  <h2><span class="num">2.</span> 용광로 업그레이드 - 노드 1개, 재사용 <span class="tag changed">변경</span></h2>
+  <div class="card">
+    <table class="spec">
+      <tr><th>노드 개수</th><td>여러 개 순서대로 배치하지 않고 <b>단 하나</b>만 배치. 업그레이드가 될 때마다
+      같은 노드가 "다음 목표 등급/비용"으로 갱신됩니다 (예: Common 50G 노드 → 구매 후 그 자리 그대로
+      Fine 150G 노드로 바뀜).</td></tr>
+      <tr><th>상한선</th><td><b>Fine에서 종료</b> (Masterwork까지 열자는 제 원안 대신 확정). Fine을 사면
+      노드는 더 줄 게 없으므로 비활성/숨김 처리.</td></tr>
+      <tr><th>등급 단계</th><td>Rough(시작, 무료) → Common(50G) → Fine(150G, 최종). 퀵 크래프트는 이
+      3단계 중 "현재 해금한 정확히 그 등급"만 생산합니다 (v6과 동일).</td></tr>
+    </table>
+    <table class="tiers">
+      <tr><th>등급</th><th>Rough</th><th>Common</th><th>Fine</th></tr>
+      <tr><th>해금 비용</th><td>시작값(무료)</td><td>50G</td><td>150G</td></tr>
+      <tr><th>손님 단가</th><td>10G</td><td>16G</td><td>24G</td></tr>
+    </table>
+  </div>
+
+  <h2><span class="num">3.</span> 수량 주문 &amp; 부분 배송 <span class="tag changed">변경</span></h2>
+  <div class="card">
+    <table class="spec">
+      <tr><th>요구 수량</th><td>손님 1명당 1~3자루 랜덤.</td></tr>
+      <tr><th>배송 방식</th><td>카운터 재고가 있는 만큼 즉시 건네고, <code>DeliveredCount</code>가
+      오릅니다. 재고가 모자라면 있는 만큼만 우선 처리하고 나머지는 재고가 채워질 때 이어서 완료 -
+      말풍선에 "1/3"처럼 진행률 표시.</td></tr>
+      <tr><th>지급액</th><td>이번에 실제로 건넨 무기들의 등급 단가 합 (구형+신형이 섞여 있으면 각각의
+      단가로 계산). <code>speedBonus</code>/평판 배율은 v6에서 확정한 대로 제거.</td></tr>
+      <tr><th>매칭</th><td>등급 무관, 카운터 재고 중 <b>가장 오래된(저렴한) 등급부터</b> 소모 - 기존
+      <code>ToolInventory.TrySpendAtLeast</code>의 "싼 것부터" 습관과 동일한 방향이라 자연스럽습니다.</td></tr>
+    </table>
+  </div>
+
+  <h2><span class="num">4.</span> 전체 흐름 (최종)</h2>
+  <div class="card">
+    <div class="flow-row">
+      <div class="flow-step">노드 통과<br>→ 등급 해금<br>(1개, 재사용)</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">QUICK CRAFT<br>→ 현재 등급으로<br>대장간 옆에 더미</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">접근 시<br>CarryStack에<br>적재</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">카운터로 운반<br>→ 진열</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">줄 선 손님에게<br>있는 만큼 판매<br>(부분 배송 가능)</div>
+    </div>
+    <p class="note" style="margin-top:12px;">정밀 제작 결과물은 이 루프에서 완전히 제외(v6 Q2 확정) -
+    지금처럼 <code>ToolInventory</code>로 들어가 장비/보관 전용입니다. 인내심/제한시간/평판/이탈은
+    전부 제거(v6 Q3 확정, 이탈은 추후 별도 검토).</p>
+  </div>
+
+  <h2><span class="num">5.</span> 마지막으로 확인 부탁드립니다</h2>
+  <div class="card">
+    <ul class="qa-list">
+      <li><b>Q1.</b> §1의 "등급 매칭 없이 그냥 무기 N자루" 단순화 - 제가 답변 두 개를 조합해서 이렇게
+      해석했는데, 의도하신 방향이 맞을까요? 맞다면 <code>CustomerOrder</code> 구조가 훨씬 가벼워집니다.</li>
+      <li><b>Q2.</b> 이 정도면 확정으로 보고 <b>구현 시작</b>해도 될까요, 아니면 더 보고 싶은 부분이
+      있으실까요?</li>
+    </ul>
+  </div>
+
+  <footer>customer_order_design_v7.html · v6(customer_order_design_v6.html) 답변 전체 반영 - 최종 확정안</footer>
+</div>
+</body>
+</html>
