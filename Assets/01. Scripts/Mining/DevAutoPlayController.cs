@@ -155,9 +155,9 @@ public class DevAutoPlayController : MonoBehaviour
         skipTutorialButton.GetComponent<Image>().color = new Color(0.35f, 0.35f, 0.5f);
         skipTutorialButton.onClick.AddListener(GuidedTutorial.SkipToComplete);
 
-        // Clears all 3 stages instantly so the dungeon (unlocked only once
-        // StageBank.AllStagesCleared - dungeon_design_v1.html §1) is reachable without actually
-        // playing through each stage's wave fight first.
+        // Clears all 3 stages instantly - the dungeon itself only needs Stage 1
+        // (DungeonBank.IsUnlocked), but this button still clears all 3 so Stage 2/3 content is
+        // also reachable for testing without actually playing through each wave fight first.
         Button unlockStagesButton = MakeButton(panel.transform, "UnlockStagesButton", new Vector2(0f, -518f), new Vector2(280f, 64f), out TMP_Text unlockStagesLabel);
         unlockStagesLabel.text = "UNLOCK ALL STAGES";
         unlockStagesButton.GetComponent<Image>().color = new Color(0.2f, 0.4f, 0.45f);

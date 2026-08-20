@@ -187,11 +187,11 @@ public class StageSelectUI : MonoBehaviour
             BuildStageCard(i, i + 1);
         }
 
-        // Shown once the prerequisite (all stages cleared) is met, same as a stage card staying
-        // visible after it's done - DungeonBank.IsUnlocked alone would make the card vanish
-        // entirely the instant it's cleared, instead of settling into a CLEARED state like the
-        // stage cards do.
-        if (StageBank.AllStagesCleared)
+        // Shown once the prerequisite (Stage 1 cleared - DungeonBank.IsUnlocked, no longer all 3
+        // - 사용자 요청 2026-08-20) is met, same as a stage card staying visible after it's done.
+        // Placed after all StageCount stage cards regardless of how many are actually cleared yet,
+        // so it always reads as "the next thing after the stage list" rather than jumping around.
+        if (DungeonBank.IsUnlocked)
         {
             BuildDungeonCard(StageBank.StageCount);
         }
@@ -249,7 +249,7 @@ public class StageSelectUI : MonoBehaviour
         });
     }
 
-    // Only ever built when StageBank.AllStagesCleared (RefreshCards). Unlike a stage, this is a
+    // Only ever built when DungeonBank.IsUnlocked (RefreshCards). Unlike a stage, this is a
     // repeatable deep-dive with as many floors as DungeonFloorTable has rows (user request:
     // "던전을 최대한 많이 만들어도 좋아") - always tappable, showing the best depth reached so far
     // instead of a one-time CLEARED lock.

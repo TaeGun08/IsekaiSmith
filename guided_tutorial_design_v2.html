@@ -102,9 +102,12 @@
       <code>preciseCraftDone</code></td></tr>
       <tr class="new-row"><td>9</td><td>장착</td><td><b>신규</b> - BAG 아이콘(화면 UI, 월드 좌표 없음 → 화살표 없이 배너만)을 열어
       한 줄 탭. <code>EquippedWeapon</code>에 <code>HasExplicitChoice</code> 공개 게터 추가해서 감지</td></tr>
-      <tr class="new-row"><td>10</td><td>스테이지 진행</td><td><b>신규</b> - STAGE 아이콘도 화면 UI라 화살표 없음. 던전 해금 조건이
-      <code>DungeonBank.IsUnlocked = StageBank.AllStagesCleared</code>(스테이지 3개 전부)라 이 스텝의 완료
-      조건도 동일하게 <b>전 스테이지 클리어</b>로 맞춤 - 배너에 "n/3 Stages Cleared" 진행률 표시</td></tr>
+      <tr class="new-row"><td>10</td><td>스테이지 진행</td><td><b>신규</b>(2026-08-20 수정: 전 스테이지 → <b>스테이지 1만</b>) -
+      STAGE 아이콘도 화면 UI라 화살표 없음. 던전 해금 조건을 <code>DungeonBank.IsUnlocked = StageBank.
+      AllStagesCleared</code>(3개 전부)에서 <code>StageBank.HighestStageCleared &gt;= 1</code>로 낮춰서,
+      이 스텝도 <b>스테이지 1 클리어</b> 한 번으로 완료 - 튜토리얼이 스테이지 콘텐츠 대부분을 강제로 밟게
+      하는 게 과했다는 사용자 피드백. 스테이지 2/3는 여전히 <code>StageBank.IsUnlocked</code>의 순차 게이트로
+      존재하지만 이 스텝 완료 조건에서는 빠짐 - 클리어 후엔 유저가 알아서 진행</td></tr>
       <tr class="new-row"><td>11</td><td>던전 진행</td><td><b>신규</b> - 반복형 컨텐츠라 "완주" 개념이 없음(사용자 요청:
       "던전을 최대한 많이 만들어도 좋아"). 1층 클리어(<code>DungeonBank.DeepestFloorCleared &gt; 0</code>) 한 번으로 완료</td></tr>
       <tr><td>-</td><td>Done</td><td>기존 그대로 - <code>HasCompletedTutorial</code> 설정 + 토스트</td></tr>

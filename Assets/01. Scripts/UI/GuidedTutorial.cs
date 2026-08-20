@@ -344,8 +344,12 @@ public class GuidedTutorial : MonoBehaviour
                 }
                 break;
             case Step.StageProgress:
-                bannerText.text = "Clear all Stages at STAGE (" + StageBank.HighestStageCleared + "/" + StageBank.StageCount + ")";
-                if (StageBank.AllStagesCleared)
+                // Only Stage 1 is required to move on - the dungeon itself unlocks after just one
+                // stage clear now (DungeonBank.IsUnlocked, 사용자 요청 2026-08-20), not all 3.
+                // Stage 2/3 stay reachable afterward (StageBank.IsUnlocked's normal sequential
+                // gate), just no longer gating this tutorial step.
+                bannerText.text = "Clear Stage 1 at STAGE to unlock the Dungeon";
+                if (DungeonBank.IsUnlocked)
                 {
                     EnterStep(Step.DungeonProgress);
                 }

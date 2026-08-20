@@ -310,17 +310,20 @@ public class StageEncounterController : MonoBehaviour
     private void CompleteEncounter()
     {
         int stageNumber = ActiveStageNumber;
-        bool wasLastStage = stageNumber == StageBank.StageCount && !StageBank.AllStagesCleared;
+        // The dungeon unlocks after Stage 1 alone (DungeonBank.IsUnlocked), not all 3 - this is
+        // specifically the clear that flips HighestStageCleared 0 -> 1, i.e. the one that actually
+        // opens it (사용자 요청 2026-08-20).
+        bool justUnlockedDungeon = StageBank.HighestStageCleared == 0 && stageNumber == 1;
 
         StageBank.MarkCleared(stageNumber);
         ManaBank.DepositGathered(StageManaReward[stageNumber - 1]);
         EndEncounter(cleared: true);
 
-        // A closure moment for finishing all of them, instead of the run just quietly ending the
+        // A closure moment for opening the dungeon, instead of the run just quietly ending the
         // same as any other stage clear - "컨텐츠와 시퀀스" completeness (사용자 피드백).
-        if (wasLastStage)
+        if (justUnlockedDungeon)
         {
-            ToastUI.Instance.Show("All Stages Cleared! The dungeon has opened.", 4f);
+            ToastUI.Instance.Show("Stage 1 Cleared! The dungeon has opened.", 4f);
         }
     }
 
