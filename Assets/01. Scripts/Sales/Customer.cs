@@ -85,13 +85,13 @@ public class Customer : MonoBehaviour
         // Not the tap target itself (see TapZone below) - visual only, must not steal raycasts.
         bubbleBackgroundImage.raycastTarget = false;
 
-        // Queue slots stand only 1.4m apart (QueuePoint0/1/2 in the scene), but this bubble is a
-        // full 2.2m wide (canvasRect 220 * 0.01 world scale) - if the whole background were the
-        // tap target (as it used to be), tapping near the boundary between two customers could
-        // hit the wrong one (user report: "옆에 버튼이 클릭될 때가 있다"). Instead, only a smaller
-        // centered zone (1.0m world) is tappable, leaving 0.2m of dead space on each side within
-        // the 1.4m slot spacing - the visual bubble stays full-size and readable, only the hit-box
-        // shrinks.
+        // Queue slots stand 1.6m apart (QueuePoint0~4 in the scene, 사용자 요청 2026-08-21: 손님
+        // 캡슐끼리 너무 붙어 보였다는 피드백으로 0.9m -> 1.6m 확대), but this bubble is a full 2.2m
+        // wide (canvasRect 220 * 0.01 world scale) - if the whole background were the tap target
+        // (as it used to be), tapping near the boundary between two customers could hit the wrong
+        // one (user report: "옆에 버튼이 클릭될 때가 있다"). Instead, only a smaller centered zone
+        // (1.0m world) is tappable, leaving 0.3m of dead space on each side within the 1.6m slot
+        // spacing - the visual bubble stays full-size and readable, only the hit-box shrinks.
         var tapZone = new GameObject("TapZone", typeof(RectTransform), typeof(Image), typeof(Button));
         tapZone.transform.SetParent(canvasGO.transform, false);
         var tapZoneRect = tapZone.GetComponent<RectTransform>();
