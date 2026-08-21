@@ -1714,6 +1714,11 @@ public class AiCompanionWindow : EditorWindow
                     enableRichText = false
                 };
                 codeLabel.AddToClassList("chat-code-text");
+                // Unity 6's default "Advanced" text generator (ATGTextJobSystem) throws
+                // ArgumentOutOfRangeException inside ConvertMeshInfoToUIRVertex on some long
+                // monospace code blocks (user report, 2026-08-21) - forcing the older Standard
+                // generator on this element sidesteps that job-system bug entirely.
+                codeLabel.style.unityTextGenerator = TextGeneratorType.Standard;
                 codeBlock.Add(codeLabel);
 
                 // Copies just this code segment, not the whole message - requested explicitly
@@ -1730,6 +1735,9 @@ public class AiCompanionWindow : EditorWindow
             {
                 Label textLabel = new Label(ChatMarkdown.ToRichText(segment.Text)) { enableRichText = true };
                 textLabel.AddToClassList("chat-bubble-text");
+                // See the matching comment on codeLabel above - same ATG job-system crash risk
+                // applies to long rich-text prose bubbles.
+                textLabel.style.unityTextGenerator = TextGeneratorType.Standard;
                 bubble.Add(textLabel);
             }
         }

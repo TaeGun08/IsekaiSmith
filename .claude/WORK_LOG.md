@@ -2322,3 +2322,13 @@ grep 상호참조로 교차 확인 후 `git rm` 4개(mana_grade_and_ui_design_v1
 허브 역할을 하고 기존 문서들은 컨텐츠별(총괄/판매·손님/채집·제작/전투/스테이지/던전/튜토리얼/
 개발도구)로 링크만 정리하는 구조로 결정. 각 카드에 최신/일부참조/개발도구 태그로 현재 코드 참조
 여부 표시. 브라우저로 열어둠.
+
+### AiCompanion 채팅창 ATGTextJobSystem 크래시 수정
+사용자가 콘솔 에러 붙여넣음: `ArgumentOutOfRangeException` in
+`UnityEngine.UIElements.ATGTextJobSystem.ConvertMeshInfoToUIRVertex`. Unity 6 UI Toolkit의 기본
+"Advanced" 텍스트 생성기(ATG) 잡 시스템 자체 버그로, 이 프로젝트에서 UI Toolkit을 쓰는 곳은
+AiCompanionWindow 채팅창뿐이라 그쪽이 원인으로 특정됨 - 특히 이번 세션처럼 아주 긴 코드 블록/
+답변이 렌더링될 때 재현 가능성이 높음. `IStyle.unityTextGenerator`(enum `TextGeneratorType.
+Standard`/`Advanced`)를 리플렉션으로 확인해서 존재를 확인, `AddChatBubble`가 만드는 코드 블록
+Label과 본문 Label 둘 다에 `style.unityTextGenerator = TextGeneratorType.Standard`를 강제해
+버그가 있는 Advanced 잡 시스템을 아예 안 타도록 우회. 컴파일 에러/경고 0건.
