@@ -9,6 +9,11 @@ using UnityEngine.UI;
 // target and show/hide its own order display; it has no idea what a "slot" or "order queue" is.
 // See customer_order_design_v7.html §3 - only the front-of-line customer is ever interactable
 // (SetInteractable), everyone behind them just stands and shows their own requested count.
+// The bubble itself stays hidden (SetBubbleVisible) until the customer has actually walked up to
+// and arrived at that front slot (HasArrived) - customer_order_design_v7 always meant only the
+// person currently being served shows a demand, but the bubble used to be visible the instant a
+// customer spawned, even while still walking in from the back of the line (사용자 요청
+// 2026-08-21: "카운터에 도착해서 물건을 받으려고 하기전까진 요구치가 뜨면 안돼").
 public class Customer : MonoBehaviour
 {
     private const float WalkSpeed = 2.4f;
@@ -27,6 +32,12 @@ public class Customer : MonoBehaviour
 
     private Vector3 walkTarget;
     private bool despawnOnArrive;
+
+    // True once this customer has actually walked up to its current walkTarget, not merely been
+    // assigned one - WalkTo just retargets, it doesn't teleport, so a customer freshly bumped up
+    // to the front of the line (queue[0]) still has to close the remaining distance before this
+    // flips back to true.
+    public bool HasArrived { get; private set; }
 
     public static Customer Spawn(Vector3 groundPosition, Color tint, UnityEngine.Events.UnityAction onTap, Transform parent = null)
     {
@@ -93,6 +104,10 @@ public class Customer : MonoBehaviour
         bubbleButton = tapZone.GetComponent<Button>();
         bubbleButton.onClick.AddListener(onTap);
 
+        // Hidden until SetBubbleVisible(true) - see the class-header note on why a freshly spawned
+        // customer shouldn't show their demand while still walking in from the back of the line.
+        canvasGO.SetActive(false);
+
         gradeLabel = MakeText(bg.transform, "Grade", 34, new Vector2(0f, -16f), new Vector2(200f, 44f));
         gradeLabel.color = new Color(0.16f, 0.13f, 0.1f);
         gradeLabel.fontStyle = FontStyles.Bold;
@@ -156,6 +171,14 @@ public class Customer : MonoBehaviour
             : new Color(0.97f, 0.93f, 0.85f, inactiveBubbleAlpha.a);
     }
 
+    // Only the arrived front-of-line customer ever shows a demand at all now - everyone else
+    // (still walking up, or waiting further back) keeps the bubble hidden entirely rather than
+    // visible-but-dimmed, since dimmed still read as "here's what I want" too early.
+    public void SetBubbleVisible(bool visible)
+    {
+        bubbleRoot.gameObject.SetActive(visible);
+    }
+
     public void WalkTo(Vector3 groundPosition)
     {
         walkTarget = groundPosition;
@@ -173,8 +196,9 @@ public class Customer : MonoBehaviour
     private void Update()
     {
         transform.position = Vector3.MoveTowards(transform.position, walkTarget, WalkSpeed * Time.deltaTime);
+        HasArrived = (transform.position - walkTarget).sqrMagnitude <= ArriveThreshold * ArriveThreshold;
 
-        if (despawnOnArrive && (transform.position - walkTarget).sqrMagnitude <= ArriveThreshold * ArriveThreshold)
+        if (despawnOnArrive && HasArrived)
         {
             Destroy(gameObject);
         }

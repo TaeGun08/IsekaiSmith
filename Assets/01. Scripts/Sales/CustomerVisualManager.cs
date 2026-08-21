@@ -137,7 +137,12 @@ public class CustomerVisualManager : MonoBehaviour
             customer.SetOrder(order.DeliveredCount, order.RequestedCount);
             // Only the front of the line (index 0) is actually servable right now -
             // OrderQueueManager.TryFulfill always targets queue[0].
-            customer.SetInteractable(i == 0);
+            bool isFront = i == 0;
+            customer.SetInteractable(isFront);
+            // ...and even the front customer's demand stays hidden until they've actually walked
+            // up and arrived at the counter, not the instant they become queue[0] (사용자 요청
+            // 2026-08-21).
+            customer.SetBubbleVisible(isFront && customer.HasArrived);
         }
 
         // Anything still tracked whose order no longer exists anywhere in the queue (served to
