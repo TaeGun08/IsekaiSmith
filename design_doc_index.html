@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>이세계 대장장이 - 기획 문서 목차</title>
+<style>
+  :root { --ink:#2b2420; --paper:#f6f1e7; --card:#fff; --border:#dcd3c2; --accent:#b5651d; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:40px 20px 80px; background:var(--paper); color:var(--ink);
+    font-family:"Pretendard","Malgun Gothic","Apple SD Gothic Neo",sans-serif;
+    display:flex; flex-direction:column; align-items:center; }
+  .doc { width:100%; max-width:960px; }
+  h1 { font-size:25px; margin:0 0 4px; }
+  p.sub { margin:0 0 8px; color:#6b6155; font-size:14px; }
+  p.pitch { font-size:14.5px; line-height:1.75; background:var(--card); border:1px solid var(--border);
+    border-left:4px solid var(--accent); border-radius:8px; padding:16px 18px; margin:16px 0 32px; }
+  h2 { font-size:18px; margin:36px 0 12px; padding-bottom:8px; border-bottom:2px solid var(--border);
+    display:flex; align-items:center; gap:8px; }
+  h2 .num { color:var(--accent); }
+  .doc-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .doc-card { background:var(--card); border:1px solid var(--border); border-radius:10px;
+    padding:14px 16px; box-shadow:0 1px 6px rgba(0,0,0,0.05); }
+  .doc-card a { font-size:14px; font-weight:bold; color:var(--accent); text-decoration:none; }
+  .doc-card a:hover { text-decoration:underline; }
+  .doc-card p { margin:6px 0 0; font-size:12.5px; color:#4a4238; line-height:1.6; }
+  .tag { display:inline-block; font-size:10.5px; border-radius:10px; padding:1px 8px; margin-left:6px;
+    vertical-align:middle; }
+  .tag.current { background:#e3efd9; color:#3f6b2b; }
+  .tag.partial { background:#f3e6c9; color:#8a5d1a; }
+  .tag.tool { background:#e2e6f2; color:#3f4c8a; }
+  footer { margin-top:44px; font-size:12px; color:#948a7c; text-align:center; }
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>이세계 대장장이 - 기획 문서 목차</h1>
+  <p class="sub">design_doc_index.html · 흩어져 있던 기획 HTML을 컨텐츠별로 묶어서 정리한 총 목차 (사용자 요청 2026-08-21)</p>
+
+  <p class="pitch">
+    기획서를 파일 하나에 다 합치지 않고, <b>이 목차 하나에서 컨텐츠별 세부 문서로 갈라지는 구조</b>로
+    정리했습니다. 각 문서는 지금도 실제로 만들어지고 있는 시스템의 기준 문서라 계속 개별 파일로
+    남겨두는 편이 관리하기 쉽습니다 (한 파일에 전부 합치면 편집할 때마다 무관한 시스템까지 다 뒤져야
+    함). 대신 이 페이지가 "지금 뭐가 있고, 뭐가 최신본이고, 뭐가 지금도 코드에서 실제로 참조되는지"를
+    한눈에 보여주는 입구 역할을 합니다. <span class="tag current">최신/현재</span>은 지금 코드가 그대로
+    따르는 기준 문서, <span class="tag partial">일부 참조</span>는 구버전이지만 특정 섹션이 아직도
+    다른 문서/코드에서 인용되어 남겨둔 것, <span class="tag tool">개발 도구</span>는 게임 내용이 아닌
+    제작 과정용 문서입니다.
+  </p>
+
+  <h2><span class="num">1.</span>총괄 비전</h2>
+  <div class="doc-grid">
+    <div class="doc-card">
+      <a href="game_design_doc.html">game_design_doc.html</a><span class="tag partial">일부 참조</span>
+      <p>게임 전체 컨셉/핵심 루프/3단계 사냥터/진행 흐름의 최초 청사진. 인내심 게이지·평판 같은
+      일부 아이디어는 이후 손님 주문 시스템(§2)에서 다른 방향으로 확정되며 빠졌지만, 재료 등급
+      체계·전투 개념 등 여러 시스템의 최초 출처로 지금도 코드 주석에서 인용됨.</p>
+    </div>
+  </div>
+
+  <h2><span class="num">2.</span>판매 / 손님</h2>
+  <div class="doc-grid">
+    <div class="doc-card">
+      <a href="customer_order_design_v7.html">customer_order_design_v7.html</a><span class="tag current">최신/현재</span>
+      <p>피자레디식 대기줄(최대 5명) + 카운터 재고 자동예치 + 등급 무관 개수 기반 주문. 판매대
+      관련 코드 대부분이 참조하는 최종 확정안.</p>
+    </div>
+    <div class="doc-card">
+      <a href="customer_order_design.html">customer_order_design.html</a><span class="tag partial">일부 참조</span>
+      <p>최초 버전. §1/§2/§5/§6이 Reputation/SalesCurrency/SalesPricing에서 아직 직접 참조됨.</p>
+    </div>
+    <div class="doc-card">
+      <a href="black_market_design_v1.html">black_market_design_v1.html</a><span class="tag current">최신/현재</span>
+      <p>확률 등장 암시장 상인 - 희귀 재료 고가 판매 + 저가 매입(급전용).</p>
+    </div>
+  </div>
+
+  <h2><span class="num">3.</span>채집 / 제작</h2>
+  <div class="doc-grid">
+    <div class="doc-card">
+      <a href="crafting_design_v3.html">crafting_design_v3.html</a><span class="tag current">최신/현재</span>
+      <p>재료선택 UI 원 설계 문서 - 현재 구현된 크래프팅 실루엣 UI의 기준.</p>
+    </div>
+    <div class="doc-card">
+      <a href="mana_grade_and_ui_design_v1.html">mana_grade_and_ui_design_v1.html</a><span class="tag current">최신/현재</span>
+      <p>마석 등급(5단계) 시스템 + ManaBank/ManaGrade 설계.</p>
+    </div>
+    <div class="doc-card">
+      <a href="weapon_diversity_design_v1.html">weapon_diversity_design_v1.html</a><span class="tag current">최신/현재</span>
+      <p>무기 종류 다양화(검/도끼/망치/단검) + 장착/스윙 반영.</p>
+    </div>
+  </div>
+
+  <h2><span class="num">4.</span>전투</h2>
+  <div class="doc-grid">
+    <div class="doc-card">
+      <a href="combat_design_v1.html">combat_design_v1.html</a><span class="tag current">최신/현재</span>
+      <p>필드 몬스터/전투 공통 기반 - HP, 피격 연출, 플레이어 체력.</p>
+    </div>
+  </div>
+
+  <h2><span class="num">5.</span>스테이지</h2>
+  <div class="doc-grid">
+    <div class="doc-card">
+      <a href="stage_system_design_v2.html">stage_system_design_v2.html</a><span class="tag current">최신/현재</span>
+      <p>별도 씬 전환형 스테이지 - StageSceneController/StageEncounterController 기준.</p>
+    </div>
+    <div class="doc-card">
+      <a href="stage_system_design_v1.html">stage_system_design_v1.html</a><span class="tag partial">일부 참조</span>
+      <p>최초 웨이브 설계(FieldMonsterSpawner/StageWaveTable) - 초기 구조가 아직 코드 곳곳에 남음.</p>
+    </div>
+  </div>
+
+  <h2><span class="num">6.</span>던전</h2>
+  <div class="doc-grid">
+    <div class="doc-card">
+      <a href="dungeon_design_v1.html">dungeon_design_v1.html</a><span class="tag current">최신/현재</span>
+      <p>던전 MVP - 스테이지3=보스, 레인 재사용+무작위 위치, 최초클리어 시 최고등급 개방.
+      (별도 씬+원형 아레나로 확장하는 v2 제안은 실제 채택되지 않아 삭제됨.)</p>
+    </div>
+  </div>
+
+  <h2><span class="num">7.</span>튜토리얼</h2>
+  <div class="doc-grid">
+    <div class="doc-card">
+      <a href="guided_tutorial_design_v2.html">guided_tutorial_design_v2.html</a><span class="tag current">최신/현재</span>
+      <p>채집→제작→판매→사냥→장착→스테이지→던전까지 전체 루프를 도는 v2 구조.
+      GuidedTutorial.cs 기준 문서.</p>
+    </div>
+    <div class="doc-card">
+      <a href="guided_tutorial_design.html">guided_tutorial_design.html</a><span class="tag partial">일부 참조</span>
+      <p>v1 구조는 v2가 대체했지만, §9/§10 배너·화살표 UI 규칙을 다른 문서가 여전히 앵커로 인용.</p>
+    </div>
+  </div>
+
+  <h2><span class="num">8.</span>개발 도구 / 기타 UI</h2>
+  <div class="doc-grid">
+    <div class="doc-card">
+      <a href="dev_autoplay_design.html">dev_autoplay_design.html</a><span class="tag tool">개발 도구</span>
+      <p>DevAutoPlayController - 콘솔 에러만 지켜보는 자동 진행 점검 도구.</p>
+    </div>
+    <div class="doc-card">
+      <a href="interaction_range_indicator_design.html">interaction_range_indicator_design.html</a><span class="tag current">최신/현재</span>
+      <p>상호작용 범위(채집대/판매대 등) 바닥 화살표 인디케이터 UI.</p>
+    </div>
+  </div>
+
+  <footer>design_doc_index.html · 새 기획 문서를 추가하면 이 목차에도 한 줄 추가해주세요.</footer>
+</div>
+</body>
+</html>
