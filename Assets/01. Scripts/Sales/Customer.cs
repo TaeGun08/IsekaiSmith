@@ -21,14 +21,11 @@ public class Customer : MonoBehaviour
 
     private Transform bubbleRoot;
     private TMP_Text gradeLabel;
-    private Image progressFillImage;
     private Image bubbleBackgroundImage;
     private Button bubbleButton;
 
-    private readonly Color progressFillColor = new Color(0.35f, 0.62f, 0.32f);
     private readonly Color activeBubbleAlpha = new Color(1f, 1f, 1f, 0.98f);
     private readonly Color inactiveBubbleAlpha = new Color(1f, 1f, 1f, 0.55f);
-    private const float ProgressBarWidth = 150f;
 
     private Vector3 walkTarget;
     private bool despawnOnArrive;
@@ -108,30 +105,30 @@ public class Customer : MonoBehaviour
         // customer shouldn't show their demand while still walking in from the back of the line.
         canvasGO.SetActive(false);
 
-        gradeLabel = MakeText(bg.transform, "Grade", 34, new Vector2(0f, -16f), new Vector2(200f, 44f));
+        // Weapon silhouette so the bubble reads as "wants a weapon" at a glance, not just a bare
+        // count (사용자 요청 2026-08-24). Every order wants the same thing right now (QUICK CRAFT
+        // only ever produces one fixed WeaponType - see weapon_rack_and_order_polish_v1.html §3),
+        // so this is a single fixed icon, not per-order data.
+        var iconGO = new GameObject("WeaponIcon", typeof(RectTransform), typeof(Image));
+        iconGO.transform.SetParent(bg.transform, false);
+        var iconRect = iconGO.GetComponent<RectTransform>();
+        iconRect.anchorMin = new Vector2(0.5f, 0f);
+        iconRect.anchorMax = new Vector2(0.5f, 0f);
+        iconRect.pivot = new Vector2(0.5f, 0f);
+        iconRect.anchoredPosition = new Vector2(-42f, 10f);
+        iconRect.sizeDelta = new Vector2(28f, 56f);
+        var iconImage = iconGO.GetComponent<Image>();
+        iconImage.sprite = UIShapes.Sword();
+        iconImage.color = new Color(0.16f, 0.13f, 0.1f);
+        iconImage.raycastTarget = false;
+
+        // Progress bar removed (사용자 요청 2026-08-24: "이제 사용하지 않는 인내심 바는 없앴으면") -
+        // this was actually the delivery progress fill, not a patience timer (patience/time-limit
+        // was already dropped from the design in v6), but it read like one; the "1/3" text alone
+        // already carries the same information.
+        gradeLabel = MakeText(bg.transform, "Grade", 30, new Vector2(20f, -16f), new Vector2(140f, 44f));
         gradeLabel.color = new Color(0.16f, 0.13f, 0.1f);
         gradeLabel.fontStyle = FontStyles.Bold;
-
-        var progressBg = new GameObject("ProgressBg", typeof(RectTransform), typeof(Image));
-        progressBg.transform.SetParent(bg.transform, false);
-        var progressBgRect = progressBg.GetComponent<RectTransform>();
-        progressBgRect.anchorMin = new Vector2(0.5f, 0f);
-        progressBgRect.anchorMax = new Vector2(0.5f, 0f);
-        progressBgRect.pivot = new Vector2(0.5f, 0f);
-        progressBgRect.anchoredPosition = new Vector2(0f, 16f);
-        progressBgRect.sizeDelta = new Vector2(ProgressBarWidth, 16f);
-        progressBg.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.2f);
-
-        var fillGO = new GameObject("ProgressFill", typeof(RectTransform), typeof(Image));
-        fillGO.transform.SetParent(progressBg.transform, false);
-        var fillRect = fillGO.GetComponent<RectTransform>();
-        fillRect.anchorMin = new Vector2(0f, 0f);
-        fillRect.anchorMax = new Vector2(0f, 1f);
-        fillRect.pivot = new Vector2(0f, 0.5f);
-        fillRect.anchoredPosition = Vector2.zero;
-        fillRect.sizeDelta = new Vector2(0f, 0f);
-        progressFillImage = fillGO.GetComponent<Image>();
-        progressFillImage.color = progressFillColor;
     }
 
     private TMP_Text MakeText(Transform parent, string name, int fontSize, Vector2 anchoredPos, Vector2 size)
@@ -151,13 +148,11 @@ public class Customer : MonoBehaviour
     }
 
     // Called by CustomerVisualManager every frame the order is still active - shows delivered/
-    // requested (e.g. "1/3") and fills the bar to match (customer_order_design_v7.html §1/§3 -
-    // no grade requirement to show anymore, just a count).
+    // requested (e.g. "1/3", customer_order_design_v7.html §1/§3 - no grade requirement to show
+    // anymore, just a count).
     public void SetOrder(int deliveredCount, int requestedCount)
     {
         gradeLabel.text = deliveredCount + " / " + requestedCount;
-        float progress01 = requestedCount > 0 ? (float)deliveredCount / requestedCount : 0f;
-        progressFillImage.rectTransform.sizeDelta = new Vector2(ProgressBarWidth * progress01, 0f);
     }
 
     // Only the front-of-line customer can actually be served right now (OrderQueueManager.

@@ -93,6 +93,26 @@ public class CarryStack : MonoBehaviour
         return true;
     }
 
+    // Same end result as TryAdd, but for an item that already exists in the world (e.g. a weapon
+    // sitting on WeaponRack's shelf) instead of spawning a fresh instance - skips the drop/scatter
+    // and pickup-delay phases (the item is already "resting" somewhere, not freshly knocked loose),
+    // going straight into the same arc-flight-to-stack finish TryAdd uses.
+    public bool TryReceiveExisting(Transform existingItem, CarryLayer layer)
+    {
+        if (existingItem == null || stackAnchor == null || IsFull(layer))
+        {
+            return false;
+        }
+
+        int index = reservedByLayer[(int)layer];
+        reservedByLayer[(int)layer]++;
+
+        Vector3 targetLocalPosition = LocalSlotPosition(layer, index);
+        existingItem.SetParent(null, true);
+        StartCoroutine(FlyArcToStack(existingItem, existingItem.position, targetLocalPosition, layer));
+        return true;
+    }
+
     // Each layer gets its own stacking column so piles never visually overlap: ore stacks
     // straight up at the anchor, wood stacks up behind it, mana shards stack up to the side.
     private Vector3 LocalSlotPosition(CarryLayer layer, int index)
@@ -210,9 +230,10 @@ public class CarryStack : MonoBehaviour
         }
 
         Vector3 startPosition = item.position;
-        Vector3 startScale = item.localScale;
         float elapsed = 0f;
 
+        // No shrink-while-flying-in anymore (사용자 요청 2026-08-24: "점점 작아지는 연출은 없어도
+        // 될 것 같아") - item stays full size for the whole arc and just despawns on arrival.
         while (elapsed < depositFlightDuration && item != null)
         {
             elapsed += Time.deltaTime;
@@ -222,7 +243,6 @@ public class CarryStack : MonoBehaviour
             float arc = depositArcHeight * Mathf.Sin(t * Mathf.PI);
 
             item.position = flatPosition + Vector3.up * arc;
-            item.localScale = startScale * Mathf.Lerp(1f, 0.1f, t * t);
             item.Rotate(Vector3.up, 540f * Time.deltaTime, Space.World);
 
             yield return null;
@@ -256,7 +276,6 @@ public class CarryStack : MonoBehaviour
         }
 
         item.position = groundPosition;
-        Vector3 flightStart = groundPosition;
 
         yield return new WaitForSeconds(pickupDelay);
 
@@ -265,6 +284,14 @@ public class CarryStack : MonoBehaviour
             yield break;
         }
 
+        yield return FlyArcToStack(item, groundPosition, targetLocalPosition, layer);
+    }
+
+    // Shared tail of both pickup paths (freshly spawned via TryAdd, or an existing item handed over
+    // by TryReceiveExisting) - arcs from startWorldPosition to the target stack slot and parents it
+    // there on arrival.
+    private IEnumerator FlyArcToStack(Transform item, Vector3 startWorldPosition, Vector3 targetLocalPosition, CarryLayer layer)
+    {
         float elapsed = 0f;
 
         while (elapsed < flightDuration && item != null && stackAnchor != null)
@@ -273,7 +300,7 @@ public class CarryStack : MonoBehaviour
             float t = Mathf.Clamp01(elapsed / flightDuration);
 
             Vector3 targetWorldPosition = stackAnchor.TransformPoint(targetLocalPosition);
-            Vector3 flatPosition = Vector3.Lerp(flightStart, targetWorldPosition, t);
+            Vector3 flatPosition = Vector3.Lerp(startWorldPosition, targetWorldPosition, t);
             float arc = flightArcHeight * Mathf.Sin(t * Mathf.PI);
 
             item.position = flatPosition + Vector3.up * arc;

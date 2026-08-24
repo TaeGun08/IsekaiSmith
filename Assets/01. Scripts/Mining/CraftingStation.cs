@@ -67,6 +67,7 @@ public class CraftingStation : MonoBehaviour
     private Vector3 anvilPulseBaseScale;
     private bool isCrafting;
     private bool promptShown;
+    private WeaponRack weaponRack;
 
     private void Awake()
     {
@@ -81,6 +82,14 @@ public class CraftingStation : MonoBehaviour
         }
 
         InteractionPadIndicator.Attach(transform, interactRadius);
+
+        // QUICK CRAFT output no longer flies straight onto the player - it piles up here first and
+        // only transfers on approach (weapon_rack_and_order_polish_v1.html §2). Same world spot
+        // finished weapons used to appear at. The rack sits weaponOutputLeftOffset away from this
+        // transform, so its pickup radius has to reach at least interactRadius + that offset -
+        // otherwise crafting from the far side (e.g. standing at the anvil) leaves the rack
+        // unreachable and weapons never leave it (버그 수정 2026-08-24).
+        weaponRack = WeaponRack.CreateAt(WeaponOutputPosition, transform, interactRadius + weaponOutputLeftOffset + 0.5f);
     }
 
     private void Update()
@@ -243,18 +252,16 @@ public class CraftingStation : MonoBehaviour
 
         if (isQuickCraft)
         {
-            // Sell-only pipeline: physical props onto the player's CarryStack (smithy -> sales
-            // counter), never ToolInventory - QUICK CRAFT output is no longer equippable, only
-            // precise-crafted gear is (customer_order_design_v7.html §0 Q2). Weapon/oreGrade/
-            // element/manaGrade are meaningless for this path since only the count and grade
-            // matter once it's counter stock; grade itself gets resolved again at deposit time
-            // (CounterStock reads ForgeUpgrade.CurrentTier then), same "resolve at deposit, not at
-            // gather" convention OreBank.DepositMined already uses.
-            CarryStack carryStack = ResolvePlayerCarryStack();
-            Vector3 spawnPosition = WeaponOutputPosition;
-            for (int i = 0; i < amount && carryStack != null; i++)
+            // Sell-only pipeline: physical props onto WeaponRack (smithy -> rack -> sales counter),
+            // never ToolInventory - QUICK CRAFT output is no longer equippable, only precise-crafted
+            // gear is (customer_order_design_v7.html §0 Q2). Weapon/oreGrade/element/manaGrade are
+            // meaningless for this path since only the count and grade matter once it's counter
+            // stock; grade itself gets resolved again at deposit time (CounterStock reads
+            // ForgeUpgrade.CurrentTier then), same "resolve at deposit, not at gather" convention
+            // OreBank.DepositMined already uses.
+            for (int i = 0; i < amount; i++)
             {
-                carryStack.TryAdd(CarryItemTemplates.QuickCraftWeaponProp, spawnPosition, CarryLayer.Weapon);
+                weaponRack.AddWeapon();
             }
         }
         else
@@ -264,20 +271,6 @@ public class CraftingStation : MonoBehaviour
 
         OnCrafted?.Invoke(isQuickCraft);
         return grade;
-    }
-
-    private CarryStack cachedPlayerCarryStack;
-
-    // Same lazy-cache-once pattern StorageDepot uses - PlayerMotor.Instance is a session-wide
-    // singleton, so its CarryStack child never changes after the first resolve.
-    private CarryStack ResolvePlayerCarryStack()
-    {
-        if (cachedPlayerCarryStack == null && PlayerMotor.Instance != null)
-        {
-            cachedPlayerCarryStack = PlayerMotor.Instance.GetComponentInChildren<CarryStack>();
-        }
-
-        return cachedPlayerCarryStack;
     }
 
     private void UpdatePulse()

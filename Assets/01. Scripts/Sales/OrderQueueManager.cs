@@ -35,6 +35,12 @@ public class OrderQueueManager : MonoBehaviour
     // whole line shifts forward one spot and a fresh arrival eventually fills the back on the
     // usual arrival-pacing delay.
     [SerializeField] private int maxQueueLength = 5;
+    // TryFulfill can clear an entire order (1-3 units) in one tap by design - but with no cooldown,
+    // a burst of rapid taps could clear the completed customer's order *and* cascade straight into
+    // the next one(s) in the same instant, which read to the player as one customer receiving way
+    // more than they asked for (사용자 요청 2026-08-24: "2개를 원해서 줘도 5~6개 이상을 계속 받는").
+    // A short cooldown after each successful delivery keeps each sale visually distinct.
+    [SerializeField] private float fulfillCooldown = 0.4f;
 
     [Header("Arrival Pacing")]
     [SerializeField] private float arrivalIntervalMin = 3f;
@@ -61,6 +67,7 @@ public class OrderQueueManager : MonoBehaviour
     private float arrivalTimer;
     private float depositTimer;
     private float currentDepositInterval;
+    private float fulfillCooldownTimer;
     private CarryStack playerCarryStack;
 
     private bool inRush;
@@ -91,6 +98,11 @@ public class OrderQueueManager : MonoBehaviour
         TickWave(Time.deltaTime);
         TickArrivals(Time.deltaTime);
         TickDeposit(Time.deltaTime);
+
+        if (fulfillCooldownTimer > 0f)
+        {
+            fulfillCooldownTimer -= Time.deltaTime;
+        }
     }
 
     private void TickWave(float dt)
@@ -194,7 +206,7 @@ public class OrderQueueManager : MonoBehaviour
     // unit actually handed over. Returns whether anything was delivered.
     public bool TryFulfill()
     {
-        if (!PlayerNear || queue.Count == 0)
+        if (!PlayerNear || queue.Count == 0 || fulfillCooldownTimer > 0f)
         {
             return false;
         }
@@ -235,6 +247,7 @@ public class OrderQueueManager : MonoBehaviour
 
         order.DeliveredCount += delivered;
         SalesCurrency.Add(payout);
+        fulfillCooldownTimer = fulfillCooldown;
 
         if (order.IsComplete)
         {

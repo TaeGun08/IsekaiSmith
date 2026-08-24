@@ -85,4 +85,52 @@ public static class UIShapes
         ringSprite = Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f));
         return ringSprite;
     }
+
+    private static Sprite swordSprite;
+
+    // Simple sword silhouette (blade + crossguard + hilt) - used next to a customer's requested
+    // count so the bubble reads as "wants a weapon", not just a bare number (사용자 요청 2026-08-24).
+    public static Sprite Sword()
+    {
+        if (swordSprite != null)
+        {
+            return swordSprite;
+        }
+
+        const int width = 64;
+        const int height = 128;
+        Texture2D texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+
+        float centerX = width / 2f;
+        float bladeHalfWidth = width * 0.09f;
+        float bladeTop = height * 0.94f;
+        float bladeBottom = height * 0.34f;
+        float guardY = bladeBottom;
+        float guardHalfWidth = width * 0.28f;
+        float guardHeight = height * 0.045f;
+        float hiltHalfWidth = width * 0.07f;
+        float hiltBottom = height * 0.06f;
+        float pommelRadius = width * 0.11f;
+
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                float px = x + 0.5f;
+                float py = y + 0.5f;
+                float dx = Mathf.Abs(px - centerX);
+                bool inBlade = py >= bladeBottom && py <= bladeTop && dx <= bladeHalfWidth;
+                bool inGuard = py >= guardY && py <= guardY + guardHeight && dx <= guardHalfWidth;
+                bool inHilt = py >= hiltBottom && py < guardY && dx <= hiltHalfWidth;
+                bool inPommel = Vector2.Distance(new Vector2(px, py), new Vector2(centerX, hiltBottom)) <= pommelRadius;
+
+                float alpha = (inBlade || inGuard || inHilt || inPommel) ? 1f : 0f;
+                texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+            }
+        }
+        texture.Apply();
+
+        swordSprite = Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f));
+        return swordSprite;
+    }
 }
