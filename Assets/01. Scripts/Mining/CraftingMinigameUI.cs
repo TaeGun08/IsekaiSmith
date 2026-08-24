@@ -355,6 +355,22 @@ public class CraftingMinigameUI : MonoBehaviour
         panel.SetActive(visible);
     }
 
+    // Live state exposed read-only for DevAutoPlayController's tutorial-driving mode (사용자 요청
+    // 2026-08-24: "미니게임을 실제로 플레이") - it drives PumpHandle/MarkerHoldTracker directly
+    // (same fields the real drag/hold interactions already write to) rather than needing a
+    // separate simulated-input path, and reads these to react to the actual live values instead of
+    // a blind fixed timing script.
+    public bool IsTemperaturePhaseActive { get; private set; }
+    public float CurrentTemperatureValue { get; private set; }
+    public float TemperatureSweetMin { get; private set; }
+    public float TemperatureSweetMax { get; private set; }
+    public VerticalDragHandle PumpHandle => pumpHandle;
+
+    public bool IsHammeringPhaseActive { get; private set; }
+    public int CurrentHammerTargetPercent { get; private set; }
+    public float HammerChargeDuration { get; private set; }
+    public PointerHoldTracker MarkerHoldTracker => markerHoldTracker;
+
     // Bellows pump: drag the handle up and down repeatedly - each full down-then-up stroke
     // raises pressure. Heat always fades regardless of pumping (not just when idle), so only a
     // steady rhythm keeps up with it.
@@ -365,6 +381,10 @@ public class CraftingMinigameUI : MonoBehaviour
         titleText.text = title;
         resultText.text = "";
         instructionText.text = "Drag the handle up and down to pump - heat always fades, keep the rhythm going!";
+
+        IsTemperaturePhaseActive = true;
+        TemperatureSweetMin = sweetMin;
+        TemperatureSweetMax = sweetMax;
 
         float minAngle = Mathf.Lerp(DialSweepAngle, -DialSweepAngle, sweetMin);
         float maxAngle = Mathf.Lerp(DialSweepAngle, -DialSweepAngle, sweetMax);
@@ -401,6 +421,7 @@ public class CraftingMinigameUI : MonoBehaviour
             }
 
             value = Mathf.Clamp01(value - coolRate * Time.deltaTime);
+            CurrentTemperatureValue = value;
 
             float needleAngle = Mathf.Lerp(DialSweepAngle, -DialSweepAngle, value);
             dialNeedleRect.localRotation = Quaternion.Euler(0f, 0f, needleAngle);
@@ -423,6 +444,8 @@ public class CraftingMinigameUI : MonoBehaviour
             yield return null;
         }
 
+        IsTemperaturePhaseActive = false;
+
         float quality = Mathf.Clamp01((timeInZone - overheatTime * overheatPenaltyMultiplier) / duration);
         resultText.text = "Heat control " + Mathf.RoundToInt(quality * 100f) + "%";
         yield return new WaitForSeconds(0.6f);
@@ -441,6 +464,9 @@ public class CraftingMinigameUI : MonoBehaviour
         titleText.text = title;
         resultText.text = "";
         instructionText.text = "Hold the marker, release when the gauge hits the target!";
+
+        IsHammeringPhaseActive = true;
+        HammerChargeDuration = chargeDuration;
 
         for (int i = 0; i < hitMarks.Count; i++)
         {
@@ -467,6 +493,7 @@ public class CraftingMinigameUI : MonoBehaviour
             markerHoldRect.anchoredPosition = markerPos;
 
             int targetPercent = UnityEngine.Random.Range(20, 86);
+            CurrentHammerTargetPercent = targetPercent;
             hammerTargetText.text = "Target " + targetPercent + "%";
             hammerTargetLineRect.anchoredPosition = new Vector2(0f, (targetPercent / 100f) * gaugeHeight);
 
@@ -546,6 +573,8 @@ public class CraftingMinigameUI : MonoBehaviour
             totalScore += roundScore;
             yield return new WaitForSeconds(0.45f);
         }
+
+        IsHammeringPhaseActive = false;
 
         float quality = Mathf.Clamp01(totalScore / rounds);
         resultText.text = "Forging accuracy " + Mathf.RoundToInt(quality * 100f) + "%";
@@ -756,5 +785,19 @@ public class VerticalDragHandle : MonoBehaviour, IDragHandler
     {
         NormalizedY = 0f;
         rect.anchoredPosition = new Vector2(rect.anchoredPosition.x, 0f);
+    }
+
+    // Dev-only: drives NormalizedY directly (same field OnDrag writes to) without a real drag
+    // gesture - used by DevAutoPlayController to actually play the temperature minigame.
+    public void DevSetNormalizedY(float value)
+    {
+        if (Track == null)
+        {
+            return;
+        }
+
+        float trackHeight = Track.sizeDelta.y;
+        NormalizedY = Mathf.Clamp01(value);
+        rect.anchoredPosition = new Vector2(rect.anchoredPosition.x, NormalizedY * trackHeight);
     }
 }

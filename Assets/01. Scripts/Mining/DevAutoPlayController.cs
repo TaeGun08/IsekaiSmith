@@ -1,5 +1,6 @@
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -50,6 +51,7 @@ public class DevAutoPlayController : MonoBehaviour
         // Tutorial-only goals (사용자 요청 2026-08-24: "오토 플레이가 튜토리얼의 흐름을 자동으로
         // 플레이") - only ever chosen while GuidedTutorial is on the matching step, never part of
         // the post-tutorial endless gather/craft loop.
+        Rack,
         Counter,
         Monster
     }
@@ -75,10 +77,20 @@ public class DevAutoPlayController : MonoBehaviour
     private CraftingStation targetSmithy;
     private OrderQueueManager targetCounter;
     private Monster targetMonster;
+    private WeaponRack targetRack;
     // Snapshot of gold when a Counter goal starts - lets IsGoalStillValid detect "the sale actually
     // went through" the same way GuidedTutorial's own SellWeapon step does (SalesCurrency.Gold >
     // lastGold), rather than assuming one TryFulfill() tap was enough.
     private int goalStartGold;
+    // How much of the current Resource layer to carry before heading to deposit - null means "the
+    // ordinary rule" (fill to CarryStack capacity, e.g. the fixed GatherWood1/GatherOre1 steps or
+    // free-farming). Set to a specific amount by TryResupplyForSellWeapon so a multi-unit customer
+    // order gets gathered in one batched trip instead of one recipe's worth at a time.
+    private int? resourceCarryTarget;
+    // Set while DrivePreciseCraftRoutine is actually playing the silhouette/minigames - pauses the
+    // rest of this controller's goal logic (movement, gathering, etc.) so it doesn't fight with a
+    // multi-second coroutine that's driving its own UI interactions.
+    private bool isDrivingPreciseCraft;
 
     private readonly Dictionary<CraftGrade, int> gradeCounts = new Dictionary<CraftGrade, int>();
     private int totalCrafts;
@@ -327,6 +339,11 @@ public class DevAutoPlayController : MonoBehaviour
             return;
         }
 
+        if (isDrivingPreciseCraft)
+        {
+            return; // DrivePreciseCraftRoutine has the wheel until it clears this flag
+        }
+
         if (cachedCarryStack == null)
         {
             cachedCarryStack = PlayerMotor.Instance.GetComponentInChildren<CarryStack>();
@@ -375,29 +392,50 @@ public class DevAutoPlayController : MonoBehaviour
 
         if (currentGoal == Goal.Smithy && targetSmithy != null)
         {
-            // During Step.PreciseCraft the tutorial needs a ToolInventory-bound (equippable) craft,
-            // not another counter-stock QUICK CRAFT - same recipe/inputs either way, only which
-            // dev-bypass method gets called differs.
+            // During Step.PreciseCraft the tutorial needs a ToolInventory-bound (equippable) craft
+            // - actually played through the real silhouette/minigame UI now (사용자 요청
+            // 2026-08-24), which takes several seconds across many frames, so it hands off to its
+            // own coroutine instead of resolving inline like QUICK CRAFT does.
             bool wantPrecise = !GuidedTutorial.HasCompletedTutorial && GuidedTutorial.CurrentStep == GuidedTutorial.Step.PreciseCraft;
-            bool crafted;
-            CraftGrade grade;
-            int amount;
 
             if (wantPrecise)
             {
-                crafted = targetSmithy.TryDevPreciseCraft(WeaponType.Sword, out grade, out amount);
+                if (targetSmithy.DevBeginPreciseCraft())
+                {
+                    isDrivingPreciseCraft = true;
+                    StartCoroutine(DrivePreciseCraftRoutine(targetSmithy));
+                }
+
+                currentGoal = Goal.None;
+            }
+            else if (targetSmithy.TryDevQuickCraft(out CraftGrade grade, out int amount))
+            {
+                RecordCraft(grade, amount);
+
+                // QUICK CRAFT output lands on the rack, not directly on the player - walk over and
+                // wait for it to transfer instead of assuming wherever the craft happened is
+                // already close enough (사용자 요청 2026-08-24: the rack is a genuinely separate
+                // area, not merged with the furnace's own interact zone).
+                if (targetSmithy.WeaponRack != null)
+                {
+                    currentGoal = Goal.Rack;
+                    targetRack = targetSmithy.WeaponRack;
+                    targetOre = null;
+                    targetWood = null;
+                    targetDepot = null;
+                    targetCounter = null;
+                    targetMonster = null;
+                    targetTransform = targetRack.transform;
+                }
+                else
+                {
+                    currentGoal = Goal.None;
+                }
             }
             else
             {
-                crafted = targetSmithy.TryDevQuickCraft(out grade, out amount);
+                currentGoal = Goal.None;
             }
-
-            if (crafted)
-            {
-                RecordCraft(grade, amount);
-            }
-
-            currentGoal = Goal.None;
         }
         else if (currentGoal == Goal.Counter && targetCounter != null)
         {
@@ -411,7 +449,8 @@ public class DevAutoPlayController : MonoBehaviour
         // PlayerMining/PlayerWoodcutting/StorageDepot's own proximity checks once the bot is
         // standing in range - no extra interaction call needed for those two goals here. Goal.
         // Monster needs nothing either - PlayerCombat auto-attacks anything in its own range every
-        // frame regardless of this controller; just standing close enough is sufficient.
+        // frame regardless of this controller; just standing close enough is sufficient. Goal.Rack
+        // is the same - WeaponRack's own Update() pulls from it once the bot is in range.
     }
 
     private bool IsGoalStillValid()
@@ -419,21 +458,29 @@ public class DevAutoPlayController : MonoBehaviour
         switch (currentGoal)
         {
             case Goal.Resource:
-                // Also bail out once the relevant layer fills up mid-gather - otherwise the bot
+                // Also bail out once the relevant layer reaches its target - otherwise the bot
                 // keeps standing at the node (auto-mining/chopping wastes every hit once
-                // CarryStack.TryAdd starts silently failing) instead of noticing it's full and
-                // heading to the depot. During the tutorial's fixed wood-then-ore sequence, also
-                // bail out the instant that step is no longer the matching Gather* step (e.g. the
-                // tutorial already advanced to CarryWood1) instead of waiting for capacity - keeps
-                // the bot from over-chopping past what the current step actually needs.
+                // CarryStack.TryAdd starts silently failing) instead of noticing it's done and
+                // heading to the depot. The target is either resourceCarryTarget (a specific batch
+                // amount - see TryResupplyForSellWeapon) or, absent that, plain CarryStack
+                // capacity. During the tutorial's fixed wood-then-ore sequence, also bail out the
+                // instant that step is no longer the matching Gather* step (e.g. the tutorial
+                // already advanced to CarryWood1) instead of waiting to fill up - keeps the bot
+                // from over-chopping past what the current step actually needs.
                 if (targetOre != null)
                 {
-                    return ShouldKeepGathering(isWood: false) && targetOre.IsAvailable && !cachedCarryStack.IsFull(CarryLayer.Ore);
+                    bool oreTargetReached = resourceCarryTarget.HasValue
+                        ? cachedCarryStack.GetCount(CarryLayer.Ore) >= resourceCarryTarget.Value
+                        : cachedCarryStack.IsFull(CarryLayer.Ore);
+                    return ShouldKeepGathering(isWood: false) && targetOre.IsAvailable && !oreTargetReached;
                 }
 
                 if (targetWood != null)
                 {
-                    return ShouldKeepGathering(isWood: true) && targetWood.IsAvailable && !cachedCarryStack.IsFull(CarryLayer.Wood);
+                    bool woodTargetReached = resourceCarryTarget.HasValue
+                        ? cachedCarryStack.GetCount(CarryLayer.Wood) >= resourceCarryTarget.Value
+                        : cachedCarryStack.IsFull(CarryLayer.Wood);
+                    return ShouldKeepGathering(isWood: true) && targetWood.IsAvailable && !woodTargetReached;
                 }
 
                 return false;
@@ -443,6 +490,9 @@ public class DevAutoPlayController : MonoBehaviour
 
             case Goal.Smithy:
                 return targetSmithy != null;
+
+            case Goal.Rack:
+                return targetRack != null && cachedCarryStack.GetCount(CarryLayer.Weapon) <= 0;
 
             case Goal.Counter:
                 // Stops being valid the instant the tutorial's own SellWeapon check would also
@@ -466,9 +516,13 @@ public class DevAutoPlayController : MonoBehaviour
     // GatherOre1 even starts, 사용자 요청 2026-08-24: "채석장을 먼저 가려고 하잖아" - the old
     // need-based pick ignored that order entirely and went for whichever raw bank was emptier,
     // which is ore on a brand new save with 0 of everything). PreciseCraft's own dynamic re-gather
-    // sub-step has no such fixed order (it re-gathers whichever the recipe is short on, same as
-    // ChooseGoal's generic fallback below), and once the tutorial's done there's no order to
-    // respect either.
+    // sub-step and SellWeapon's own batch-resupply (TryResupplyForSellWeapon, for when a customer
+    // wants more than one QUICK CRAFT's worth) have no such fixed order - each re-gathers whichever
+    // the recipe is short on - and once the tutorial's done there's no order to respect either.
+    // (This one was missing SellWeapon originally - a Resource goal picked during that step would
+    // fail this check on the very next tick and get cancelled, immediately reselected, cancelled
+    // again... a visible stutter, 사용자 요청 2026-08-24: "다시 자원을 캐서 무기를 만들러 가야지
+    // 버벅이는 버그".)
     private static bool ShouldKeepGathering(bool isWood)
     {
         if (GuidedTutorial.HasCompletedTutorial)
@@ -478,7 +532,7 @@ public class DevAutoPlayController : MonoBehaviour
 
         GuidedTutorial.Step step = GuidedTutorial.CurrentStep;
 
-        if (step == GuidedTutorial.Step.PreciseCraft)
+        if (step == GuidedTutorial.Step.PreciseCraft || step == GuidedTutorial.Step.SellWeapon)
         {
             return true;
         }
@@ -556,6 +610,11 @@ public class DevAutoPlayController : MonoBehaviour
                     return;
                 }
 
+                if (TryResupplyForSellWeapon())
+                {
+                    return;
+                }
+
                 break;
 
             case GuidedTutorial.Step.HuntMonster:
@@ -603,6 +662,7 @@ public class DevAutoPlayController : MonoBehaviour
             targetDepot = null;
             targetCounter = null;
             targetMonster = null;
+            targetRack = null;
             targetTransform = smithy.transform;
             return;
         }
@@ -641,6 +701,8 @@ public class DevAutoPlayController : MonoBehaviour
             targetSmithy = null;
             targetCounter = null;
             targetMonster = null;
+            targetRack = null;
+            resourceCarryTarget = null;
             targetTransform = ore.transform;
         }
         else if (wood != null)
@@ -652,6 +714,8 @@ public class DevAutoPlayController : MonoBehaviour
             targetSmithy = null;
             targetCounter = null;
             targetMonster = null;
+            targetRack = null;
+            resourceCarryTarget = null;
             targetTransform = wood.transform;
         }
         else if (ore != null)
@@ -665,6 +729,8 @@ public class DevAutoPlayController : MonoBehaviour
             targetSmithy = null;
             targetCounter = null;
             targetMonster = null;
+            targetRack = null;
+            resourceCarryTarget = null;
             targetTransform = ore.transform;
         }
         else
@@ -717,6 +783,7 @@ public class DevAutoPlayController : MonoBehaviour
         targetDepot = null;
         targetSmithy = null;
         targetMonster = null;
+        targetRack = null;
         targetTransform = counter.transform;
         goalStartGold = SalesCurrency.Gold;
         return true;
@@ -742,8 +809,113 @@ public class DevAutoPlayController : MonoBehaviour
         targetDepot = null;
         targetSmithy = null;
         targetCounter = null;
+        targetRack = null;
         targetTransform = monster.transform;
         return true;
+    }
+
+    // When a customer wants more than one QUICK CRAFT's worth, gather enough raw material for
+    // *all* the still-remaining count in one sustained trip instead of the old interleaved
+    // "gather one recipe's worth -> craft -> sell -> repeat" cycle, which meant a full round trip
+    // to the resource fields for every single unit the customer wanted (사용자 요청 2026-08-24:
+    // "그만큼 다 캐고... 비용도 덜 들 것 같은데" - batch the trip). Wood first, then ore, matching
+    // the same order the opening sequence teaches; deposits whatever's already carried from a
+    // previous partial trip before gathering more, same "flush before continuing" rule
+    // CarryWood1/CarryOre1 use.
+    private bool TryResupplyForSellWeapon()
+    {
+        CraftingStation smithy = FindNearest(FindObjectsByType<CraftingStation>(FindObjectsSortMode.None), s => true, s => s.transform.position);
+        if (smithy == null)
+        {
+            return false;
+        }
+
+        if (smithy.CanCraft)
+        {
+            currentGoal = Goal.Smithy;
+            targetSmithy = smithy;
+            targetOre = null;
+            targetWood = null;
+            targetDepot = null;
+            targetCounter = null;
+            targetMonster = null;
+            targetRack = null;
+            targetTransform = smithy.transform;
+            return true;
+        }
+
+        if (cachedCarryStack.GetCount(CarryLayer.Wood) > 0 || cachedCarryStack.GetCount(CarryLayer.Ore) > 0)
+        {
+            StorageDepot depot = FindNearest(FindObjectsByType<StorageDepot>(FindObjectsSortMode.None), d => true, d => d.transform.position);
+            if (depot == null)
+            {
+                return false;
+            }
+
+            SetDepotGoal(depot);
+            return true;
+        }
+
+        int remaining = RemainingOrderCount();
+
+        if (smithy.NeedsWood)
+        {
+            WoodNode wood = FindNearest(FindObjectsByType<WoodNode>(FindObjectsSortMode.None), n => n.IsAvailable, n => n.transform.position);
+            if (wood == null)
+            {
+                return false;
+            }
+
+            currentGoal = Goal.Resource;
+            targetWood = wood;
+            targetOre = null;
+            targetDepot = null;
+            targetSmithy = null;
+            targetCounter = null;
+            targetMonster = null;
+            targetRack = null;
+            resourceCarryTarget = smithy.WoodAmount * remaining;
+            targetTransform = wood.transform;
+            return true;
+        }
+
+        if (smithy.NeedsOre)
+        {
+            OreNode ore = FindNearest(FindObjectsByType<OreNode>(FindObjectsSortMode.None), n => n.IsAvailable, n => n.transform.position);
+            if (ore == null)
+            {
+                return false;
+            }
+
+            currentGoal = Goal.Resource;
+            targetOre = ore;
+            targetWood = null;
+            targetDepot = null;
+            targetSmithy = null;
+            targetCounter = null;
+            targetMonster = null;
+            targetRack = null;
+            resourceCarryTarget = smithy.OreAmount * remaining;
+            targetTransform = ore.transform;
+            return true;
+        }
+
+        return false;
+    }
+
+    // How many more units the front customer's order still needs - falls back to 1 (a single
+    // recipe's worth) if there's no customer/queue to read yet, so resupply still makes forward
+    // progress instead of gathering an unbounded amount.
+    private int RemainingOrderCount()
+    {
+        OrderQueueManager counter = FindNearest(FindObjectsByType<OrderQueueManager>(FindObjectsSortMode.None), c => true, c => c.transform.position);
+        if (counter == null || counter.Queue.Count == 0)
+        {
+            return 1;
+        }
+
+        CustomerOrder order = counter.Queue[0];
+        return Mathf.Max(1, order.RequestedCount - order.DeliveredCount);
     }
 
     private void TryAutoEquip()
@@ -767,6 +939,7 @@ public class DevAutoPlayController : MonoBehaviour
         targetSmithy = null;
         targetCounter = null;
         targetMonster = null;
+        targetRack = null;
         targetTransform = depot.transform;
     }
 
@@ -798,6 +971,83 @@ public class DevAutoPlayController : MonoBehaviour
         }
 
         return best;
+    }
+
+    // Actually plays through the real precise-craft flow (silhouette panel + both minigames)
+    // instead of a fixed-quality bypass (사용자 요청 2026-08-24: "미니게임을 실제로 플레이") - fills
+    // materials, confirms FORGE, then drives the melting/hammering minigames by reading their live
+    // state each frame and reacting to it (not a blind fixed-timing script), so the resulting grade
+    // is genuinely earned and this exercises the same UI regression testing is meant to catch bugs
+    // in. Runs until CraftingMinigameUI.ShowGradeResult finishes and CraftingStation.IsCrafting
+    // drops back to false, then hands control back to RunAutoPlayTick.
+    private IEnumerator DrivePreciseCraftRoutine(CraftingStation smithy)
+    {
+        CraftingSilhouetteUI silhouette = CraftingSilhouetteUI.Instance;
+        CraftingMinigameUI minigame = CraftingMinigameUI.Instance;
+
+        // --- Material selection: fill ore+wood (no enchant) and confirm FORGE the moment both
+        // are filled. Bounded by a safety timer in case something upstream never actually starts
+        // the flow, so this can never hang the whole controller forever.
+        float safety = 0f;
+        while (smithy.IsCrafting && !minigame.IsTemperaturePhaseActive && safety < 10f)
+        {
+            silhouette.DevFillRequiredMaterials();
+            silhouette.DevConfirmForge();
+            safety += Time.deltaTime;
+            yield return null;
+        }
+
+        // --- Melting (temperature) minigame: bang-bang controller - do a full down-then-up
+        // stroke whenever the value dips near the sweet spot's lower edge, otherwise let it coast.
+        // strokeBump/coolRate are fixed parameters (not randomized run to run), so this reliably
+        // climbs into and holds the zone without needing anything beyond the live value.
+        while (minigame.IsTemperaturePhaseActive)
+        {
+            if (minigame.CurrentTemperatureValue < minigame.TemperatureSweetMin + 0.03f)
+            {
+                minigame.PumpHandle.DevSetNormalizedY(0f);
+                yield return null;
+                minigame.PumpHandle.DevSetNormalizedY(1f);
+                yield return null;
+                minigame.PumpHandle.DevSetNormalizedY(0f);
+            }
+
+            yield return null;
+        }
+
+        // --- Hammering minigame: hold for exactly targetPercent% of the charge duration, then
+        // release - reads each round's actual (randomized) target instead of guessing.
+        while (minigame.IsHammeringPhaseActive)
+        {
+            int targetPercent = minigame.CurrentHammerTargetPercent;
+            float holdDuration = minigame.HammerChargeDuration * Mathf.Clamp01(targetPercent / 100f);
+
+            minigame.MarkerHoldTracker.DevSetHeld(true);
+            float held = 0f;
+            while (held < holdDuration && minigame.IsHammeringPhaseActive)
+            {
+                held += Time.deltaTime;
+                yield return null;
+            }
+
+            minigame.MarkerHoldTracker.DevSetHeld(false);
+
+            // Let this round's hit result/pause play out before reacting to the next round's
+            // target - avoids racing CurrentHammerTargetPercent right as it changes.
+            yield return new WaitForSeconds(0.5f);
+        }
+
+        // ShowGradeResult still has its own short flourish/wait after the hammering phase ends -
+        // wait for CraftingStation.IsCrafting to actually drop before handing control back, so the
+        // bot doesn't start walking off mid-result-screen.
+        float resultSafety = 0f;
+        while (smithy.IsCrafting && resultSafety < 5f)
+        {
+            resultSafety += Time.deltaTime;
+            yield return null;
+        }
+
+        isDrivingPreciseCraft = false;
     }
 
     private void RecordCraft(CraftGrade grade, int amount)

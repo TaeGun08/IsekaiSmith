@@ -71,6 +71,15 @@ public class CraftingStation : MonoBehaviour
     private bool promptShown;
     private WeaponRack weaponRack;
 
+    // Lets DevAutoPlayController walk explicitly to the rack after crafting instead of assuming
+    // wherever it stood to craft is already close enough (weapon_rack_and_order_polish_v1.html
+    // follow-up, 2026-08-24).
+    public WeaponRack WeaponRack => weaponRack;
+
+    // Lets DevAutoPlayController's tutorial-driving mode know whether a precise craft is currently
+    // in progress (silhouette/minigames running) so it can wait rather than issuing another action.
+    public bool IsCrafting => isCrafting;
+
     private void Awake()
     {
         if (furnacePulseVisual != null)
@@ -87,11 +96,9 @@ public class CraftingStation : MonoBehaviour
 
         // QUICK CRAFT output no longer flies straight onto the player - it piles up here first and
         // only transfers on approach (weapon_rack_and_order_polish_v1.html §2). Same world spot
-        // finished weapons used to appear at. Pickup range is centered on this transform (the
-        // furnace) at the same interactRadius the crafting check itself uses - not on the rack's
-        // own offset position - so the pickup zone can never be a smaller dead zone than the craft
-        // zone regardless of how far to the side the rack sits (버그 수정 2026-08-24).
-        weaponRack = WeaponRack.CreateAt(WeaponOutputPosition, transform, transform, interactRadius);
+        // finished weapons used to appear at - a genuinely separate area from the furnace itself
+        // (사용자 요청 2026-08-24), not centered on the crafting interact zone.
+        weaponRack = WeaponRack.CreateAt(WeaponOutputPosition, transform);
     }
 
     private void Update()
@@ -178,17 +185,19 @@ public class CraftingStation : MonoBehaviour
     // gear) - bypasses the silhouette/melting/hammering minigames entirely. Used by
     // DevAutoPlayController's tutorial-driving mode to reach Step.PreciseCraft/Equip without
     // simulating those minigames. manaSpent=0 like Quick Craft, so it never touches ManaBank.
-    public bool TryDevPreciseCraft(WeaponType weapon, out CraftGrade grade, out int amount)
+    // Dev-only: starts the *real* precise-craft flow (silhouette + melting + hammering minigames),
+    // the same coroutine InteractionPromptUI's CRAFT button starts - used by DevAutoPlayController
+    // to actually play through it instead of bypassing it, so the minigames' own UI gets exercised
+    // by regression testing too and the resulting grade genuinely reflects how well it was played
+    // (사용자 요청 2026-08-24: replaces the old TryDevPreciseCraft fixed-quality bypass).
+    public bool DevBeginPreciseCraft()
     {
-        grade = CraftGrade.Rough;
-        amount = 0;
-
-        if (!CanCraft)
+        if (isCrafting || !HasEnoughInputs())
         {
             return false;
         }
 
-        grade = ApplyCraft(0.75f, 0, false, weapon, out amount, out _, out _, out _);
+        StartCoroutine(CraftWithSilhouetteAndMinigames());
         return true;
     }
 

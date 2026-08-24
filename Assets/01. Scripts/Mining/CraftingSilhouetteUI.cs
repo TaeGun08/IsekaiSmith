@@ -396,6 +396,37 @@ public class CraftingSilhouetteUI : MonoBehaviour
         }
     }
 
+    // Dev-only: fills the two required slots (ore + wood) with whatever's currently owned, no
+    // enchant, without a real drag gesture - used by DevAutoPlayController's tutorial-driving mode.
+    // Safe to call every tick while the panel's open; a no-op once both are already filled.
+    public void DevFillRequiredMaterials()
+    {
+        EnsureUIBuilt();
+
+        if (!oreSlot.Filled.HasValue && OreBank.TotalCurrent > 0)
+        {
+            AssignSlot(oreSlot, ResourceType.Ore);
+        }
+
+        if (!woodSlot.Filled.HasValue && ResourceBank.Get(ResourceType.Wood) > 0)
+        {
+            AssignSlot(woodSlot, ResourceType.Wood);
+        }
+    }
+
+    // Dev-only: same effect as tapping FORGE (only succeeds once both required slots are filled) -
+    // used by DevAutoPlayController instead of a real click on the button.
+    public bool DevConfirmForge()
+    {
+        if (!oreSlot.Filled.HasValue || !woodSlot.Filled.HasValue)
+        {
+            return false;
+        }
+
+        forgeButton.onClick.Invoke();
+        return true;
+    }
+
     public IEnumerator RunSilhouette(Action<bool, int, WeaponType> onComplete)
     {
         EnsureUIBuilt();

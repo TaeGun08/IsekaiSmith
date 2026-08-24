@@ -56,4 +56,28 @@ public class PointerHoldTracker : MonoBehaviour, IPointerDownHandler, IPointerUp
         WasReleasedThisFrame = false;
         HeldDuration = 0f;
     }
+
+    // Dev-only: drives IsHeld/WasReleasedThisFrame directly (the exact same fields OnPointerDown/
+    // OnPointerUp write to) without a real pointer event - used by DevAutoPlayController to
+    // actually play the hammering minigame.
+    public void DevSetHeld(bool held)
+    {
+        if (held)
+        {
+            if (!IsHeld)
+            {
+                IsHeld = true;
+                HeldDuration = 0f;
+            }
+        }
+        else
+        {
+            if (IsHeld)
+            {
+                WasReleasedThisFrame = true;
+            }
+
+            IsHeld = false;
+        }
+    }
 }
