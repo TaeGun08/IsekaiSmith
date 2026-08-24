@@ -46,7 +46,9 @@ public class CraftingStation : MonoBehaviour
     // anvil" - i.e. the furnace's left - regardless of how the whole Smithy prefab is rotated when
     // placed in a scene (transform.right already reflects that rotation; unlike a raw local-space
     // offset, it isn't distorted by the furnace's own non-uniform scale either).
-    [SerializeField] private float weaponOutputLeftOffset = 1.3f;
+    // Bumped further out (사용자 요청 2026-08-24: "용광로의 위치는 그대로 둔 채로 옆으로 이동만") -
+    // furnace position itself is untouched, only how far the rack sits off to its side.
+    [SerializeField] private float weaponOutputLeftOffset = 1.9f;
     [SerializeField] private float weaponOutputHeightOffset = 0.3f;
 
     [Header("Smelting Minigame (Drag Pump) - drag the handle up/down; heat always fades")]
@@ -85,11 +87,8 @@ public class CraftingStation : MonoBehaviour
 
         // QUICK CRAFT output no longer flies straight onto the player - it piles up here first and
         // only transfers on approach (weapon_rack_and_order_polish_v1.html §2). Same world spot
-        // finished weapons used to appear at. The rack sits weaponOutputLeftOffset away from this
-        // transform, so its pickup radius has to reach at least interactRadius + that offset -
-        // otherwise crafting from the far side (e.g. standing at the anvil) leaves the rack
-        // unreachable and weapons never leave it (버그 수정 2026-08-24).
-        weaponRack = WeaponRack.CreateAt(WeaponOutputPosition, transform, interactRadius + weaponOutputLeftOffset + 0.5f);
+        // finished weapons used to appear at.
+        weaponRack = WeaponRack.CreateAt(WeaponOutputPosition, transform);
     }
 
     private void Update()
@@ -169,6 +168,24 @@ public class CraftingStation : MonoBehaviour
         }
 
         grade = ApplyCraft(0.5f, 0, true, quickCraftWeaponType, out amount, out _, out _, out _);
+        return true;
+    }
+
+    // Same idea as TryDevQuickCraft but for the *precise* path (ToolInventory-bound, equippable
+    // gear) - bypasses the silhouette/melting/hammering minigames entirely. Used by
+    // DevAutoPlayController's tutorial-driving mode to reach Step.PreciseCraft/Equip without
+    // simulating those minigames. manaSpent=0 like Quick Craft, so it never touches ManaBank.
+    public bool TryDevPreciseCraft(WeaponType weapon, out CraftGrade grade, out int amount)
+    {
+        grade = CraftGrade.Rough;
+        amount = 0;
+
+        if (!CanCraft)
+        {
+            return false;
+        }
+
+        grade = ApplyCraft(0.75f, 0, false, weapon, out amount, out _, out _, out _);
         return true;
     }
 

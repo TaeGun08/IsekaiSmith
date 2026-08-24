@@ -21,20 +21,13 @@ public class WeaponRack : MonoBehaviour
     private float currentInterval;
     private CarryStack playerCarryStack;
 
-    // minPickupRadius lets the caller guarantee the rack is reachable from anywhere the player can
-    // actually craft from - the rack sits offset to the side of the furnace (WeaponOutputPosition),
-    // so a fixed small radius left a dead zone: standing on the far side of the furnace (e.g. at
-    // the anvil) to craft could be well outside a naively small pickup radius, so finished weapons
-    // just piled up on the rack forever and never reached the counter (버그 리포트 2026-08-24: "손님
-    // 카운트가 0/2에서 멈춰있음" + "무기가 계속 같은 자리에 쌓임" - both were this one dead zone).
-    public static WeaponRack CreateAt(Vector3 worldPosition, Transform parent, float minPickupRadius = 0f)
+    public static WeaponRack CreateAt(Vector3 worldPosition, Transform parent)
     {
         var go = new GameObject("WeaponRack");
         go.transform.SetParent(parent, true);
         go.transform.position = worldPosition;
 
         var rack = go.AddComponent<WeaponRack>();
-        rack.pickupRadius = Mathf.Max(rack.pickupRadius, minPickupRadius);
         InteractionPadIndicator.Attach(go.transform, rack.pickupRadius);
         return rack;
     }

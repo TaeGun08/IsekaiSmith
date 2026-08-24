@@ -45,7 +45,12 @@ public class DevAutoPlayController : MonoBehaviour
         None,
         Resource,
         Depot,
-        Smithy
+        Smithy,
+        // Tutorial-only goals (사용자 요청 2026-08-24: "오토 플레이가 튜토리얼의 흐름을 자동으로
+        // 플레이") - only ever chosen while GuidedTutorial is on the matching step, never part of
+        // the post-tutorial endless gather/craft loop.
+        Counter,
+        Monster
     }
 
     private Button toggleButton;
@@ -67,6 +72,12 @@ public class DevAutoPlayController : MonoBehaviour
     private WoodNode targetWood;
     private StorageDepot targetDepot;
     private CraftingStation targetSmithy;
+    private OrderQueueManager targetCounter;
+    private Monster targetMonster;
+    // Snapshot of gold when a Counter goal starts - lets IsGoalStillValid detect "the sale actually
+    // went through" the same way GuidedTutorial's own SellWeapon step does (SalesCurrency.Gold >
+    // lastGold), rather than assuming one TryFulfill() tap was enough.
+    private int goalStartGold;
 
     private readonly Dictionary<CraftGrade, int> gradeCounts = new Dictionary<CraftGrade, int>();
     private int totalCrafts;
@@ -351,17 +362,43 @@ public class DevAutoPlayController : MonoBehaviour
 
         if (currentGoal == Goal.Smithy && targetSmithy != null)
         {
-            if (targetSmithy.TryDevQuickCraft(out CraftGrade grade, out int amount))
+            // During Step.PreciseCraft the tutorial needs a ToolInventory-bound (equippable) craft,
+            // not another counter-stock QUICK CRAFT - same recipe/inputs either way, only which
+            // dev-bypass method gets called differs.
+            bool wantPrecise = !GuidedTutorial.HasCompletedTutorial && GuidedTutorial.CurrentStep == GuidedTutorial.Step.PreciseCraft;
+            bool crafted;
+            CraftGrade grade;
+            int amount;
+
+            if (wantPrecise)
+            {
+                crafted = targetSmithy.TryDevPreciseCraft(WeaponType.Sword, out grade, out amount);
+            }
+            else
+            {
+                crafted = targetSmithy.TryDevQuickCraft(out grade, out amount);
+            }
+
+            if (crafted)
             {
                 RecordCraft(grade, amount);
             }
 
             currentGoal = Goal.None;
         }
+        else if (currentGoal == Goal.Counter && targetCounter != null)
+        {
+            // Not one-shot like Smithy - a tap can silently do nothing yet (no customer arrived,
+            // no stock deposited, still on cooldown), so keep retrying every tick standing here.
+            // IsGoalStillValid() is what actually notices the sale went through and ends this goal.
+            targetCounter.TryFulfill();
+        }
 
         // Resource gathering and depot deposits are already handled automatically by
         // PlayerMining/PlayerWoodcutting/StorageDepot's own proximity checks once the bot is
-        // standing in range - no extra interaction call needed for those two goals here.
+        // standing in range - no extra interaction call needed for those two goals here. Goal.
+        // Monster needs nothing either - PlayerCombat auto-attacks anything in its own range every
+        // frame regardless of this controller; just standing close enough is sufficient.
     }
 
     private bool IsGoalStillValid()
@@ -391,6 +428,18 @@ public class DevAutoPlayController : MonoBehaviour
             case Goal.Smithy:
                 return targetSmithy != null;
 
+            case Goal.Counter:
+                // Stops being valid the instant the tutorial's own SellWeapon check would also
+                // fire (gold increased) - or if something moved the tutorial past this step some
+                // other way (e.g. SKIP TUTORIAL was pressed mid-goal).
+                return targetCounter != null
+                    && !GuidedTutorial.HasCompletedTutorial
+                    && GuidedTutorial.CurrentStep == GuidedTutorial.Step.SellWeapon
+                    && SalesCurrency.Gold <= goalStartGold;
+
+            case Goal.Monster:
+                return targetMonster != null && targetMonster.IsAvailable && !cachedCarryStack.IsFull(CarryLayer.ManaStone) && cachedCarryStack.GetCount(CarryLayer.ManaStone) < 1;
+
             default:
                 return false;
         }
@@ -413,8 +462,56 @@ public class DevAutoPlayController : MonoBehaviour
         return false;
     }
 
+    // Tutorial-driving (사용자 요청 2026-08-24): while GuidedTutorial hasn't finished yet, its
+    // current step takes priority over the generic gather/deposit/craft loop below for whichever
+    // steps need a different action entirely (selling, hunting, equipping, clearing a stage/
+    // dungeon floor). Steps that the generic loop already handles correctly as-is (Move, the four
+    // Gather/Carry steps, QuickCraft, PreciseCraft) fall straight through with no special case.
     private void ChooseGoal()
     {
+        GuidedTutorial.Step tutorialStep = GuidedTutorial.HasCompletedTutorial ? GuidedTutorial.Step.Done : GuidedTutorial.CurrentStep;
+        UpdateLog();
+
+        switch (tutorialStep)
+        {
+            case GuidedTutorial.Step.Welcome:
+                // Not a Goal - resolved instantly, no walking involved. Harmless to call every
+                // rescan tick: SkipWelcomeCard() itself no-ops once step has already moved on.
+                GuidedTutorial.Instance.SkipWelcomeCard();
+                break;
+
+            case GuidedTutorial.Step.SellWeapon:
+                if (TrySetCounterGoal())
+                {
+                    return;
+                }
+
+                break;
+
+            case GuidedTutorial.Step.HuntMonster:
+                if (TrySetMonsterGoal())
+                {
+                    return;
+                }
+
+                break;
+
+            case GuidedTutorial.Step.Equip:
+                TryAutoEquip();
+                break;
+
+            case GuidedTutorial.Step.StageProgress:
+                // Same dev bypass the "UNLOCK ALL STAGES" button already uses - actually fighting
+                // through a wave encounter is out of scope for this bot (no combat AI here beyond
+                // the passive auto-attack PlayerCombat already does on anything in melee range).
+                StageBank.MarkCleared(1);
+                break;
+
+            case GuidedTutorial.Step.DungeonProgress:
+                DungeonBank.ReportFloorCleared(1);
+                break;
+        }
+
         if (cachedCarryStack.IsFull(CarryLayer.Ore) || cachedCarryStack.IsFull(CarryLayer.Wood))
         {
             StorageDepot depot = FindNearest(FindObjectsByType<StorageDepot>(FindObjectsSortMode.None), d => true, d => d.transform.position);
@@ -434,6 +531,8 @@ public class DevAutoPlayController : MonoBehaviour
             targetOre = null;
             targetWood = null;
             targetDepot = null;
+            targetCounter = null;
+            targetMonster = null;
             targetTransform = smithy.transform;
             return;
         }
@@ -455,6 +554,8 @@ public class DevAutoPlayController : MonoBehaviour
             targetWood = null;
             targetDepot = null;
             targetSmithy = null;
+            targetCounter = null;
+            targetMonster = null;
             targetTransform = ore.transform;
         }
         else if (wood != null)
@@ -464,6 +565,8 @@ public class DevAutoPlayController : MonoBehaviour
             targetOre = null;
             targetDepot = null;
             targetSmithy = null;
+            targetCounter = null;
+            targetMonster = null;
             targetTransform = wood.transform;
         }
         else if (ore != null)
@@ -475,12 +578,78 @@ public class DevAutoPlayController : MonoBehaviour
             targetWood = null;
             targetDepot = null;
             targetSmithy = null;
+            targetCounter = null;
+            targetMonster = null;
             targetTransform = ore.transform;
         }
         else
         {
             currentGoal = Goal.None;
             targetTransform = null;
+        }
+    }
+
+    // Weapon on the player's back (rack pickup already happened) but nowhere to sell it yet -
+    // wait rather than wander off; returns false so ChooseGoal falls through to the generic loop
+    // (which, mid-SellWeapon, has nothing better to do either, so it'll just idle safely).
+    private bool TrySetCounterGoal()
+    {
+        if (cachedCarryStack.GetCount(CarryLayer.Weapon) <= 0)
+        {
+            return false;
+        }
+
+        OrderQueueManager counter = FindNearest(FindObjectsByType<OrderQueueManager>(FindObjectsSortMode.None), c => true, c => c.transform.position);
+        if (counter == null)
+        {
+            return false;
+        }
+
+        currentGoal = Goal.Counter;
+        targetCounter = counter;
+        targetOre = null;
+        targetWood = null;
+        targetDepot = null;
+        targetSmithy = null;
+        targetMonster = null;
+        targetTransform = counter.transform;
+        goalStartGold = SalesCurrency.Gold;
+        return true;
+    }
+
+    private bool TrySetMonsterGoal()
+    {
+        if (cachedCarryStack.GetCount(CarryLayer.ManaStone) >= 1)
+        {
+            return false; // already have one - GuidedTutorial's own Update() will advance on its own
+        }
+
+        Monster monster = FindNearest(FindObjectsByType<Monster>(FindObjectsSortMode.None), m => m.IsAvailable, m => m.transform.position);
+        if (monster == null)
+        {
+            return false;
+        }
+
+        currentGoal = Goal.Monster;
+        targetMonster = monster;
+        targetOre = null;
+        targetWood = null;
+        targetDepot = null;
+        targetSmithy = null;
+        targetCounter = null;
+        targetTransform = monster.transform;
+        return true;
+    }
+
+    private void TryAutoEquip()
+    {
+        // TryGetBestWeapon returning false means nothing's actually owned yet - must not call
+        // Equip() with its Sword/Iron/None/Crude fallback values in that case, or
+        // EquippedWeapon.HasExplicitChoice would flip true and fast-forward the tutorial past a
+        // precise craft that hasn't actually happened.
+        if (ToolInventory.TryGetBestWeapon(out WeaponType weapon, out OreGrade oreGrade, out ManaElement element, out ManaGrade manaGrade))
+        {
+            EquippedWeapon.Equip(weapon, oreGrade, element, manaGrade);
         }
     }
 
@@ -491,6 +660,8 @@ public class DevAutoPlayController : MonoBehaviour
         targetOre = null;
         targetWood = null;
         targetSmithy = null;
+        targetCounter = null;
+        targetMonster = null;
         targetTransform = depot.transform;
     }
 
@@ -537,6 +708,7 @@ public class DevAutoPlayController : MonoBehaviour
     private void UpdateLog()
     {
         var sb = new System.Text.StringBuilder();
+        sb.Append("Tutorial: ").Append(GuidedTutorial.HasCompletedTutorial ? "Done" : GuidedTutorial.CurrentStep.ToString()).Append('\n');
         sb.Append("Crafts: ").Append(totalCrafts).Append('\n');
 
         foreach (CraftGrade grade in (CraftGrade[])Enum.GetValues(typeof(CraftGrade)))

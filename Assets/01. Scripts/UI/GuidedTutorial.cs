@@ -32,7 +32,10 @@ public class GuidedTutorial : MonoBehaviour
         }
     }
 
-    private enum Step
+    // Public so DevAutoPlayController's tutorial-driving mode (weapon_rack_and_order_polish_v1.html
+    // follow-up, 사용자 요청 2026-08-24: "오토 플레이가 튜토리얼의 흐름을 자동으로 플레이") can branch
+    // on exactly which step is active instead of re-deriving it from world state.
+    public enum Step
     {
         Welcome,
         Move,
@@ -98,6 +101,11 @@ public class GuidedTutorial : MonoBehaviour
     // session sees everything unlocked immediately, even though this fresh instance's own `step`
     // field starts back at Welcome (Begin() is never called again once SeenPrefsKey is set).
     public static bool HasCompletedTutorial => PlayerPrefs.GetInt(SeenPrefsKey, 0) != 0;
+
+    // Reads the live instance's step directly (no side-effecting Instance getter call) - falls
+    // back to Welcome if no instance exists yet, same "hasn't started" meaning as the real Welcome
+    // step. DevAutoPlayController polls this every tick to decide what to do next.
+    public static Step CurrentStep => instance != null ? instance.step : Step.Welcome;
 
     // Dev-only shortcut (DevAutoPlayController's dev panel) - the "UNLOCK ALL STAGES" button only
     // touches StageBank, not this gate, so testing stages/dungeon still required playing through
@@ -201,6 +209,16 @@ public class GuidedTutorial : MonoBehaviour
         welcomePanel.SetActive(false);
         bannerRoot.SetActive(true);
         EnterStep(Step.Move);
+    }
+
+    // Dev-only: lets DevAutoPlayController's tutorial-driving bot get past the welcome card
+    // without a real tap on its Start button.
+    public void SkipWelcomeCard()
+    {
+        if (running && step == Step.Welcome)
+        {
+            OnWelcomeStart();
+        }
     }
 
     private void EnterStep(Step next)
