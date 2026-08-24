@@ -87,8 +87,11 @@ public class CraftingStation : MonoBehaviour
 
         // QUICK CRAFT output no longer flies straight onto the player - it piles up here first and
         // only transfers on approach (weapon_rack_and_order_polish_v1.html §2). Same world spot
-        // finished weapons used to appear at.
-        weaponRack = WeaponRack.CreateAt(WeaponOutputPosition, transform);
+        // finished weapons used to appear at. Pickup range is centered on this transform (the
+        // furnace) at the same interactRadius the crafting check itself uses - not on the rack's
+        // own offset position - so the pickup zone can never be a smaller dead zone than the craft
+        // zone regardless of how far to the side the rack sits (버그 수정 2026-08-24).
+        weaponRack = WeaponRack.CreateAt(WeaponOutputPosition, transform, transform, interactRadius);
     }
 
     private void Update()

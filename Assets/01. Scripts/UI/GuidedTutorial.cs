@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -85,9 +86,11 @@ public class GuidedTutorial : MonoBehaviour
 
     private int lastWood;
     private int lastOre;
-    private int lastGold;
     private bool quickCraftDone;
     private bool preciseCraftDone;
+    // Which customer order SellWeapon is actually waiting on - resolved lazily once a customer is
+    // at the front of the line (see SellWeaponOrderComplete). -1 means "not resolved yet".
+    private int sellWeaponOrderId = -1;
 
     private int WoodTarget => craftingStation != null ? craftingStation.WoodAmount : FallbackWoodTarget;
     private int OreTarget => craftingStation != null ? craftingStation.OreAmount : FallbackOreTarget;
@@ -242,6 +245,7 @@ public class GuidedTutorial : MonoBehaviour
                 break;
             case Step.SellWeapon:
                 bannerText.text = "Carry the weapon to the counter and sell it";
+                sellWeaponOrderId = -1;
                 break;
             case Step.PreciseCraft:
                 preciseCraftDone = false;
@@ -265,7 +269,6 @@ public class GuidedTutorial : MonoBehaviour
 
         lastWood = ResourceBank.Get(ResourceType.Wood);
         lastOre = ResourceBank.Get(ResourceType.Ore);
-        lastGold = SalesCurrency.Gold;
 
         if (playerCarryStack == null && PlayerMotor.Instance != null)
         {
@@ -326,7 +329,13 @@ public class GuidedTutorial : MonoBehaviour
                 }
                 break;
             case Step.SellWeapon:
-                if (SalesCurrency.Gold > lastGold)
+                // Must actually clear that customer's whole order, not just land one sale
+                // (사용자 요청 2026-08-24: "검 하나만 만들고 바로 넘어가면 안되고, 손님한테 알맞는
+                // 수만큼 팔고 넘어가야 해") - a single QUICK CRAFT only ever produces one weapon, so
+                // an order asking for more (minRequestedCount..maxRequestedCount can be up to 3)
+                // needs the player to loop back through craft-and-sell again, same as
+                // PreciseCraft's own dynamic re-gather sub-step reuses CraftingStation.Needs*.
+                if (SellWeaponOrderComplete())
                 {
                     EnterStep(Step.HuntMonster);
                 }
@@ -376,6 +385,43 @@ public class GuidedTutorial : MonoBehaviour
                 }
                 break;
         }
+    }
+
+    // Whether the customer order SellWeapon is actually waiting on has been fully delivered.
+    // Resolves which order to track lazily (the front of the line the first time someone's
+    // actually there - a fresh customer might not have arrived yet when this step starts) and then
+    // just watches for that same order id to disappear from the queue: OrderQueueManager.TryFulfill
+    // only ever removes an order after order.IsComplete, so "no longer in the queue" already means
+    // "fully paid for" - no separate gold bookkeeping needed here.
+    private bool SellWeaponOrderComplete()
+    {
+        if (orderQueueManager == null)
+        {
+            return false;
+        }
+
+        IReadOnlyList<CustomerOrder> queue = orderQueueManager.Queue;
+
+        if (sellWeaponOrderId < 0)
+        {
+            if (queue.Count == 0)
+            {
+                return false; // nobody in line yet - nothing to track
+            }
+
+            sellWeaponOrderId = queue[0].Id;
+            return false;
+        }
+
+        for (int i = 0; i < queue.Count; i++)
+        {
+            if (queue[i].Id == sellWeaponOrderId)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     // PreciseCraft folds "gather whatever the recipe is still short on" into itself instead of

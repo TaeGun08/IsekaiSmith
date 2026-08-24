@@ -10,7 +10,6 @@ using UnityEngine;
 // editing required.
 public class WeaponRack : MonoBehaviour
 {
-    [SerializeField] private float pickupRadius = 2f;
     [SerializeField] private float stackItemHeight = 0.16f;
     [SerializeField] private float pickupIntervalStart = 0.32f;
     [SerializeField] private float pickupIntervalFloor = 0.06f;
@@ -21,14 +20,30 @@ public class WeaponRack : MonoBehaviour
     private float currentInterval;
     private CarryStack playerCarryStack;
 
-    public static WeaponRack CreateAt(Vector3 worldPosition, Transform parent)
+    // Pickup eligibility is checked against pickupCenter/pickupRadius, NOT this rack's own
+    // transform - the rack sits visually offset to the side of the furnace (so finished weapons
+    // are easy to see), but if pickup range were centered on that same offset point with an
+    // arbitrary small radius, standing on the *far* side of the furnace to craft (e.g. at the
+    // anvil) could put the player outside it - weapons would pile up here forever, never reaching
+    // the counter (버그 리포트 2026-08-24). Centering on the furnace itself with the exact same
+    // radius CraftingStation already uses for its own interact check guarantees "anywhere you
+    // could have just crafted, you can also pick up" by construction, regardless of how far to the
+    // side the rack's visual spot ends up.
+    private Transform pickupCenter;
+    private float pickupRadius;
+
+    public static WeaponRack CreateAt(Vector3 worldPosition, Transform parent, Transform pickupCenter, float pickupRadius)
     {
         var go = new GameObject("WeaponRack");
         go.transform.SetParent(parent, true);
         go.transform.position = worldPosition;
 
         var rack = go.AddComponent<WeaponRack>();
-        InteractionPadIndicator.Attach(go.transform, rack.pickupRadius);
+        rack.pickupCenter = pickupCenter != null ? pickupCenter : go.transform;
+        rack.pickupRadius = pickupRadius;
+        // No separate ground indicator here - CraftingStation already draws one for this exact
+        // same center/radius (its own interactRadius), so a second identical circle would just be
+        // a redundant overlay.
         return rack;
     }
 
@@ -56,7 +71,7 @@ public class WeaponRack : MonoBehaviour
             return;
         }
 
-        float sqrDist = (PlayerMotor.Instance.transform.position - transform.position).sqrMagnitude;
+        float sqrDist = (PlayerMotor.Instance.transform.position - pickupCenter.position).sqrMagnitude;
         if (sqrDist > pickupRadius * pickupRadius)
         {
             ResetPacing();

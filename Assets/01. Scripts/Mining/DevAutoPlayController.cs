@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 // Developer-only auto-play bot for regression/economy testing (dev_autoplay_design.html).
@@ -314,6 +315,18 @@ public class DevAutoPlayController : MonoBehaviour
             return;
         }
 
+        // Both this bot and PlayerKeyboardInput unconditionally write to the same
+        // PlayerMotor.SetKeyboardInput slot every frame, so whichever one runs last in a given
+        // frame silently wins - with the bot on, real WASD presses were getting overwritten right
+        // back to whatever the bot wanted (사용자 요청 2026-08-24: "WASD 조작이 안돼"). Yielding
+        // here whenever a real key is actually held means the player can always manually cut in;
+        // goal/gathering logic itself just pauses for that frame and resumes cleanly once they
+        // let go, rather than the two fighting over the same input every tick.
+        if (RealKeyboardInputHeld())
+        {
+            return;
+        }
+
         if (cachedCarryStack == null)
         {
             cachedCarryStack = PlayerMotor.Instance.GetComponentInChildren<CarryStack>();
@@ -409,15 +422,18 @@ public class DevAutoPlayController : MonoBehaviour
                 // Also bail out once the relevant layer fills up mid-gather - otherwise the bot
                 // keeps standing at the node (auto-mining/chopping wastes every hit once
                 // CarryStack.TryAdd starts silently failing) instead of noticing it's full and
-                // heading to the depot.
+                // heading to the depot. During the tutorial's fixed wood-then-ore sequence, also
+                // bail out the instant that step is no longer the matching Gather* step (e.g. the
+                // tutorial already advanced to CarryWood1) instead of waiting for capacity - keeps
+                // the bot from over-chopping past what the current step actually needs.
                 if (targetOre != null)
                 {
-                    return targetOre.IsAvailable && !cachedCarryStack.IsFull(CarryLayer.Ore);
+                    return ShouldKeepGathering(isWood: false) && targetOre.IsAvailable && !cachedCarryStack.IsFull(CarryLayer.Ore);
                 }
 
                 if (targetWood != null)
                 {
-                    return targetWood.IsAvailable && !cachedCarryStack.IsFull(CarryLayer.Wood);
+                    return ShouldKeepGathering(isWood: true) && targetWood.IsAvailable && !cachedCarryStack.IsFull(CarryLayer.Wood);
                 }
 
                 return false;
@@ -443,6 +459,46 @@ public class DevAutoPlayController : MonoBehaviour
             default:
                 return false;
         }
+    }
+
+    // Whether it's still appropriate to be gathering this specific resource right now. The
+    // tutorial's opening sequence is a fixed wood-then-ore order (GatherWood1 must finish before
+    // GatherOre1 even starts, 사용자 요청 2026-08-24: "채석장을 먼저 가려고 하잖아" - the old
+    // need-based pick ignored that order entirely and went for whichever raw bank was emptier,
+    // which is ore on a brand new save with 0 of everything). PreciseCraft's own dynamic re-gather
+    // sub-step has no such fixed order (it re-gathers whichever the recipe is short on, same as
+    // ChooseGoal's generic fallback below), and once the tutorial's done there's no order to
+    // respect either.
+    private static bool ShouldKeepGathering(bool isWood)
+    {
+        if (GuidedTutorial.HasCompletedTutorial)
+        {
+            return true;
+        }
+
+        GuidedTutorial.Step step = GuidedTutorial.CurrentStep;
+
+        if (step == GuidedTutorial.Step.PreciseCraft)
+        {
+            return true;
+        }
+
+        return isWood ? step == GuidedTutorial.Step.Move || step == GuidedTutorial.Step.GatherWood1
+                       : step == GuidedTutorial.Step.GatherOre1;
+    }
+
+    // Mirrors PlayerKeyboardInput's own key list - deliberately not shared code, since that class
+    // has no reason to expose this and this bot has no reason to depend on it beyond this check.
+    private static bool RealKeyboardInputHeld()
+    {
+        Keyboard keyboard = Keyboard.current;
+        if (keyboard == null)
+        {
+            return false;
+        }
+
+        return keyboard.wKey.isPressed || keyboard.aKey.isPressed || keyboard.sKey.isPressed || keyboard.dKey.isPressed
+            || keyboard.upArrowKey.isPressed || keyboard.downArrowKey.isPressed || keyboard.leftArrowKey.isPressed || keyboard.rightArrowKey.isPressed;
     }
 
     // Any accepted layer being full is reason enough to head to the (now singular) storage box -
@@ -478,6 +534,20 @@ public class DevAutoPlayController : MonoBehaviour
                 // Not a Goal - resolved instantly, no walking involved. Harmless to call every
                 // rescan tick: SkipWelcomeCard() itself no-ops once step has already moved on.
                 GuidedTutorial.Instance.SkipWelcomeCard();
+                break;
+
+            case GuidedTutorial.Step.CarryWood1:
+            case GuidedTutorial.Step.CarryOre1:
+                // Whatever was just gathered has to go to the box before anything else - without
+                // this, the generic fallback below would fall back to its need-based pick (which
+                // could send the bot straight to the *other* resource instead of depositing what's
+                // already on its back, since the carried amount is usually well under capacity and
+                // never trips the IsFull check further down).
+                if (TrySetDepotGoalIfCarrying())
+                {
+                    return;
+                }
+
                 break;
 
             case GuidedTutorial.Step.SellWeapon:
@@ -537,12 +607,27 @@ public class DevAutoPlayController : MonoBehaviour
             return;
         }
 
-        // Which type to gather is driven by what the recipe still needs, not by which node is
-        // physically nearer - picking "just whichever is closer" can get stuck looping on one
-        // resource type forever if its field sits closer to the player's usual path than the
-        // other (e.g. always chopping wood because the lumber camp is nearer than the quarry).
-        CraftingStation referenceStation = FindNearest(stations, s => true, s => s.transform.position);
-        bool wantOre = referenceStation == null || referenceStation.NeedsOre;
+        // Which type to gather: the tutorial's fixed wood-then-ore opening sequence (Move/
+        // GatherWood1 -> wood, GatherOre1 -> ore) overrides the generic need-based pick, which
+        // otherwise ignores step order entirely and would go for whichever raw bank is emptier -
+        // ore, on a brand new save with 0 of everything (사용자 요청 2026-08-24). Everywhere else
+        // (PreciseCraft's own dynamic re-gather, or post-tutorial free-farming) keeps the original
+        // need-based heuristic, since "just whichever is closer" can get stuck looping on one
+        // resource type forever if its field sits closer to the player's usual path than the other.
+        bool wantOre;
+        if (tutorialStep == GuidedTutorial.Step.GatherOre1)
+        {
+            wantOre = true;
+        }
+        else if (tutorialStep == GuidedTutorial.Step.Move || tutorialStep == GuidedTutorial.Step.GatherWood1)
+        {
+            wantOre = false;
+        }
+        else
+        {
+            CraftingStation referenceStation = FindNearest(stations, s => true, s => s.transform.position);
+            wantOre = referenceStation == null || referenceStation.NeedsOre;
+        }
 
         OreNode ore = FindNearest(FindObjectsByType<OreNode>(FindObjectsSortMode.None), n => n.IsAvailable, n => n.transform.position);
         WoodNode wood = FindNearest(FindObjectsByType<WoodNode>(FindObjectsSortMode.None), n => n.IsAvailable, n => n.transform.position);
@@ -587,6 +672,26 @@ public class DevAutoPlayController : MonoBehaviour
             currentGoal = Goal.None;
             targetTransform = null;
         }
+    }
+
+    // Tutorial-only redirect for CarryWood1/CarryOre1 - go deposit whatever's already carried
+    // right now, instead of letting the generic fallback below reach for its need-based pick
+    // (which could send the bot after the *other* resource instead).
+    private bool TrySetDepotGoalIfCarrying()
+    {
+        if (cachedCarryStack.GetCount(CarryLayer.Wood) <= 0 && cachedCarryStack.GetCount(CarryLayer.Ore) <= 0)
+        {
+            return false; // shouldn't normally happen mid CarryWood1/CarryOre1, but stay safe
+        }
+
+        StorageDepot depot = FindNearest(FindObjectsByType<StorageDepot>(FindObjectsSortMode.None), d => true, d => d.transform.position);
+        if (depot == null)
+        {
+            return false;
+        }
+
+        SetDepotGoal(depot);
+        return true;
     }
 
     // Weapon on the player's back (rack pickup already happened) but nowhere to sell it yet -
