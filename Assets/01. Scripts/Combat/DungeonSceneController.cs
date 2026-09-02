@@ -38,6 +38,7 @@ public class DungeonSceneController : MonoBehaviour
     }
 
     private Vector3 playerReturnPosition;
+    private float playerReturnHP;
     private bool isTransitioning;
 
     public bool IsTransitioning => isTransitioning;
@@ -69,6 +70,11 @@ public class DungeonSceneController : MonoBehaviour
     {
         isTransitioning = true;
         playerReturnPosition = PlayerMotor.Instance.transform.position;
+        // Snapshot the field's own HP so it can be restored untouched on the way out - only
+        // equipment/stats are meant to carry into a run, not incidental HP state (사용자 요청
+        // 2026-08-24, see PlayerHealth.SetCurrent).
+        playerReturnHP = PlayerHealth.Current;
+        PlayerHealth.SetCurrent(PlayerHealth.Max);
 
         yield return SceneManager.LoadSceneAsync(DungeonSceneName, LoadSceneMode.Additive);
 
@@ -126,6 +132,7 @@ public class DungeonSceneController : MonoBehaviour
         isTransitioning = true;
 
         PlayerMotor.Instance.Teleport(playerReturnPosition);
+        PlayerHealth.SetCurrent(playerReturnHP);
         SetCarryVisible(true);
 
         AsyncOperation unload = SceneManager.UnloadSceneAsync(DungeonSceneName);

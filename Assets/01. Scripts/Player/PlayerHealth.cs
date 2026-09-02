@@ -43,6 +43,17 @@ public static class PlayerHealth
         return true;
     }
 
+    // Lets StageSceneController/DungeonSceneController top the player up to full for a stage/
+    // dungeon run and restore whatever the field HP actually was afterward - only equipped-weapon
+    // stats are meant to carry into a run, not incidental HP state (사용자 요청 2026-08-24: "장비
+    // 데이터와 현재 스텟 데이터만 넘어가서 적용되면 돼... 현재 플레이어 상태가 저장되는 게
+    // 아니라"). Doesn't touch invulnerability - a mid-invuln-window enter/exit still expires
+    // normally.
+    public static void SetCurrent(float hp)
+    {
+        currentHP = Mathf.Clamp(hp, 0f, MaxHP);
+    }
+
     // Stays plain state here - no position change, no teleport. PlayerDeathPresentation
     // subscribes to OnDeath separately and owns the actual collapse/fade/teleport/revive
     // presentation (needs coroutines, which this static class can't run). See
