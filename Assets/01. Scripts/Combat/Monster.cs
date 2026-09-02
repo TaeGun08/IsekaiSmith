@@ -1,33 +1,32 @@
 using UnityEngine;
 
-// Self-built field "잡몹" (weak monster) - a tinted Sphere primitive, same low-fidelity vector
-// convention as Player/Customer (Capsule) and resource nodes (Box). Spawned and pooled by
-// FieldMonsterSpawner. Pure distance-check AI (no colliders/triggers), matching every other
-// interactable class in this project (CraftingStation/StorageDepot/OrderQueueManager). Can carry
-// one ManaElement status effect at a time (a fresh application replaces whatever was active - see
-// weapon_diversity_design_v1.html §6). See combat_design_v1.html §3.
-public class Monster : MonoBehaviour
+// Common combat foundation shared by every monster role (monster_variety_design_v1.html) - HP,
+// death, hit-flash, and the status-effect-received side (Fire/Poison/Lightning/Frost applied BY
+// the player's weapon). Approach/attack behavior is a role's own concern via TickRole - see
+// MeleeMonster/RangedMonster/MagicMonster/TankerMonster/SupportMonster. Spawned exclusively
+// through MonsterFactory now (a bare Monster can't be instantiated - it's abstract), which is also
+// the only place that knows the shared "tinted primitive" visual convention every role uses.
+public abstract class Monster : MonoBehaviour
 {
-    private const float MaxHP = 30f;
-    private const float ContactDamage = 5f;
-    private const float ContactInterval = 1.2f;
-    private const float AggroRadius = 4f;
-    private const float AttackRadius = 1.2f;
-    private const float MoveSpeed = 1.8f;
-    private const float FlashDuration = 0.15f;
-    private static readonly Vector3 BaseScale = Vector3.one * 0.9f;
+    protected const float FlashDuration = 0.15f;
+    protected static readonly Vector3 BaseScale = Vector3.one * 0.9f;
 
     private float currentHP;
-    private float contactTimer;
     private float flashTimer;
     private bool dead;
 
     // Field jabmops get gently scaled up as stages clear, stage-encounter monsters get scaled up
-    // per stage/wave - see SetStrength(). Both default to x1 so a monster nobody calls this on
-    // (every field slime before StageBank existed) behaves exactly as before.
+    // per stage/wave - see SetStrength(). Both default to x1 so the multiplier system behaves
+    // exactly as it did before roles existed.
     private float hpMultiplier = 1f;
     private float damageMultiplier = 1f;
     private bool alwaysAggro;
+
+    // Temporary outgoing-damage buff a SupportMonster grants nearby allies (Heal/ApplyDamageBuff) -
+    // separate from damageMultiplier (SetStrength's permanent per-encounter scaling) so the two
+    // stack multiplicatively without either one needing to know about the other.
+    private float damageBuffMultiplier = 1f;
+    private float damageBuffTimer;
 
     private ManaElement activeStatus;
     private float statusTimer;
@@ -39,34 +38,39 @@ public class Monster : MonoBehaviour
     private Color baseColor;
 
     public bool IsAvailable => !dead;
+    protected bool AlwaysAggro => alwaysAggro;
+    // Combines the encounter's own strength scaling with any live ally buff from a SupportMonster -
+    // every role's damage calculation should read this, not damageMultiplier directly.
+    protected float EffectiveDamageMultiplier => damageMultiplier * damageBuffMultiplier;
 
-    public static Monster Spawn(Vector3 groundPosition, Transform parent = null)
+    protected abstract float BaseMaxHP { get; }
+    protected abstract float BaseMoveSpeed { get; }
+    // Which role-flavored tint this monster starts with - SetTint (elite/boss retint) still wins
+    // if called afterward, same as before roles existed.
+    protected virtual Color DefaultColor => new Color(0.35f, 0.68f, 0.4f);
+    // Multiplies BaseScale for this role specifically (e.g. a Tanker reads visibly bigger) -
+    // SetScale (elite/boss) then multiplies again on top of this, not instead of it.
+    protected virtual float RoleScale => 1f;
+
+    protected virtual void Awake()
     {
-        var body = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        body.name = "Slime";
-        body.transform.SetParent(parent, false);
-        body.transform.position = groundPosition + Vector3.up * 0.5f;
-        body.transform.localScale = BaseScale;
-        Object.Destroy(body.GetComponent<Collider>()); // visual only - AI uses plain distance checks
-
-        var monster = body.AddComponent<Monster>();
-        monster.bodyMaterial = body.GetComponent<Renderer>().material; // instantiates once, reused from here on
-        monster.baseColor = new Color(0.35f, 0.68f, 0.4f);
-        monster.bodyMaterial.color = monster.baseColor;
-        monster.currentHP = MaxHP;
-        return monster;
+        bodyMaterial = GetComponent<Renderer>().material; // instantiates once, reused from here on
+        baseColor = DefaultColor;
+        bodyMaterial.color = baseColor;
+        transform.localScale = BaseScale * RoleScale;
+        currentHP = BaseMaxHP * hpMultiplier;
     }
 
-    // Scales this monster's HP/contact damage - called right after Spawn() (or after ResetAt(),
-    // which is always full-HP) so currentHP is set exactly once at the new multiplier, never mid-
-    // fight. FieldMonsterSpawner uses this for the gentle stage-clear-driven strength ramp
-    // (StageBank.FieldStrengthMultiplier); StageEncounterController uses it for wave/elite
-    // scaling. See stage_system_design_v1.html §3.
+    // Scales this monster's HP/contact-or-projectile damage - called right after spawning (or
+    // after ResetAt(), which is always full-HP) so currentHP is set exactly once at the new
+    // multiplier, never mid-fight. FieldMonsterSpawner uses this for the gentle stage-clear-driven
+    // strength ramp (StageBank.FieldStrengthMultiplier); the encounter controllers use it for
+    // wave/floor/elite/boss scaling. See stage_system_design_v1.html §3.
     public void SetStrength(float hpMultiplier, float damageMultiplier)
     {
         this.hpMultiplier = hpMultiplier;
         this.damageMultiplier = damageMultiplier;
-        currentHP = MaxHP * hpMultiplier;
+        currentHP = BaseMaxHP * hpMultiplier;
     }
 
     // Elites/stronger waves read as distinct without a dedicated mesh (same "reuse what exists,
@@ -86,11 +90,12 @@ public class Monster : MonoBehaviour
     }
 
     // A dungeon boss reads as "the big one" purely via a bigger silhouette (no dedicated boss
-    // mesh) - same reuse-what-exists approach as SetTint. Multiplies the same base scale Spawn()
-    // sets, not an absolute value, so this stays correct regardless of that base ever changing.
+    // mesh) - same reuse-what-exists approach as SetTint. Multiplies this role's own RoleScale (a
+    // Tanker boss is bigger still than a Tanker mob), not an absolute value, so this stays correct
+    // regardless of RoleScale ever changing.
     public void SetScale(float multiplier)
     {
-        transform.localScale = BaseScale * multiplier;
+        transform.localScale = BaseScale * RoleScale * multiplier;
     }
 
     // Returns whether this hit was the killing blow - lets PlayerCombat know exactly once per
@@ -112,6 +117,32 @@ public class Monster : MonoBehaviour
         }
 
         return false;
+    }
+
+    // Called by a SupportMonster on nearby living allies - restores a fraction of this monster's
+    // own (multiplier-scaled) max HP, capped at that max.
+    public void Heal(float fraction)
+    {
+        if (dead)
+        {
+            return;
+        }
+
+        currentHP = Mathf.Min(BaseMaxHP * hpMultiplier, currentHP + BaseMaxHP * hpMultiplier * fraction);
+    }
+
+    // Called by a SupportMonster on nearby living allies - temporary outgoing-damage buff, see
+    // damageBuffMultiplier/EffectiveDamageMultiplier. A fresh application overwrites the timer
+    // (not additive/stacking) - simple, matches how ApplyStatusEffect already treats reapplication.
+    public void ApplyDamageBuff(float multiplier, float duration)
+    {
+        if (dead)
+        {
+            return;
+        }
+
+        damageBuffMultiplier = multiplier;
+        damageBuffTimer = duration;
     }
 
     // Applied by an enchanted weapon hit (PlayerCombat, via ToolInventory.TryGetBestWeapon).
@@ -164,10 +195,11 @@ public class Monster : MonoBehaviour
     public void ResetAt(Vector3 groundPosition)
     {
         transform.position = groundPosition + Vector3.up * 0.5f;
-        currentHP = MaxHP * hpMultiplier;
-        contactTimer = 0f;
+        currentHP = BaseMaxHP * hpMultiplier;
         dead = false;
         activeStatus = ManaElement.None;
+        damageBuffMultiplier = 1f;
+        damageBuffTimer = 0f;
 
         // The killing blow always leaves flashTimer > 0 (TakeDamage sets it before checking for
         // death) and Update() stops running the instant the object deactivates, so that leftover
@@ -177,7 +209,15 @@ public class Monster : MonoBehaviour
         flashTimer = 0f;
         bodyMaterial.color = baseColor;
 
+        OnReset();
         gameObject.SetActive(true);
+    }
+
+    // Hook for a role's own per-instance timers (e.g. a cast/contact cooldown) to reset alongside
+    // the shared state ResetAt already clears - keeps FieldMonsterSpawner's respawn from reusing
+    // stale role-specific state from this instance's previous life.
+    protected virtual void OnReset()
+    {
     }
 
     private void Update()
@@ -188,7 +228,53 @@ public class Monster : MonoBehaviour
         }
 
         UpdateStatusEffect();
+        UpdateDamageBuffTimer();
+        UpdateFlashVisual();
 
+        if (dead) // a DoT tick inside UpdateStatusEffect() above may have just finished it off
+        {
+            return;
+        }
+
+        Vector3 playerPos = PlayerMotor.Instance.transform.position;
+        Vector3 toPlayer = playerPos - transform.position;
+        toPlayer.y = 0f;
+        float sqrDist = toPlayer.sqrMagnitude;
+        bool stunned = activeStatus == ManaElement.Lightning;
+
+        TickRole(toPlayer, sqrDist, stunned, playerPos);
+    }
+
+    // The one thing every role actually implements differently - how it reacts to the player each
+    // frame (approach/hold distance/flee, when and how it deals damage). toPlayer/sqrDist are
+    // horizontal-only (y already zeroed), matching how PlayerCombat's own range check works.
+    protected abstract void TickRole(Vector3 toPlayer, float sqrDist, bool stunned, Vector3 playerPos);
+
+    // Shared "walk toward the player" helper - Frost slows this the same way it always has,
+    // regardless of which role is calling it.
+    protected void MoveToward(Vector3 toPlayer, float speed)
+    {
+        float effectiveSpeed = activeStatus == ManaElement.Frost ? speed * ManaElementUtility.FrostSlowMultiplier : speed;
+        Vector3 direction = toPlayer.normalized;
+        transform.position += direction * effectiveSpeed * Time.deltaTime;
+    }
+
+    private void UpdateDamageBuffTimer()
+    {
+        if (damageBuffTimer <= 0f)
+        {
+            return;
+        }
+
+        damageBuffTimer -= Time.deltaTime;
+        if (damageBuffTimer <= 0f)
+        {
+            damageBuffMultiplier = 1f;
+        }
+    }
+
+    private void UpdateFlashVisual()
+    {
         if (flashTimer > 0f)
         {
             flashTimer -= Time.deltaTime;
@@ -201,50 +287,6 @@ public class Monster : MonoBehaviour
             bodyMaterial.color = activeStatus != ManaElement.None
                 ? Color.Lerp(baseColor, ManaElementUtility.SparkColor(activeStatus), 0.5f)
                 : baseColor;
-        }
-
-        if (dead) // a DoT tick inside UpdateStatusEffect() above may have just finished it off
-        {
-            return;
-        }
-
-        Vector3 playerPos = PlayerMotor.Instance.transform.position;
-        Vector3 toPlayer = playerPos - transform.position;
-        toPlayer.y = 0f;
-        float sqrDist = toPlayer.sqrMagnitude;
-
-        bool stunned = activeStatus == ManaElement.Lightning;
-
-        if (sqrDist <= AttackRadius * AttackRadius)
-        {
-            if (stunned)
-            {
-                contactTimer = 0f; // stays primed so it attacks right away once the stun ends
-                return;
-            }
-
-            contactTimer -= Time.deltaTime;
-            if (contactTimer <= 0f)
-            {
-                contactTimer = ContactInterval;
-
-                // Only play the hit spark/shake if the hit actually landed (skips it during the
-                // player's post-respawn invulnerability window, where nothing really happened).
-                if (PlayerHealth.TakeDamage(ContactDamage * damageMultiplier))
-                {
-                    HitEffects.Instance.MonsterHitPlayer(playerPos);
-                }
-            }
-            return;
-        }
-
-        contactTimer = 0f;
-
-        if (!stunned && (alwaysAggro || sqrDist <= AggroRadius * AggroRadius))
-        {
-            float effectiveSpeed = activeStatus == ManaElement.Frost ? MoveSpeed * ManaElementUtility.FrostSlowMultiplier : MoveSpeed;
-            Vector3 direction = toPlayer.normalized;
-            transform.position += direction * effectiveSpeed * Time.deltaTime;
         }
     }
 

@@ -224,9 +224,38 @@ public class DungeonEncounterController : MonoBehaviour
         SpawnOne(position, floor.bossHpMultiplier, floor.bossDamageMultiplier, isBoss: true);
     }
 
+    // Shallow floors stay mostly Melee/Tanker; deeper floors mix in the full roster including
+    // Support (monster_variety_design_v1.html §4 - "층이 깊어질수록 5종 전부 등장 확률 상승").
+    private static readonly MonsterRole[] ShallowFloorRoles = { MonsterRole.Melee, MonsterRole.Melee, MonsterRole.Tanker };
+    private static readonly MonsterRole[] MidFloorRoles = { MonsterRole.Melee, MonsterRole.Tanker, MonsterRole.Ranged };
+    private static readonly MonsterRole[] DeepFloorRoles = { MonsterRole.Melee, MonsterRole.Tanker, MonsterRole.Ranged, MonsterRole.Magic, MonsterRole.Support };
+
+    private static MonsterRole ChooseMobRole(int floorNumber)
+    {
+        MonsterRole[] pool;
+        if (floorNumber >= 3)
+        {
+            pool = DeepFloorRoles;
+        }
+        else if (floorNumber == 2)
+        {
+            pool = MidFloorRoles;
+        }
+        else
+        {
+            pool = ShallowFloorRoles;
+        }
+
+        return pool[UnityEngine.Random.Range(0, pool.Length)];
+    }
+
     private void SpawnOne(Vector3 position, float hpMult, float dmgMult, bool isBoss)
     {
-        Monster monster = Monster.Spawn(position, transform);
+        // Every boss is Tanker-based (bigger/tougher reads as "the big one" via SetScale on top of
+        // TankerMonster's own RoleScale) - matches the existing "reuse what exists, just scale it
+        // up" boss convention (monster_variety_design_v1.html §4).
+        MonsterRole role = isBoss ? MonsterRole.Tanker : ChooseMobRole(ActiveFloorNumber);
+        Monster monster = MonsterFactory.Spawn(role, position, transform);
         monster.SetStrength(hpMult, dmgMult);
         monster.SetAlwaysAggro(true);
 

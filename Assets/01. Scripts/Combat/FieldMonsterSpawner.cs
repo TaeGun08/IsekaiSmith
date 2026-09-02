@@ -94,7 +94,9 @@ public class FieldMonsterSpawner : MonoBehaviour
         {
             Vector3 position = FindSpawnPosition(placed);
             placed.Add(position);
-            Monster monster = Monster.Spawn(position, transform);
+            // Field jabmops stay Melee-only (monster_variety_design_v1.html §4) - this is the
+            // player's earliest, lowest-stakes combat, so the variety ramp starts at Stage 1.
+            Monster monster = MonsterFactory.Spawn(MonsterRole.Melee, position, transform);
             monster.SetStrength(StageBank.FieldStrengthMultiplier, StageBank.FieldStrengthMultiplier);
             monsters.Add(monster);
             respawnTimers.Add(0f);

@@ -14,10 +14,22 @@ public class PlayerMotor : MonoBehaviour
     private Vector2 keyboardInput;
     private Vector2 joystickInput;
 
+    // Mirrors Monster's own Frost-slow handling (ManaElementUtility.FrostSlowMultiplier), but in
+    // the other direction - a MagicMonster's projectile applies this to the player on hit (see
+    // MagicMonster.OnProjectileHit). See monster_variety_design_v1.html §3.
+    private float speedMultiplier = 1f;
+    private float slowTimer;
+
     private void Awake()
     {
         Instance = this;
         rb = GetComponent<Rigidbody>();
+    }
+
+    public void ApplySlow(float duration, float multiplier)
+    {
+        speedMultiplier = multiplier;
+        slowTimer = duration;
     }
 
     public void SetKeyboardInput(Vector2 input)
@@ -59,6 +71,15 @@ public class PlayerMotor : MonoBehaviour
 
     private void FixedUpdate()
     {
+        if (slowTimer > 0f)
+        {
+            slowTimer -= Time.fixedDeltaTime;
+            if (slowTimer <= 0f)
+            {
+                speedMultiplier = 1f;
+            }
+        }
+
         Vector2 combined = keyboardInput + joystickInput;
         if (combined.sqrMagnitude > 1f)
         {
@@ -67,7 +88,7 @@ public class PlayerMotor : MonoBehaviour
 
         Vector3 moveDirection = new Vector3(combined.x, 0f, combined.y);
 
-        Vector3 velocity = moveDirection * moveSpeed;
+        Vector3 velocity = moveDirection * moveSpeed * speedMultiplier;
         velocity.y = rb.linearVelocity.y;
         rb.linearVelocity = velocity;
 

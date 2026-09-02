@@ -269,7 +269,11 @@ public class StageEncounterController : MonoBehaviour
         Vector3 position = FindSpawnPosition(placed);
         placed.Add(position);
 
-        Monster monster = Monster.Spawn(position, transform);
+        // Elites are always Tanker (bigger/tougher reads naturally as "the strong one" - see
+        // TankerMonster.RoleScale); normal spawns pick from whatever roles this stage has
+        // unlocked (monster_variety_design_v1.html §4).
+        MonsterRole role = isElite ? MonsterRole.Tanker : ChooseNormalRole(ActiveStageNumber);
+        Monster monster = MonsterFactory.Spawn(role, position, transform);
         monster.SetStrength(hpMult, dmgMult);
         monster.SetAlwaysAggro(true);
         if (isElite)
@@ -278,6 +282,31 @@ public class StageEncounterController : MonoBehaviour
         }
 
         activeMonsters.Add(monster);
+    }
+
+    // Stage 1 stays Melee-only (a fresh player's first real fight, kept simple and safe); Stage 2
+    // mixes in Ranged; Stage 3+ mixes in Magic too. See monster_variety_design_v1.html §4.
+    private static readonly MonsterRole[] Stage1Roles = { MonsterRole.Melee };
+    private static readonly MonsterRole[] Stage2Roles = { MonsterRole.Melee, MonsterRole.Melee, MonsterRole.Ranged };
+    private static readonly MonsterRole[] Stage3PlusRoles = { MonsterRole.Melee, MonsterRole.Melee, MonsterRole.Ranged, MonsterRole.Magic };
+
+    private static MonsterRole ChooseNormalRole(int stageNumber)
+    {
+        MonsterRole[] pool;
+        switch (stageNumber)
+        {
+            case 1:
+                pool = Stage1Roles;
+                break;
+            case 2:
+                pool = Stage2Roles;
+                break;
+            default:
+                pool = Stage3PlusRoles;
+                break;
+        }
+
+        return pool[UnityEngine.Random.Range(0, pool.Length)];
     }
 
     private Vector3 FindSpawnPosition(List<Vector3> placed)
