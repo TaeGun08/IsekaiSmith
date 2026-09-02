@@ -71,6 +71,21 @@ public class CarryStack : MonoBehaviour
         return reservedByLayer[(int)layer] >= capacities[(int)layer];
     }
 
+    // Hides (or restores) everything currently stacked on the player's back without discarding
+    // any of it - used by StageSceneController/DungeonSceneController while a stage/dungeon
+    // encounter is active, since combat only ever reads EquippedWeapon (independent of what's
+    // physically carried) and there's no reason for raw materials/unsold weapons to visibly ride
+    // along into a monster fight (사용자 요청 2026-08-24: "장비 데이터 관련해서만... 등에 뭐가
+    // 쌓여 있으면 같이 넘어가지잖아"). In-flight items (still mid-FlyToStack, not yet parented to
+    // stackAnchor) are unaffected either way - they finish landing normally.
+    public void SetVisible(bool visible)
+    {
+        if (stackAnchor != null)
+        {
+            stackAnchor.gameObject.SetActive(visible);
+        }
+    }
+
     public int GetCount(CarryLayer layer)
     {
         return reservedByLayer[(int)layer];

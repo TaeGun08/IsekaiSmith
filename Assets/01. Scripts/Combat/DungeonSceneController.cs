@@ -78,9 +78,22 @@ public class DungeonSceneController : MonoBehaviour
         BuildArenaGround(arenaCenter);
 
         PlayerMotor.Instance.Teleport(arenaCenter);
+        SetCarryVisible(false);
         DungeonEncounterController.Instance.BeginEncounter(arenaCenter);
 
         isTransitioning = false;
+    }
+
+    // Hides whatever's stacked on the player's back for the duration of the fight - only
+    // EquippedWeapon matters in combat, not raw materials/unsold weapons riding along
+    // (사용자 요청 2026-08-24, see CarryStack.SetVisible).
+    private static void SetCarryVisible(bool visible)
+    {
+        CarryStack carryStack = PlayerMotor.Instance.GetComponentInChildren<CarryStack>();
+        if (carryStack != null)
+        {
+            carryStack.SetVisible(visible);
+        }
     }
 
     // A single flattened, circular blockout - pure functional shape (surrounds the player evenly
@@ -113,6 +126,7 @@ public class DungeonSceneController : MonoBehaviour
         isTransitioning = true;
 
         PlayerMotor.Instance.Teleport(playerReturnPosition);
+        SetCarryVisible(true);
 
         AsyncOperation unload = SceneManager.UnloadSceneAsync(DungeonSceneName);
         if (unload != null)

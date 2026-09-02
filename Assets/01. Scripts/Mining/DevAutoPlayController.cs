@@ -630,15 +630,39 @@ public class DevAutoPlayController : MonoBehaviour
                 break;
 
             case GuidedTutorial.Step.StageProgress:
-                // Same dev bypass the "UNLOCK ALL STAGES" button already uses - actually fighting
-                // through a wave encounter is out of scope for this bot (no combat AI here beyond
-                // the passive auto-attack PlayerCombat already does on anything in melee range).
-                StageBank.MarkCleared(1);
-                break;
+                // Actually enters and fights now instead of a dev bypass (사용자 요청 2026-08-24:
+                // "스테이지 진행 자체를 오토 플레이는 스킵해 버리는 것 같은데 직접 플레이까지
+                // 하도록 해줘야지") - no combat AI needed here at all: monsters spawn at the lane's
+                // far end and walk to the player on their own (StageEncounterController), and
+                // PlayerCombat auto-attacks anything within its own range, so simply entering and
+                // standing still is enough to clear every wave. EnterStage no-ops harmlessly while
+                // already mid-fight/mid-transition, so it's safe to just call it every tick.
+                if (StageEncounterController.Instance.IsEncounterActive)
+                {
+                    return; // let the fight resolve on its own - don't fall into the gather logic below
+                }
+
+                StageSceneController.Instance.EnterStage(StageBank.HighestStageCleared + 1);
+                return;
 
             case GuidedTutorial.Step.DungeonProgress:
-                DungeonBank.ReportFloorCleared(1);
-                break;
+                // Same real-play approach as StageProgress. Unlike a stage, the dungeon keeps
+                // auto-descending floor after floor with no natural stopping point - once the
+                // tutorial's own condition (DeepestFloorCleared > 0, i.e. Floor 1's boss is dead)
+                // is already satisfied, retreat cleanly instead of continuing deeper while this
+                // bot's attention has already moved on to whatever comes after the tutorial.
+                if (DungeonEncounterController.Instance.IsEncounterActive)
+                {
+                    if (DungeonBank.DeepestFloorCleared > 0)
+                    {
+                        DungeonSceneController.Instance.RequestRetreat();
+                    }
+
+                    return;
+                }
+
+                DungeonSceneController.Instance.EnterDungeon();
+                return;
         }
 
         if (cachedCarryStack.IsFull(CarryLayer.Ore) || cachedCarryStack.IsFull(CarryLayer.Wood))

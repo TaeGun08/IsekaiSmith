@@ -118,7 +118,10 @@ public class StageSelectUI : MonoBehaviour
         panelRect.anchorMax = new Vector2(0.5f, 0.5f);
         panelRect.pivot = new Vector2(0.5f, 0.5f);
         panelRect.anchoredPosition = Vector2.zero;
-        panelRect.sizeDelta = new Vector2(760f, 480f); // room for 1 stage-or-cleared card + the dungeon card
+        // 480 left the cards container overlapping the CLOSE button at the bottom (사용자 요청
+        // 2026-08-24: "레이아웃이 안 맞아서 버튼이 겹쳐있고") - 560 leaves a clean gap between the
+        // container's bottom edge and the button below it at every card count up to MaxVisibleCards.
+        panelRect.sizeDelta = new Vector2(760f, 560f);
         panel.GetComponent<Image>().color = new Color(0.08f, 0.07f, 0.06f, 0.94f);
 
         var title = MakeText(panel.transform, "Title", 34, new Vector2(0f, -30f), new Vector2(700f, 48f));
@@ -132,7 +135,10 @@ public class StageSelectUI : MonoBehaviour
         containerRect.anchorMax = new Vector2(0.5f, 1f);
         containerRect.pivot = new Vector2(0.5f, 1f);
         containerRect.anchoredPosition = new Vector2(0f, -100f);
-        containerRect.sizeDelta = new Vector2(680f, (CardHeight + CardGap) * MaxVisibleCards);
+        // No trailing gap after the last card (only *between* cards) - the old formula included
+        // one extra CardGap past the bottom of the last card, which was part of what pushed the
+        // container into the CLOSE button below.
+        containerRect.sizeDelta = new Vector2(680f, CardHeight * MaxVisibleCards + CardGap * (MaxVisibleCards - 1));
         cardsContainer = containerGO.transform;
 
         Button closeButton = MakeButton(panel.transform, "CloseButton", new Vector2(0f, 40f), new Vector2(240f, 90f), "CLOSE", new Color(0.4f, 0.38f, 0.34f));

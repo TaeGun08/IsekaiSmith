@@ -84,10 +84,23 @@ public class StageSceneController : MonoBehaviour
         Vector3 nePoint = LaneOrigin + LaneDirection * LaneLength;
 
         PlayerMotor.Instance.Teleport(swPoint);
+        SetCarryVisible(false);
         StageEncounterController.Instance.BeginEncounter(stageNumber, nePoint);
         ShowFirstEntryHintIfNeeded();
 
         isTransitioning = false;
+    }
+
+    // Hides whatever's stacked on the player's back for the duration of the fight - only
+    // EquippedWeapon matters in combat, not raw materials/unsold weapons riding along
+    // (사용자 요청 2026-08-24, see CarryStack.SetVisible).
+    private static void SetCarryVisible(bool visible)
+    {
+        CarryStack carryStack = PlayerMotor.Instance.GetComponentInChildren<CarryStack>();
+        if (carryStack != null)
+        {
+            carryStack.SetVisible(visible);
+        }
     }
 
     // One-time explanation of how a stage fight actually works - a first-time player has no other
@@ -140,6 +153,7 @@ public class StageSceneController : MonoBehaviour
         isTransitioning = true;
 
         PlayerMotor.Instance.Teleport(playerReturnPosition);
+        SetCarryVisible(true);
 
         AsyncOperation unload = SceneManager.UnloadSceneAsync(StageSceneName);
         if (unload != null)
