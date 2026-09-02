@@ -38,6 +38,10 @@ public abstract class Monster : MonoBehaviour
     private Color baseColor;
 
     public bool IsAvailable => !dead;
+    // Set once by MonsterFactory right after creation - lets MonsterPool file a despawned instance
+    // back into the queue matching its concrete subclass (a pooled MeleeMonster can't stand in for
+    // a RangedMonster, they're different components on the GameObject).
+    public MonsterRole Role { get; private set; }
     protected bool AlwaysAggro => alwaysAggro;
     // Combines the encounter's own strength scaling with any live ally buff from a SupportMonster -
     // every role's damage calculation should read this, not damageMultiplier directly.
@@ -87,6 +91,12 @@ public abstract class Monster : MonoBehaviour
     public void SetAlwaysAggro(bool value)
     {
         alwaysAggro = value;
+    }
+
+    // Called exactly once by MonsterFactory right after AddComponent - see Role.
+    public void SetRole(MonsterRole role)
+    {
+        Role = role;
     }
 
     // A dungeon boss reads as "the big one" purely via a bigger silhouette (no dedicated boss
@@ -191,7 +201,9 @@ public abstract class Monster : MonoBehaviour
     }
 
     // Called by FieldMonsterSpawner when respawning this instance at a new scattered position
-    // after RespawnDelay has passed.
+    // after RespawnDelay has passed, and by MonsterPool when handing a pooled instance back out
+    // for reuse by a stage/dungeon encounter (전체적인 최적화 패스, 사용자 요청 2026-08-24 - avoids
+    // Destroy+CreatePrimitive on every wave/floor transition).
     public void ResetAt(Vector3 groundPosition)
     {
         transform.position = groundPosition + Vector3.up * 0.5f;
@@ -200,6 +212,12 @@ public abstract class Monster : MonoBehaviour
         activeStatus = ManaElement.None;
         damageBuffMultiplier = 1f;
         damageBuffTimer = 0f;
+
+        // Undoes any SetTint/SetScale from a previous life in the pool (e.g. a former elite/boss
+        // reused as a plain mob) - the caller re-applies whatever this new spawn actually needs
+        // right after (SpawnOne always does), same as it always has.
+        baseColor = DefaultColor;
+        transform.localScale = BaseScale * RoleScale;
 
         // The killing blow always leaves flashTimer > 0 (TakeDamage sets it before checking for
         // death) and Update() stops running the instant the object deactivates, so that leftover

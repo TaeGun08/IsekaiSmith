@@ -255,7 +255,7 @@ public class DungeonEncounterController : MonoBehaviour
         // TankerMonster's own RoleScale) - matches the existing "reuse what exists, just scale it
         // up" boss convention (monster_variety_design_v1.html §4).
         MonsterRole role = isBoss ? MonsterRole.Tanker : ChooseMobRole(ActiveFloorNumber);
-        Monster monster = MonsterFactory.Spawn(role, position, transform);
+        Monster monster = MonsterPool.Spawn(role, position, transform);
         monster.SetStrength(hpMult, dmgMult);
         monster.SetAlwaysAggro(true);
 
@@ -272,10 +272,7 @@ public class DungeonEncounterController : MonoBehaviour
     {
         foreach (Monster leftover in activeMonsters)
         {
-            if (leftover != null)
-            {
-                Destroy(leftover.gameObject);
-            }
+            MonsterPool.Despawn(leftover);
         }
 
         activeMonsters.Clear();

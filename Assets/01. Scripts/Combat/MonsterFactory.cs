@@ -36,6 +36,7 @@ public static class MonsterFactory
                 break;
         }
 
+        monster.SetRole(role);
         return monster;
     }
 }

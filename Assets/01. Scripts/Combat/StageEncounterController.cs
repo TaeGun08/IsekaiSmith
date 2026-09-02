@@ -241,10 +241,7 @@ public class StageEncounterController : MonoBehaviour
     {
         foreach (Monster leftover in activeMonsters)
         {
-            if (leftover != null)
-            {
-                Destroy(leftover.gameObject);
-            }
+            MonsterPool.Despawn(leftover);
         }
 
         activeMonsters.Clear();
@@ -273,7 +270,7 @@ public class StageEncounterController : MonoBehaviour
         // TankerMonster.RoleScale); normal spawns pick from whatever roles this stage has
         // unlocked (monster_variety_design_v1.html §4).
         MonsterRole role = isElite ? MonsterRole.Tanker : ChooseNormalRole(ActiveStageNumber);
-        Monster monster = MonsterFactory.Spawn(role, position, transform);
+        Monster monster = MonsterPool.Spawn(role, position, transform);
         monster.SetStrength(hpMult, dmgMult);
         monster.SetAlwaysAggro(true);
         if (isElite)
@@ -368,10 +365,7 @@ public class StageEncounterController : MonoBehaviour
     {
         foreach (Monster leftover in activeMonsters)
         {
-            if (leftover != null)
-            {
-                Destroy(leftover.gameObject);
-            }
+            MonsterPool.Despawn(leftover);
         }
 
         activeMonsters.Clear();
