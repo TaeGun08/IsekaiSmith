@@ -1,0 +1,19 @@
+{
+  "name": "com.taegun08.aicompanion",
+  "version": "1.0.0",
+  "displayName": "AI Companion",
+  "description": "Unity 에디터 안에서 Claude/Codex/Cursor CLI와 채팅하며, Unity MCP가 설치되어 있으면 에디터를 직접 조작하게 할 수도 있는 개발용 동반자 도구. Unity MCP는 선택 사항입니다 - 없어도 채팅 기능은 그대로 동작합니다.",
+  "unity": "6000.3",
+  "keywords": [
+    "editor",
+    "ai",
+    "claude",
+    "codex",
+    "cursor",
+    "mcp",
+    "tool"
+  ],
+  "author": {
+    "name": "TaeGun08"
+  }
+}

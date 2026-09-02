@@ -18,10 +18,13 @@ public class AiCompanionWindow : EditorWindow
         window.minSize = new Vector2(640, 860);
     }
 
+    // Package-relative, not "Assets/..." - this ships as a local UPM package
+    // (Packages/com.taegun08.aicompanion) so it can be dropped into any project without
+    // depending on that project's own Assets folder layout (2026-09-03 asset-packaging pass).
     private const string StyleSheetPath =
-        "Assets/01. Scripts/Editor/AiCompanion/UI/AiCompanionStyles.uss";
+        "Packages/com.taegun08.aicompanion/Editor/UI/AiCompanionStyles.uss";
     private const string LightStyleSheetPath =
-        "Assets/01. Scripts/Editor/AiCompanion/UI/AiCompanionStyles.Light.uss";
+        "Packages/com.taegun08.aicompanion/Editor/UI/AiCompanionStyles.Light.uss";
 
     // The only colors still needed in C#: everything else is static USS. These are computed
     // per-frame/per-event (busy dots) or are semantic state colors that must win over any USS
@@ -1194,6 +1197,13 @@ public class AiCompanionWindow : EditorWindow
         settingsButton.AddToClassList("settings-button");
         row.Add(settingsButton);
 
+        // Manual re-entry point for the setup wizard (MCP/CLI install checks) - it also pops up
+        // automatically once per project, but this button covers "closed it, want it back later"
+        // without needing the separate top-level menu item (2026-09-03 asset-packaging pass).
+        Button setupButton = new Button(() => AiCompanionSetupWindow.Open()) { text = "🛠 셋업" };
+        setupButton.AddToClassList("settings-button");
+        row.Add(setupButton);
+
         // Fallback path for the chat input row's recurring visibility bugs under the old IMGUI
         // implementation: an independent popup window that shares none of this window's
         // layout. Kept for now even though UI Toolkit removes the root cause of that bug class
@@ -1899,13 +1909,9 @@ public class AiCompanionWindow : EditorWindow
         Debug.Log($"[{provider.DisplayName}] 설치를 시작합니다: npm install -g {provider.InstallPackage}");
         CliInstaller.InstallNpmPackageAsync(provider.InstallPackage, success =>
         {
-            if (success && provider.Id == AiProviderId.Claude)
+            if (success)
             {
-                ClaudeSessionRunner.ClearResolvedPathCache();
-            }
-            else if (success && provider.Id == AiProviderId.Codex)
-            {
-                CodexSessionRunner.ClearResolvedPathCache();
+                provider.ClearResolvedPathCache?.Invoke();
             }
             EditorUtility.DisplayDialog(
                 success ? $"{provider.DisplayName} 설치 완료" : $"{provider.DisplayName} 설치 실패",

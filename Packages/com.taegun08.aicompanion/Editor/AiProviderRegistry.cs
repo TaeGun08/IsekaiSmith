@@ -34,6 +34,12 @@ public sealed class AiProviderDefinition
     // doesn't launch anything a PATH check could even verify.
     public Func<bool> IsInstalled;
     public string InstallPackage;
+
+    // Runs right after a successful install so the runner's cached "where's the CLI binary"
+    // lookup (populated once as IsInstalled/PATH-scan results, since re-scanning PATH on every
+    // send would be wasteful) doesn't keep reporting "not installed" using a stale pre-install
+    // scan. Null for providers with no such cache to clear (Cursor) or no installer at all.
+    public Action ClearResolvedPathCache;
 }
 
 public static class AiProviderRegistry
@@ -49,6 +55,7 @@ public static class AiProviderRegistry
             CreateRunner = workingDirectory => new ClaudeSessionRunner(workingDirectory),
             IsInstalled = ClaudeSessionRunner.IsInstalled,
             InstallPackage = ClaudeSessionRunner.NpmPackage,
+            ClearResolvedPathCache = ClaudeSessionRunner.ClearResolvedPathCache,
         },
         new AiProviderDefinition
         {
@@ -59,6 +66,7 @@ public static class AiProviderRegistry
             CreateRunner = workingDirectory => new CodexSessionRunner(workingDirectory),
             IsInstalled = CodexSessionRunner.IsInstalled,
             InstallPackage = CodexSessionRunner.NpmPackage,
+            ClearResolvedPathCache = CodexSessionRunner.ClearResolvedPathCache,
         },
         new AiProviderDefinition
         {

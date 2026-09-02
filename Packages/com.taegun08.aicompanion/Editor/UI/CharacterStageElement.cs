@@ -91,10 +91,15 @@ public class CharacterStageElement : VisualElement
     // stage height this offset lands the character exactly where the old height/2 formula did.
     private const float CharacterGroundOffset = 50f;
 
-    private const string RoomBackdropAssetPath = "Assets/03. Art/Sprites/CompanionRoomBackdrop.png";
+    // Name, not a hardcoded "Assets/..." path - this ships as a package that can land in any
+    // project, so it can't assume IsekaiSmith's own art folder layout exists. Found by name via
+    // AssetDatabase instead; if a host project has no such texture at all, GetRoomBackdropTexture
+    // below just returns null and the caller already no-ops on that (plain background, no crash).
+    private const string RoomBackdropAssetName = "CompanionRoomBackdrop";
     private const float ExpandedStageHeight = 240f;
 
     private static Texture2D cachedRoomBackdrop;
+    private static bool roomBackdropLookupDone;
 
     private readonly VisualElement desk;
     private readonly VisualElement monitorBody;
@@ -437,9 +442,19 @@ public class CharacterStageElement : VisualElement
 
     private static Texture2D GetRoomBackdropTexture()
     {
-        if (cachedRoomBackdrop == null)
+        // Looked up once per domain reload (not once ever) - roomBackdropLookupDone alone, without
+        // caching a "not found" result forever, would otherwise mean a texture dropped in after
+        // the first stage opened this session never gets picked up until the next reload.
+        if (roomBackdropLookupDone && cachedRoomBackdrop != null)
         {
-            cachedRoomBackdrop = AssetDatabase.LoadAssetAtPath<Texture2D>(RoomBackdropAssetPath);
+            return cachedRoomBackdrop;
+        }
+        roomBackdropLookupDone = true;
+        string[] guids = AssetDatabase.FindAssets(RoomBackdropAssetName + " t:Texture2D");
+        if (guids.Length > 0)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guids[0]);
+            cachedRoomBackdrop = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
         }
         return cachedRoomBackdrop;
     }

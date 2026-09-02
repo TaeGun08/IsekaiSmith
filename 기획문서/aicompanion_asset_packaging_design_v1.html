@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>AI Companion - 에셋 패키징 & 셋업 마법사 기획</title>
+<style>
+  :root {
+    --ink: #2b2420; --paper: #f6f1e7; --card: #ffffff; --border: #dcd3c2; --accent: #b5651d;
+    --good: #4f8f5f; --warn: #c1440e; --blue: #4472a8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 20px 80px; background: var(--paper); color: var(--ink);
+    font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .doc { width: 100%; max-width: 1080px; }
+  h1 { font-size: 25px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 8px; color: #6b6155; font-size: 14px; }
+  p.pitch {
+    font-size: 15px; line-height: 1.75; background: var(--card); border: 1px solid var(--border);
+    border-left: 4px solid var(--accent); border-radius: 8px; padding: 16px 18px; margin: 16px 0 32px;
+  }
+  h2 { font-size: 19px; margin: 46px 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+  h2 .num { color: var(--accent); margin-right: 8px; }
+  h3 { font-size: 14.5px; margin: 20px 0 10px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); }
+  .note { font-size: 12.5px; color: #6b6155; line-height: 1.7; margin-top: 8px; }
+  .qa-list { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.9; }
+  .qa-list li b { color: var(--accent); }
+
+  .flow-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top: 12px; justify-content:center; }
+  .flow-step { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:12px; text-align:center; min-width: 110px; }
+  .flow-arrow { color: var(--accent); font-size:16px; }
+
+  .option-grid { display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-top:14px; }
+  @media (max-width: 760px) { .option-grid { grid-template-columns: 1fr; } }
+  .option-card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
+  .option-card.recommended { border: 2px solid var(--good); }
+  .option-title { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+  .option-title h4 { margin:0; font-size:14px; }
+  .rec-badge { font-size:10px; font-weight:bold; color:#fff; background:var(--good); border-radius:999px; padding:3px 9px; }
+  .option-card p { font-size:12px; line-height:1.7; margin:0; }
+
+  table.spec { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12.5px; }
+  table.spec th, table.spec td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+  table.spec th { background: #efe8d9; font-size: 12px; }
+  table.spec td.status-ok { color: var(--good); font-weight: bold; }
+  table.spec td.status-warn { color: var(--warn); font-weight: bold; }
+
+  .checklist { list-style: none; margin: 10px 0 0; padding: 0; font-size: 12.5px; }
+  .checklist li { padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; display:flex; justify-content:space-between; align-items:center; background:#fbf8f2; }
+  .checklist .tag { font-size: 10px; padding: 2px 8px; border-radius: 999px; color:#fff; }
+  .tag.auto { background: var(--good); }
+  .tag.guide { background: var(--blue); }
+
+  footer { margin-top: 40px; font-size: 12px; color: #948a7c; text-align: center; }
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <h1>AI Companion - 에셋 패키징 &amp; 셋업 마법사 기획</h1>
+  <p class="sub">aicompanion_asset_packaging_design_v1.html · IsekaiSmith 전용 도구 → 이식 가능한 범용 에셋</p>
+  <p class="pitch">
+    지금 <code>Assets/01. Scripts/Editor/AiCompanion</code>에 있는 AI Companion 도구를 다른 프로젝트에도
+    폴더 하나 복사만으로 바로 붙는 <b>독립 로컬 UPM 패키지</b>로 재구성합니다. Unity MCP 패키지나 각
+    Provider CLI(Claude/Codex/Cursor)가 대상 컴퓨터에 없을 때는, 실패하고 끝나는 게 아니라
+    <b>자동 설치 버튼</b> 또는 <b>가이드 안내</b>를 보여주는 셋업 마법사를 새로 만듭니다.
+  </p>
+
+  <h2><span class="num">1.</span> 현재 상태 진단</h2>
+  <div class="card">
+    <table class="spec">
+      <tr><th>항목</th><th>현재 상태</th><th>이식 시 문제</th></tr>
+      <tr>
+        <td>코드 위치</td>
+        <td><code>Assets/01. Scripts/Editor/AiCompanion/**</code> (asmdef 없음)</td>
+        <td>이 프로젝트의 "01. Scripts" 폴더 관례에 종속 → 다른 프로젝트 구조에 끼워 넣으면 뒤섞임</td>
+      </tr>
+      <tr>
+        <td>Unity MCP 의존</td>
+        <td><code>UnityMcpBridgeAccessor</code>가 리플렉션으로 소프트 연결 - 없어도 컴파일/채팅 동작</td>
+        <td class="status-ok">이미 해결됨 - 그대로 재사용</td>
+      </tr>
+      <tr>
+        <td>Provider CLI 설치</td>
+        <td><code>CliInstaller</code> + <code>OfferInstall</code>이 메시지 전송 시점에 반응형으로 설치 제안</td>
+        <td class="status-ok">로직은 있음 - 셋업 마법사에서 그대로 재사용, 진입 시점만 추가</td>
+      </tr>
+      <tr>
+        <td>배경 이미지</td>
+        <td><code>CharacterStageElement.cs</code>가 <code>Assets/03. Art/Sprites/CompanionRoomBackdrop.png</code> 경로를 하드코딩</td>
+        <td class="status-warn">이 프로젝트 전용 아트 파일 - 다른 프로젝트엔 없음(이미 null-가드는 있어 크래시는 안 남)</td>
+      </tr>
+      <tr>
+        <td>세션/로그 저장</td>
+        <td><code>Library/ClaudeCompanion/sessions.json</code> (프로젝트 상대 경로)</td>
+        <td class="status-ok">경로 계산이 이미 상대적 - 손댈 필요 없음</td>
+      </tr>
+    </table>
+  </div>
+
+  <h2><span class="num">2.</span> 패키징 방식</h2>
+  <div class="option-grid">
+    <div class="option-card recommended">
+      <div class="option-title"><h4>로컬 임베디드 UPM 패키지</h4><span class="rec-badge">채택</span></div>
+      <p>
+        <code>Packages/com.taegun08.aicompanion/</code>에 <code>package.json</code> + 전용 asmdef로 격리.
+        다른 프로젝트엔 이 폴더 하나만 복사하면 끝 - 대상 프로젝트의 Assets 구조를 전혀 건드리지 않음.
+        Package Manager 창에 "In Project"로 정상 표시되고, 나중에 git 저장소로 옮기면
+        <code>manifest.json</code>에 URL 한 줄 추가하는 배포로도 자연스럽게 넘어감(Unity MCP 패키지 자체가
+        이미 이 방식).
+      </p>
+    </div>
+    <div class="option-card">
+      <div class="option-title"><h4>.unitypackage 내보내기</h4></div>
+      <p>
+        더블클릭 임포트라 배포는 간단하지만, 지금처럼 <code>Assets/01. Scripts/...</code> 절대 경로를 그대로
+        가져가서 대상 프로젝트 폴더 관례와 충돌하기 쉽고, 업데이트 시 재임포트해도 옛 파일이 안 지워짐.
+        asmdef 격리도 직접 챙겨야 해서 UPM 대비 이점이 없음.
+      </p>
+    </div>
+  </div>
+  <p class="note">
+    package.json에는 Unity MCP를 <b>강제 dependency로 넣지 않습니다</b> - 이미 소프트 의존(리플렉션)으로
+    설계돼 있는데 UPM 레벨에서 강제하면 "MCP 없이도 채팅은 된다"는 기존 설계와 모순되기 때문입니다.
+    README에 "권장 설치"로만 안내하고, 실제 설치는 셋업 마법사의 버튼이 담당합니다.
+  </p>
+
+  <h2><span class="num">3.</span> 이관 매핑</h2>
+  <div class="card">
+    <table class="spec">
+      <tr><th>기존 경로</th><th>새 경로</th></tr>
+      <tr><td><code>Assets/01. Scripts/Editor/AiCompanion/*.cs</code></td><td><code>Packages/com.taegun08.aicompanion/Editor/*.cs</code></td></tr>
+      <tr><td><code>Assets/01. Scripts/Editor/AiCompanion/UI/*</code></td><td><code>Packages/com.taegun08.aicompanion/Editor/UI/*</code></td></tr>
+      <tr><td>(신규)</td><td><code>Packages/com.taegun08.aicompanion/package.json</code></td></tr>
+      <tr><td>(신규)</td><td><code>Packages/com.taegun08.aicompanion/README.md</code> - 이식 가이드</td></tr>
+      <tr><td>(신규)</td><td><code>Packages/com.taegun08.aicompanion/Editor/AiCompanion.Editor.asmdef</code></td></tr>
+      <tr><td>(신규)</td><td><code>Packages/com.taegun08.aicompanion/Editor/AiCompanionSetupWindow.cs</code> - 셋업 마법사</td></tr>
+    </table>
+    <p class="note">
+      git mv로 이동해 스크립트/uss의 .meta(=GUID)는 그대로 보존합니다. 폴더 자체의 .meta(옛
+      <code>AiCompanion.meta</code>, <code>UI.meta</code>)는 폴더 구조가 바뀌므로 새로 생성되게 둡니다.
+      배경 이미지는 <b>이동하지 않고</b> 지금 위치에 그대로 둔 채, 코드 쪽 하드코딩 경로를
+      <code>AssetDatabase.FindAssets("CompanionRoomBackdrop t:Texture2D")</code> 이름 기반 검색으로 바꿔서
+      이 프로젝트는 계속 배경이 보이고, 새 프로젝트는 파일이 없으니 기존 null-가드대로 무배경으로 동작합니다.
+    </p>
+  </div>
+
+  <h2><span class="num">4.</span> 셋업 마법사</h2>
+  <div class="card">
+    <div class="flow-row">
+      <div class="flow-step">패키지 최초 임포트<br><span style="color:#6b6155; font-size:10px;">프로젝트당 1회</span></div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">셋업 창 자동 표시<br><span style="color:#6b6155; font-size:10px;">Library 마커 파일로 판단</span></div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">항목별 점검<br><span style="color:#6b6155; font-size:10px;">✅/❌ + 버튼</span></div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">닫기<br><span style="color:#6b6155; font-size:10px;">Window/AI Companion/Setup 로 재호출 가능</span></div>
+    </div>
+    <h3>점검 항목</h3>
+    <ul class="checklist">
+      <li>Unity MCP 패키지 (선택) - 없으면 채팅은 되지만 에디터 조작 툴콜 비활성 <span class="tag auto">자동 설치</span></li>
+      <li>Node.js / npm - CLI 설치의 전제조건, 런타임 자체 설치는 위험해서 안내만 <span class="tag guide">가이드</span></li>
+      <li>Claude CLI <span class="tag auto">자동 설치</span></li>
+      <li>Codex CLI <span class="tag auto">자동 설치</span></li>
+      <li>Cursor CLI - 공식 설치가 curl|bash라 자동화 불가 <span class="tag guide">가이드</span></li>
+    </ul>
+    <p class="note">
+      Unity MCP 설치는 <code>UnityEditor.PackageManager.Client.Add(...)</code>로, CLI 설치는 기존
+      <code>CliInstaller.InstallNpmPackageAsync</code>를 그대로 재사용합니다(새 로직 중복 없음).
+      메인 창의 반응형 설치 제안(<code>OfferInstall</code>)은 그대로 남겨둬서, 마법사를 닫고 나중에 실제로
+      메시지를 보낼 때도 안전망은 유지됩니다.
+    </p>
+  </div>
+
+  <h2><span class="num">5.</span> 범위 밖</h2>
+  <div class="card">
+    <ul class="qa-list">
+      <li><b>UI 텍스트 로컬라이즈</b> - 지금 모든 라벨이 한국어 하드코딩. 에디터 도구라 게임 내 폰트 제약과는 무관하지만, 영어권 재사용을 원하면 별도 작업.</li>
+      <li><b>macOS/Linux 설치 스크립트</b> - <code>CliInstaller</code>가 <code>cmd.exe</code>를 직접 호출해 Windows 전용. 크로스플랫폼 npm 설치 지원은 이번 범위 밖.</li>
+      <li><b>git 원격 배포(URL 설치)</b> - 이번엔 로컬 임베디드 패키지까지만. 별도 저장소로 분리해 <code>manifest.json</code> git URL 설치를 지원하는 건 다음 단계.</li>
+    </ul>
+  </div>
+
+  <footer>AI Companion Asset Packaging Design v1 · 2026-09-03</footer>
+</div>
+</body>
+</html>
