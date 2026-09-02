@@ -66,11 +66,17 @@ public class StageEncounterController : MonoBehaviour
     // tuning waves is an Inspector edit instead of a code change. Falls back to this exact same
     // table if the asset can't be found, so a missing/misconfigured asset degrades instead of
     // breaking the stage system outright.
+    // Tuned down across the board (사용자 요청 2026-08-24: "밸런스가 그래도 너무 빡빡한데?
+    // 스테이지가 낮으면 그래도 쉽게 쉽게 넘어가야지") - Stage 1 no longer even boosts HP/damage
+    // above MeleeMonster's own base numbers (dmg mult < 1), and every stage's monster counts/
+    // multipliers ramp more gently. Kept in sync with the actual data sheet this project uses
+    // (Assets/05. Data/Resources/StageWaveTable.asset) - this array is only the fallback if that
+    // asset can't be found.
     private static readonly WaveSpec[][] FallbackStageWaves =
     {
-        new[] { new WaveSpec(3, 1.3f, 1.2f), new WaveSpec(2, 1.3f, 1.2f, 1, 2.2f, 1.6f) },
-        new[] { new WaveSpec(4, 1.8f, 1.5f), new WaveSpec(3, 1.8f, 1.5f, 1, 3f, 2f) },
-        new[] { new WaveSpec(5, 2.4f, 1.8f), new WaveSpec(3, 2.4f, 1.8f, 1, 4f, 2.5f) },
+        new[] { new WaveSpec(2, 1f, 0.7f), new WaveSpec(2, 1f, 0.7f, 1, 1.5f, 1f) },
+        new[] { new WaveSpec(3, 1.3f, 1f), new WaveSpec(2, 1.3f, 1f, 1, 2f, 1.3f) },
+        new[] { new WaveSpec(4, 1.6f, 1.2f), new WaveSpec(3, 1.6f, 1.2f, 1, 2.5f, 1.6f) },
     };
 
     private WaveSpec[][] stageWaves;

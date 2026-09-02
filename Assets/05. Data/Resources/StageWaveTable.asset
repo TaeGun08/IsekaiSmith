@@ -15,49 +15,49 @@ MonoBehaviour:
   waves:
   - stageNumber: 1
     waveIndex: 0
-    normalCount: 3
-    normalHpMultiplier: 1.3
-    normalDamageMultiplier: 1.2
+    normalCount: 2
+    normalHpMultiplier: 1
+    normalDamageMultiplier: 0.7
     eliteCount: 0
     eliteHpMultiplier: 1
     eliteDamageMultiplier: 1
   - stageNumber: 1
     waveIndex: 1
     normalCount: 2
-    normalHpMultiplier: 1.3
-    normalDamageMultiplier: 1.2
+    normalHpMultiplier: 1
+    normalDamageMultiplier: 0.7
     eliteCount: 1
-    eliteHpMultiplier: 2.2
-    eliteDamageMultiplier: 1.6
+    eliteHpMultiplier: 1.5
+    eliteDamageMultiplier: 1
   - stageNumber: 2
+    waveIndex: 0
+    normalCount: 3
+    normalHpMultiplier: 1.3
+    normalDamageMultiplier: 1
+    eliteCount: 0
+    eliteHpMultiplier: 1
+    eliteDamageMultiplier: 1
+  - stageNumber: 2
+    waveIndex: 1
+    normalCount: 2
+    normalHpMultiplier: 1.3
+    normalDamageMultiplier: 1
+    eliteCount: 1
+    eliteHpMultiplier: 2
+    eliteDamageMultiplier: 1.3
+  - stageNumber: 3
     waveIndex: 0
     normalCount: 4
-    normalHpMultiplier: 1.8
-    normalDamageMultiplier: 1.5
-    eliteCount: 0
-    eliteHpMultiplier: 1
-    eliteDamageMultiplier: 1
-  - stageNumber: 2
-    waveIndex: 1
-    normalCount: 3
-    normalHpMultiplier: 1.8
-    normalDamageMultiplier: 1.5
-    eliteCount: 1
-    eliteHpMultiplier: 3
-    eliteDamageMultiplier: 2
-  - stageNumber: 3
-    waveIndex: 0
-    normalCount: 5
-    normalHpMultiplier: 2.4
-    normalDamageMultiplier: 1.8
+    normalHpMultiplier: 1.6
+    normalDamageMultiplier: 1.2
     eliteCount: 0
     eliteHpMultiplier: 1
     eliteDamageMultiplier: 1
   - stageNumber: 3
     waveIndex: 1
     normalCount: 3
-    normalHpMultiplier: 2.4
-    normalDamageMultiplier: 1.8
+    normalHpMultiplier: 1.6
+    normalDamageMultiplier: 1.2
     eliteCount: 1
-    eliteHpMultiplier: 4
-    eliteDamageMultiplier: 2.5
+    eliteHpMultiplier: 2.5
+    eliteDamageMultiplier: 1.6
